@@ -2,18 +2,31 @@
 
 ## Do ads on .pw come from chillflix.lol admin?
 Yes — same MySQL `site_settings.embed_ads_config` on the player host.
-Admin UI: `/admin/embed-ads` (owner). Player reads it via `/api/embed/ads`.
+Admin UI: `/admin/ads` (PHP) syncs via `MovyAds::syncPlayerEmbedAds`.
+Player reads it via `/api/embed/ads` (nginx location required on .pw).
 
-Toggles cover Adcash on chillflix.pw embeds, Monetag zones, vignette, domain allow/block, per-embedder rules, admin bypass (lol/toflix/vuflix).
+## Why zetmoon (and similar) could not embed
+Not a global iframe/CSP outage. `/embed/*` allows `frame-ancestors *`.
 
-## Bug fixed
-`/api/embed/ads` was **missing** from nginx locations → fell through to
-`location /` → 301 `chillflix.lol/player-api`. Embeds could not load ad config.
-Also exposed `/api/admin/embed-ads` on the player origin for admin control.
+Nginx `auth_request` → embed-analytics `/embed-gate` returns **403** when the
+parent host is in `embed-host-blocklist.json` (admin **Block** on Embedders).
 
-## Embedders list
-First-party list is `/api/internal/embed-stats` (key `EMBED_STATS_KEY`) →
-`embed-analytics` on :3875. Currently returns ~25 embedders (toflix, vuflix, …).
-Admin Analytics “live embed parents” is **GA4** (`embed_parent` dimension) and
-stays empty if that custom dimension is not registered — different from the
-internal embed-stats list.
+Blocked earlier for `ads_sandbox` by `admin@gmail.com`:
+- zetmoon.live
+- netplayz.top
+- netplayz.icu
+
+Chrome shows that plain 403 as “webpage might be temporarily down” inside the iframe.
+
+**Fix applied:** unblocked all three. Zetmoon embed → 200 again. Blocked response
+is now HTML explaining admin Embedders unblock (instead of opaque plain text).
+
+## Embedders list on .lol admin
+PHP `MovyEmbedders` → `https://www.chillflix.pw/api/internal/embed-stats`
+(key `EMBED_STATS_KEY`, SSL verify off, resolve to player IP).
+
+Was empty when cold stats scans (~28s) hit nginx 499 / browser 20s abort.
+Player side now serves disk/SWR cache (hot ~1ms). On .lol: PHP timeout 45s,
+admin.js fetch 45s, `MOVY_BUILD=20261115embedfix1` cache bust.
+
+Hard-refresh `/admin/embedders` — expect ~24 hosts (toflix, vuflix, …).
