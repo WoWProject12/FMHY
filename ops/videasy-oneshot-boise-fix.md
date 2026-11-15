@@ -37,3 +37,18 @@ With mint soft-gap clear, BFF `POST /api/videasy/fetch` returned **200 encrypted
 - Game of Thrones S1E1
 
 Seed shim health reports `cacheSize: 0`, `oneShot: true`.
+
+## Second-tap fix (Resident Evil / re-open Sources)
+
+**Symptom:** first Videasy resolve works, immediate retry returns nothing (`seed 429` / soft-gap).
+
+**Cause:** each Sources tap reminted; after a hit the shared WARP mint lane soft-gaps, so tap 2 dies. Encrypted blobs also need the *original* seed to decrypt.
+
+**Fix (live):**
+
+1. BFF **180s blob+seed cache** per title — second tap returns `cached:true` with the same blob/seed (no remint)
+2. Client api path tries BFF **before** minting; decrypt uses returned seed
+3. City fetch prefers **mint :3871** direct (avoids relay queue timeouts)
+4. Mint soft-gap shortened (45s→8s); city 429 no longer bricks seeds for 45s
+
+Verified Resident Evil (1577): BFF1 `200`, BFF2/3/4 `cached:true` same blob.
