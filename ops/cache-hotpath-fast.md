@@ -21,3 +21,5 @@ Second Sources tap / leave-and-retry took as long as the first unlock. Cache exi
 | 7Movies | build meta | **instant** `cached: true` |
 
 Playback errors can force remint with `?refresh=1`.
+
+See also `ops/cache-dead-remint.md` (7Movies disk cache, VA `--force`, dead-JWT remint/retry).

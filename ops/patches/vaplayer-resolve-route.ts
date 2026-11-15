@@ -150,11 +150,13 @@ function runUnlock(params: {
   tmdbId: string
   season?: number
   episode?: number
+  force?: boolean
 }): Promise<UnlockResult> {
   const args = [UNLOCK_PY, "--type", params.type, "--tmdb", params.tmdbId]
   if (params.type === "tv") {
     args.push("--season", String(params.season || 1), "--episode", String(params.episode || 1))
   }
+  if (params.force) args.push("--force")
   return new Promise((resolve) => {
     void (async () => {
       const release = await acquireUnlockSlot()
@@ -209,14 +211,16 @@ function runUnlockSingleflight(
     tmdbId: string
     season?: number
     episode?: number
+    force?: boolean
   }
 ): Promise<UnlockResult> {
-  const existing = unlockSingleflight.get(key)
+  const flightKey = params.force ? `${key}:force` : key
+  const existing = unlockSingleflight.get(flightKey)
   if (existing) return existing
   const p = runUnlock(params).finally(() => {
-    unlockSingleflight.delete(key)
+    unlockSingleflight.delete(flightKey)
   })
-  unlockSingleflight.set(key, p)
+  unlockSingleflight.set(flightKey, p)
   return p
 }
 
@@ -298,6 +302,7 @@ export async function GET(request: Request) {
       tmdbId,
       season: seasonN,
       episode: episodeN,
+      force,
     })
     let streams = okStreams(unlocked)
 
