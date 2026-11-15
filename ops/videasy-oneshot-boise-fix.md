@@ -52,3 +52,21 @@ Seed shim health reports `cacheSize: 0`, `oneShot: true`.
 4. Mint soft-gap shortened (45s→8s); city 429 no longer bricks seeds for 45s
 
 Verified Resident Evil (1577): BFF1 `200`, BFF2/3/4 `cached:true` same blob.
+
+## Miami-only (product policy)
+
+Videasy is **miami-only** again: client city list `["miami"]`, BFF fetch forces `server=miami`, no boise fallback.
+
+## Other sources (2026-11-15 evening)
+
+Host load spiked to ~180 (MeowTV Puppeteer chrome storm). Cleared chromes; load recovered.
+
+| Source | Status |
+|--------|--------|
+| **Videasy** | Miami-only; BFF OK when mint free |
+| **Cineverse** | OK via cinepro |
+| **MeowTV** | Assist restarted; resolve OK (keep concurrency low) |
+| **CNO** | Broken shebang `/opt/nepu-venv` (missing) → fixed to `/opt/curl-cffi-venv`; added to allowlist; returns sources |
+| **NovaHD** | Upstream WARP IP rate-limited (CF 1015 / 429). Assist healthy; wait for ban to lift or rotate WARP |
+
+Cinepro allowlist now: `rivestream,vidmoly,meowtv,cineverse,cno`.
