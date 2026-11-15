@@ -5,28 +5,30 @@ Yes — same MySQL `site_settings.embed_ads_config` on the player host.
 Admin UI: `/admin/ads` (PHP) syncs via `MovyAds::syncPlayerEmbedAds`.
 Player reads it via `/api/embed/ads` (nginx location required on .pw).
 
-## Why zetmoon (and similar) could not embed
-Not a global iframe/CSP outage. `/embed/*` allows `frame-ancestors *`.
+## Embedders → Block (Chillflix advertise gate)
+Admin **Block** writes the parent host into `embed-host-blocklist.json`
+(`hosts` + `gateHosts`).
 
-Nginx `auth_request` → embed-analytics `/embed-gate` returns **403** when the
-parent host is in `embed-host-blocklist.json` (admin **Block** on Embedders).
+Intended UX: load the embed, then show the in-player **“Watch free on Chillflix”**
+overlay (same gate used when a site sandboxes/blocks Chillflix ads) and kill
+`<video>` playback — not a Chrome “temporarily down” dead iframe.
 
-Blocked earlier for `ads_sandbox` by `admin@gmail.com`:
-- zetmoon.live
-- netplayz.top
-- netplayz.icu
+### Why Block looked broken
+1. Nginx `auth_request` **hard-403** when Referer matched the blocklist → embed
+   HTML/beacon never loaded → overlay could not show (Chrome “page down”).
+2. Many parents strip Referer → hard-403 never fired → streams kept playing, and
+   beacon had `embedHost=(unknown)` so `/api/analytics/gate-check` never ran.
 
-Chrome shows that plain 403 as “webpage might be temporarily down” inside the iframe.
+### Fix
+- `/embed-gate` always **204** (no hard kill of the shell).
+- `gate-check` treats `hosts` **or** `gateHosts` as force-gate.
+- `embed-beacon.js` detects parent via `location.ancestorOrigins` (Chrome) when
+  Referer is missing; busted as `embed-beacon.js?v=adgate10`.
+- Overlay still pauses/detaches media and shows Chillflix CTA.
 
-**Fix applied:** unblocked all three. Zetmoon embed → 200 again. Blocked response
-is now HTML explaining admin Embedders unblock (instead of opaque plain text).
+Verify: Block host in `/admin/embedders` → open that site’s embed → within ~1s
+see Chillflix gate; `GET /api/analytics/gate-check?host=…` returns `"gate":true`.
 
 ## Embedders list on .lol admin
-PHP `MovyEmbedders` → `https://www.chillflix.pw/api/internal/embed-stats`
-(key `EMBED_STATS_KEY`, SSL verify off, resolve to player IP).
-
-Was empty when cold stats scans (~28s) hit nginx 499 / browser 20s abort.
-Player side now serves disk/SWR cache (hot ~1ms). On .lol: PHP timeout 45s,
-admin.js fetch 45s, `MOVY_BUILD=20261115embedfix1` cache bust.
-
-Hard-refresh `/admin/embedders` — expect ~24 hosts (toflix, vuflix, …).
+PHP `MovyEmbedders` → `https://www.chillflix.pw/api/internal/embed-stats`.
+Hardened timeouts + player SWR cache. Hard-refresh `/admin/embedders`.
