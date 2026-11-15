@@ -17,8 +17,9 @@ Live on player host `chillflix.pw` (`.next-embed27`, `chillflix-player`).
 ### Cache-until-broken
 **VAPlayer** (`/api/playback/vaplayer-resolve`):
 - Serve disk cache while CDN JWT is still valid (not only within soft TTL).
-- Soft-validate playlist (`#EXTM3U`); remint only when dead/expired.
+- **Hot path is instant** — do not probe the playlist on every tap (that made cache feel like unlock). Remint when JWT expired or `?refresh=1`.
 - Singleflight unlock (already present); on unlock failure/429, fall back to token-alive cache.
+- See `ops/cache-hotpath-fast.md`.
 
 **Nginx (critical):** `/api/7movies/client-meta` must proxy to `chillflix_player` (Next `:3002`), **not** `:3027` (`sevenmovies-assist` is stopped → public 502 → Sources empty). See `ops/7movies-502-nginx-fix.md`.
 

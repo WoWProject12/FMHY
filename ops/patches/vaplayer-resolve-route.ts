@@ -19,6 +19,8 @@ const UNLOCK_PY = path.join(process.cwd(), "scripts", "vaplayer-unlock.py")
 const CACHE_DIR = path.join(process.cwd(), "data", "vaplayer-unlock-cache")
 /** Soft TTL for background refresh hints; we still serve while CDN JWT is alive. */
 const CACHE_TTL_MS = Number(process.env.VAPLAYER_UNLOCK_CACHE_TTL || 14400) * 1000
+/** How often to soft-probe a cached playlist. Hot path skips probe otherwise. */
+const CACHE_REVALIDATE_MS = Number(process.env.VAPLAYER_CACHE_REVALIDATE_MS || 10 * 60 * 1000)
 
 type UnlockResult = {
   ok?: boolean
@@ -92,7 +94,7 @@ async function readUnlockCacheAlive(key: string): Promise<UnlockResult | null> {
 async function playlistReachable(url: string): Promise<boolean> {
   try {
     const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), 6000)
+    const timer = setTimeout(() => ctrl.abort(), 2500)
     const res = await fetch(url, {
       headers: {
         "User-Agent":
@@ -269,25 +271,24 @@ export async function GET(request: Request) {
     )
 
     // 1) Serve cached streams while JWT still valid — only remint when broken/expired.
+    // Instant hot path: trust streamsTokenAlive (JWT). Do NOT probe CDN on every
+    // Sources tap — that made cache feel as slow as a fresh unlock (1–120s).
+    // Client/playback errors can pass ?refresh=1 to force remint.
     if (!force) {
       const cached = await readUnlockCacheAlive(key)
       const cachedStreams = okStreams(cached)
       if (cached && cachedStreams.length) {
-        const alive = await playlistReachable(cachedStreams[0])
-        if (alive) {
-          return playbackJsonResponse({
-            ok: true,
-            streams: cachedStreams,
-            fileName: cached.fileName || undefined,
-            referer: cached.referer || `${IFRAME_ORIGIN}/`,
-            via: cached.via || "cache",
-            matchedAs: cached.matchedAs || `tmdb:${type}:${tmdbId}`,
-            title: cached.title || undefined,
-            playbackMode: "server-proxy",
-            tried: [`unlock:tmdb:${type}:${tmdbId}`],
-          })
-        }
-        // Playlist dead (403/empty) — fall through to remint.
+        return playbackJsonResponse({
+          ok: true,
+          streams: cachedStreams,
+          fileName: cached.fileName || undefined,
+          referer: cached.referer || `${IFRAME_ORIGIN}/`,
+          via: cached.via || "cache",
+          matchedAs: cached.matchedAs || `tmdb:${type}:${tmdbId}`,
+          title: cached.title || undefined,
+          playbackMode: "server-proxy",
+          tried: [`unlock:tmdb:${type}:${tmdbId}`],
+        })
       }
     }
 

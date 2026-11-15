@@ -8,7 +8,7 @@ const ORION = "https://mb.vidrift.net"
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
-const CACHE_TTL_MS = Number(process.env.SEVENMOVIES_META_CACHE_TTL_MS || 20 * 60 * 1000)
+const CACHE_TTL_MS = Number(process.env.SEVENMOVIES_META_CACHE_TTL_MS || 6 * 60 * 60 * 1000)
 type MetaPayload = {
   streams: Array<{
     url: string
@@ -210,13 +210,8 @@ export async function GET(request: NextRequest) {
     if (!force) {
       const hit = metaCache.get(key)
       if (hit && hit.expiresAt > Date.now() && hit.payload.streams.length) {
-        // Soft-validate first stream; only remint when broken.
-        const first = hit.payload.streams[0]
-        const ok = await streamReachable(first.url, first.type)
-        if (ok) {
-          return NextResponse.json({ ...hit.payload, cached: true })
-        }
-        metaCache.delete(key)
+        // Instant cache hit — no upstream probe. Remint only after TTL or ?refresh=1.
+        return NextResponse.json({ ...hit.payload, cached: true })
       }
     }
 
