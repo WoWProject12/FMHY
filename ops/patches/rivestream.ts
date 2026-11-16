@@ -163,6 +163,11 @@ function isCdnSlotLabel(label: string): boolean {
 
 
 /** Pull dub label from Citadel-style "720p | Hindi" / "720p · Hindi" claims. */
+
+function isDiscreteHeightQuality(quality: string): boolean {
+    return Boolean(parseHeightQuality(quality || ''));
+}
+
 function languageFromClaim(label: string): { label: string; language: string } | null {
     const raw = String(label || '').trim();
     if (!raw) return null;
@@ -516,49 +521,75 @@ export class RivestreamProvider extends BaseProvider {
 
             const errors: string[] = [];
 
-            // Race subproviders: first provider with playable HLS wins, but we
-            // keep *all* of its langs/qualities (Citadel ships EN/HI/TA/TE × 720/480).
-            const winnerBatch = await new Promise<
-                Array<Source & { _dedupe?: string; _heights?: number[] }> | null
+            // Collect from every subprovider for a short window after the first
+            // hit so Citadel dubs AND higher-res backends (valiant 1080, etc.) merge.
+            const MERGE_MS = 4500;
+            const batches = await new Promise<
+                Array<Array<Source & { _dedupe?: string; _heights?: number[] }>>
             >((resolve) => {
+                const collected: Array<
+                    Array<Source & { _dedupe?: string; _heights?: number[] }>
+                > = [];
                 let pending = ordered.length;
-                let done = false;
+                let settled = false;
+                let mergeTimer: ReturnType<typeof setTimeout> | null = null;
                 if (!pending) {
-                    resolve(null);
+                    resolve(collected);
                     return;
                 }
-                ordered.forEach((providerId, idx) => {
+                const finish = () => {
+                    if (settled) return;
+                    settled = true;
+                    if (mergeTimer) clearTimeout(mergeTimer);
+                    resolve(collected);
+                };
+                ordered.forEach((providerId) => {
                     this.fetchProvider(providerId, media)
                         .then((part) => {
                             if (part.error) errors.push(part.error);
-                            if (done) return;
+                            if (settled) return;
                             if (part.sources.length) {
-                                done = true;
-                                resolve(part.sources);
-                                return;
+                                collected.push(part.sources);
+                                if (!mergeTimer) {
+                                    mergeTimer = setTimeout(finish, MERGE_MS);
+                                }
                             }
                             pending -= 1;
-                            if (pending <= 0) resolve(null);
+                            if (pending <= 0) finish();
                         })
                         .catch((err) => {
                             errors.push(
                                 `${providerId}: ${err instanceof Error ? err.message : 'failed'}`
                             );
-                            if (done) return;
+                            if (settled) return;
                             pending -= 1;
-                            if (pending <= 0) resolve(null);
+                            if (pending <= 0) finish();
                         });
-                    void idx;
                 });
             });
 
-            if (!winnerBatch?.length) {
+            const merged = new Map<string, Source & { _dedupe?: string; _heights?: number[] }>();
+            for (const batch of batches) {
+                for (const item of batch) {
+                    const key = item._dedupe || item.url;
+                    const prev = merged.get(key);
+                    if (!prev) {
+                        merged.set(key, item);
+                        continue;
+                    }
+                    const ph = Math.max(0, ...(prev._heights || []), parseInt(String(prev.quality), 10) || 0);
+                    const nh = Math.max(0, ...(item._heights || []), parseInt(String(item.quality), 10) || 0);
+                    if (nh > ph) merged.set(key, item);
+                }
+            }
+
+            if (!merged.size) {
                 return this.empty(
                     errors.slice(0, 3).join(' · ') || 'No Rivestream HLS for this title'
                 );
             }
 
-            const cleaned = winnerBatch.map((item) => {
+            const cleaned = [...merged.values()].map((item) => {
                 const { _dedupe, _heights, ...clean } = item;
                 void _dedupe;
                 void _heights;
@@ -644,11 +675,6 @@ export class RivestreamProvider extends BaseProvider {
                 } else {
                     quality = claimed;
                 }
-            } else if (/[|·]/.test(claimRaw) || /·/.test(claimed)) {
-                // Prefer claim so "720p | Hindi" stays language-tagged for the Languages panel.
-                const height = parseHeightQuality(quality) || parseHeightQuality(claimed);
-                const lang = languageFromClaim(claimRaw) || languageFromClaim(claimed);
-                quality = height && lang ? `${height} · ${lang.label}` : claimed !== 'Auto' ? claimed : quality;
             }
 
             const playUrl = probed.playUrl || unwrapped.url;
@@ -660,6 +686,24 @@ export class RivestreamProvider extends BaseProvider {
                 languageFromClaim(claimRaw) ||
                 languageFromClaim(claimed) ||
                 languageFromClaim(quality);
+            // Chillflix collapseSourcesByProvider:
+            //  - pure heights ("720p") → Quality sheet
+            //  - pure language names ("Hindi") → Languages panel
+            // "720p · Hindi" is treated as a height and languages disappear.
+            const heightLabel =
+                parseHeightQuality(quality) ||
+                parseHeightQuality(claimed) ||
+                parseHeightQuality(claimRaw) ||
+                (probed.heights[0] ? heightToLabel(probed.heights[0]) : null);
+            const heightBucket = heightLabel ? parseInt(heightLabel, 10) || 0 : 0;
+            if (lang && /^english$/i.test(lang.label)) {
+                quality = heightLabel || quality;
+            } else if (lang) {
+                quality = lang.label;
+            } else if (heightLabel) {
+                quality = heightLabel;
+            }
+
             sources.push({
                 url: this.createProxyUrl(playUrl, unwrapped.headers),
                 type: 'hls',
@@ -669,12 +713,43 @@ export class RivestreamProvider extends BaseProvider {
                     : [{ label: 'Original', language: 'Original' }],
                 provider: { id: this.id, name: this.name },
                 _dedupe: dedupe,
-                _heights: probed.heights
+                _heights: probed.heights.length
+                    ? probed.heights
+                    : heightBucket
+                      ? [heightBucket]
+                      : []
             });
         }
 
-        // Highest height first; English before other dubs at the same height.
-        sources.sort((a, b) => {
+        // Keep English resolution ladder + best URL per non-English language.
+        const englishLadder: Array<Source & { _dedupe?: string; _heights?: number[] }> = [];
+        const bestByLang = new Map<string, Source & { _dedupe?: string; _heights?: number[] }>();
+        for (const item of sources) {
+            const lang = String(item.audioTracks?.[0]?.language || '').toLowerCase();
+            const height = Math.max(
+                0,
+                ...(item._heights || []),
+                parseInt(String(item.quality), 10) || 0
+            );
+            if (/^english$/i.test(lang) || isDiscreteHeightQuality(item.quality)) {
+                // English (or unlabeled height) — keep every height rung.
+                if (/^english$/i.test(lang) || !lang || lang === 'original') {
+                    englishLadder.push(item);
+                    continue;
+                }
+            }
+            if (!lang || lang === 'original') {
+                englishLadder.push(item);
+                continue;
+            }
+            const prev = bestByLang.get(lang);
+            const prevH = prev
+                ? Math.max(0, ...(prev._heights || []), parseInt(String(prev.quality), 10) || 0)
+                : -1;
+            if (!prev || height > prevH) bestByLang.set(lang, item);
+        }
+        const shaped = [...englishLadder, ...bestByLang.values()];
+        shaped.sort((a, b) => {
             const ha = Math.max(0, ...(a._heights || []), parseInt(String(a.quality), 10) || 0);
             const hb = Math.max(0, ...(b._heights || []), parseInt(String(b.quality), 10) || 0);
             if (hb !== ha) return hb - ha;
@@ -683,7 +758,7 @@ export class RivestreamProvider extends BaseProvider {
             const eng = (x: string) => (/^english$/i.test(x) ? 0 : 1);
             return eng(la) - eng(lb) || la.localeCompare(lb);
         });
-        return { sources }
+        return { sources: shaped }
     }
 
     private empty(message: string): ProviderResult {

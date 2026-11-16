@@ -53,5 +53,17 @@ Now the winning subprovider (usually Citadel) returns **all** probed rows (e.g. 
 `720p/480p × English/Hindi/Tamil/Telugu`) with `audioTracks` language labels.
 
 **Why max 720p on Furiosa?** Upstream Citadel only lists 720p and 480p for that TMDB id —
-there is no 1080p/4K row from that backend. Other Rive backends were empty/ISE for this
-title when checked.
+there is no 1080p/4K row from that backend (sibling `/1080/` `/2160/` paths 403). Other Rive
+backends were empty/ISE/decoy for this title when checked. Use **Cine4K** (or another 4K
+source) for UHD — Rivestream cannot invent rungs Citadel does not publish.
+
+## Quality sheet vs Languages (follow-up)
+Labels like `720p · Hindi` were treated as **heights only** by
+`collapseSourcesByProvider` (`qualityHeight > 0` ⇒ not a language). The settings sheet
+then showed only **720p HD / 480p SD** and **no Languages column**.
+
+Reshape for the player:
+- English → pure heights (`720p`, `480p`) → **Quality**
+- Dubs → pure language names (`Hindi`, `Tamil`, `Telugu`) → **Languages**
+- Also merge other Rive backends for ~4.5s after the first hit so a late 1080p (e.g. valiant)
+  can join when Citadel is only 720p.
