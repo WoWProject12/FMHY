@@ -66,6 +66,15 @@ merge. We still prefer Rift first + 9s merge window so 4K appears when stocked.
 Also tightened `parseHeightQuality` so CDN Signature blobs containing the letters
 `4k` (e.g. `…q4k37…`) no longer mislabel Citadel 720 as 2160p.
 
+## Pulse 1080 “doesn’t play” (follow-up)
+Chillflix `applyBrowserIpClientPlayback` unwrapped `*.1x2.space` (Pulse) to
+`directClientPlayback` in the browser. That host has **no CORS** for
+`chillflix.pw`, so the player stuck on **Starting playback…** with 1080P selected.
+
+Fix (live player): stop treating `1x2.space` as browser-direct — keep Pulse on
+`/api/cinepro/proxy?px=…` with `play.xpass.top` headers. After patch + player
+restart, Furiosa Rive **1080p plays** end-to-end.
+
 ## Quality sheet vs Languages (follow-up)
 Labels like `720p · Hindi` were treated as **heights only** by
 `collapseSourcesByProvider` (`qualityHeight > 0` ⇒ not a language). The settings sheet
