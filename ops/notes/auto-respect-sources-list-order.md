@@ -64,6 +64,11 @@ parent-hosted MediaPlayer hid SourceStatusOverlay. Cinema parent only shows a
 back chevron → pure black. Loading always mounts SourceLoadingOverlay now;
 probe overlay also shows under parent-hosted until playback progresses.
 
+## Full player chrome while scanning
+SourceLoadingOverlay now mounts real PlayerControls + PlayerSettings (Sources
+tab auto-opens). Dropped the floating wrong settings button and Movy skin
+during scan. Probe card is compact, modern, no scroll.
+
 ## ~4s per Sources row
 Auto was hanging on VAPlayer because scan budgets were 15–45s (+20s #1
 bonus) and the client unlock poll defaulted to 60s. Row budget is now

@@ -2287,7 +2287,7 @@ const quietStallAttemptRef = useRef(0)
             </div>
         )
     } else if (showSourceLoading || !showHardUnavailable) {
-        // Always show the compact probe — parent cinema shells do not cover this.
+        // Full player chrome + real Settings/Sources while Auto walks the list.
         builtinPlayer = (
         <SourceLoadingOverlay
             active={true}
@@ -2304,6 +2304,18 @@ const quietStallAttemptRef = useRef(0)
             showRealProviderNames={showRealProviderNames}
             onRefetchSources={refetchSources}
             sourceStatusMessage={sourceStatusMessage}
+            currentSourceId={selectedSourceId}
+            onSelectSource={handleSelectSource}
+            onRequestProvider={handleRequestProvider}
+            unavailableProviders={unavailableProviders}
+            hiddenProviderIds={hiddenProviderIds}
+            enabledProviderIds={orderedEnabledProviderIds}
+            // Always Chillflix PlayerControls/Settings during scan — parent-hosted
+            // Movy skin is the wrong menu on .lol ?play=true.
+            parentHostedEmbed={false}
+            mediaTitle={mediaTitle}
+            mediaId={mediaId}
+            mediaType={mediaType}
         />
         )
     } else {

@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect, useState } from "react"
+
 import { useSourceLoadingProgress } from "@/hooks/useSourceLoadingProgress"
 import type { SourceHealthStatus } from "@/hooks/useSourceHealth"
 import { useShowRealProviderNames } from "@/hooks/use-show-real-provider-names"
@@ -7,15 +9,15 @@ import { useStreamSourcesConfig } from "@/hooks/useStreamSourcesConfig"
 import { useTranslations } from "@/lib/i18n/client"
 import { getOrderedEnabledProviderIds } from "@/components/player/utils/playback"
 import {
+    findInfrastructurePlaybackMessage,
     isTransientPlaybackStatusMessage,
     shouldShowPlaybackRetryButton,
 } from "@/lib/playback-user-messages"
 import { cn } from "@/lib/utils"
 
 import { PlaybackSourceRetryPanel } from "./PlaybackSourceRetryPanel"
-import { PlayerSettings } from "./PlayerSettings"
+import { PlayerControls } from "./PlayerControls"
 import { SourceProbeFlow } from "./SourceProbeFlow"
-import { findInfrastructurePlaybackMessage } from "@/lib/playback-user-messages"
 
 interface SourceLoadingOverlayProps {
     active: boolean
@@ -45,6 +47,11 @@ interface SourceLoadingOverlayProps {
     onRequestProvider?: (providerId: string) => void | Promise<void>
     unavailableProviders?: string[]
     hiddenProviderIds?: string[]
+    enabledProviderIds?: string[]
+    parentHostedEmbed?: boolean
+    mediaTitle?: string
+    mediaId?: string | number
+    mediaType?: string
 }
 
 export function SourceLoadingOverlay({
@@ -68,13 +75,23 @@ export function SourceLoadingOverlay({
     onRequestProvider,
     unavailableProviders = [],
     hiddenProviderIds = [],
+    enabledProviderIds,
+    parentHostedEmbed = false,
+    mediaTitle,
+    mediaId,
+    mediaType,
 }: SourceLoadingOverlayProps) {
     const { t } = useTranslations()
     const { config, order: providerOrder, enabledIds, loading: streamSourcesLoading } =
         useStreamSourcesConfig()
-    const orderedEnabledProviderIds = getOrderedEnabledProviderIds(providerOrder, enabledIds)
+    const orderedEnabledProviderIds = getOrderedEnabledProviderIds(
+        providerOrder,
+        enabledProviderIds?.length ? enabledProviderIds : enabledIds
+    )
     const hookShowRealProviderNames = useShowRealProviderNames()
     const showRealProviderNames = showRealProviderNamesProp ?? hookShowRealProviderNames
+    const [controlsVisible, setControlsVisible] = useState(true)
+
     const soapyOnlyFailure = diagnostics.find(
         (item) =>
             item.code === "PROVIDER_ERROR" &&
@@ -123,10 +140,26 @@ export function SourceLoadingOverlay({
             quality: option.quality,
         })) ?? []
 
-    const showSettings = Boolean(onSelectSource || onRequestProvider || onRefetchSources)
+    // Open the real player Settings → Sources sheet while Auto walks the list.
+    useEffect(() => {
+        if (playbackStarted || !active) return
+        const timer = window.setTimeout(() => {
+            window.dispatchEvent(
+                new CustomEvent("chillflix:open-player-settings", {
+                    detail: { tab: "source" },
+                })
+            )
+        }, 120)
+        return () => window.clearTimeout(timer)
+    }, [active, playbackStarted])
 
-    // Playback already started — show nothing. The old "Starting playback…"
-    // pill appeared during background rescans and looked like a restart.
+    useEffect(() => {
+        if (playbackStarted) return
+        setControlsVisible(true)
+        const hideTimer = window.setTimeout(() => setControlsVisible(true), 0)
+        return () => window.clearTimeout(hideTimer)
+    }, [playbackStarted, activeTestingProviderId, sourcesLoadingMore])
+
     if (playbackStarted) {
         return null
     }
@@ -134,41 +167,15 @@ export function SourceLoadingOverlay({
     return (
         <div
             className={cn(
-                "relative flex h-full overflow-hidden rounded-md border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_45%),rgba(0,0,0,0.88)] text-white/80",
+                "group relative flex h-full min-h-0 overflow-hidden bg-black text-white/80",
                 className
             )}
+            onPointerMove={() => setControlsVisible(true)}
+            onClick={() => setControlsVisible(true)}
         >
-            {showSettings ? (
-                <div className="absolute left-3 top-14 z-30 sm:left-4 sm:top-16">
-                    <PlayerSettings
-                        playbackRate={1}
-                        onPlaybackRateChange={() => undefined}
-                        qualities={[]}
-                        currentQuality={-1}
-                        onQualityChange={() => undefined}
-                        sources={settingsSources}
-                        currentSourceId={currentSourceId}
-                        onSelectSource={onSelectSource}
-                        onRequestProvider={onRequestProvider}
-                        sourcesLoadingMore={sourcesLoadingMore || sourcesFetching}
-                        sourceStatusMessage={sourceStatusMessage}
-                        onRefetchSources={onRefetchSources}
-                        unavailableProviders={unavailableProviders}
-                        sourceHealth={sourceHealth}
-                        activeTestingProviderId={activeTestingProviderId}
-                        scanFailedProviderIds={scanFailedProviderIds}
-                        showRealProviderNames={showRealProviderNames}
-                        hiddenProviderIds={hiddenProviderIds}
-                    />
-                </div>
-            ) : null}
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.05),transparent_55%)]" />
 
-            <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 sm:px-6">
-                <div className="relative mb-3 flex items-center justify-center">
-                    <div className="h-7 w-7 rounded-full border border-white/10 bg-white/[0.03]" />
-                    <div className="absolute h-7 w-7 animate-spin rounded-full border border-white/15 border-t-white/75" />
-                </div>
-
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-4 pb-24 pt-10">
                 {soapyOnlyFailure ? (
                     <div className="max-w-sm text-center">
                         <p className="text-sm font-medium text-white">
@@ -183,7 +190,7 @@ export function SourceLoadingOverlay({
                         sourcesLoadingMore={sourcesLoadingMore || sourcesFetching}
                     />
                 ) : showRetryPanel ? (
-                    <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+                    <div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 text-center">
                         <PlaybackSourceRetryPanel
                             message={infrastructureMessage}
                             onRetry={onRefetchSources}
@@ -197,17 +204,62 @@ export function SourceLoadingOverlay({
                 ) : isTransientPlaybackStatusMessage(infrastructureMessage) ? (
                     <div className="max-w-sm text-center">
                         <p className="text-sm font-medium text-white">{infrastructureMessage}</p>
-                        <p className="mt-2 text-xs text-white/55">
-                            {t("player.playerSettingsDesc")}
-                        </p>
                     </div>
                 ) : (
-                    <div className="max-w-sm text-center">
-                        <p className="text-sm font-medium text-white">{t("player.loading.pleaseWait")}</p>
-                        <p className="mt-2 text-xs text-white/55">{t("player.loading.findingFastest")}</p>
+                    <div className="flex flex-col items-center gap-2">
+                        <div className="relative flex size-6 items-center justify-center">
+                            <div className="absolute inset-0 animate-spin rounded-full border border-white/15 border-t-white/70" />
+                        </div>
+                        <p className="text-[11px] text-white/55">{t("player.loading.findingFastest")}</p>
                     </div>
                 )}
             </div>
+
+            <PlayerControls
+                isPlaying={false}
+                isLoading
+                currentTime={0}
+                duration={0}
+                volume={1}
+                isMuted={false}
+                isFullscreen={false}
+                onTogglePlay={() => undefined}
+                onSeek={() => undefined}
+                onToggleMute={() => undefined}
+                onVolumeChange={() => undefined}
+                onToggleFullscreen={() => undefined}
+                onDoubleClick={() => undefined}
+                onWheel={() => undefined}
+                show={controlsVisible}
+                isPiP={false}
+                onTogglePiP={() => undefined}
+                playbackRate={1}
+                onPlaybackRateChange={() => undefined}
+                qualities={[]}
+                currentQuality={-1}
+                onQualityChange={() => undefined}
+                sources={settingsSources}
+                currentSourceId={currentSourceId}
+                onSelectSource={onSelectSource}
+                onRequestProvider={onRequestProvider}
+                sourcesLoadingMore={sourcesLoadingMore || sourcesFetching}
+                sourceStatusMessage={sourceStatusMessage}
+                onRefetchSources={onRefetchSources}
+                unavailableProviders={unavailableProviders}
+                sourceHealth={sourceHealth}
+                activeTestingProviderId={activeTestingProviderId}
+                scanFailedProviderIds={scanFailedProviderIds}
+                showRealProviderNames={showRealProviderNames}
+                hiddenProviderIds={hiddenProviderIds}
+                enabledProviderIds={orderedEnabledProviderIds}
+                parentHostedEmbed={parentHostedEmbed}
+                mediaTitle={mediaTitle}
+                mediaId={mediaId}
+                mediaType={mediaType}
+                onSettingsOpenChange={(open) => {
+                    if (open) setControlsVisible(true)
+                }}
+            />
         </div>
     )
 }
