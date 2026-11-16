@@ -20,10 +20,16 @@ RiveStream. Manual VAPlayer tap worked.
   quiet scan as “resolved” for client-resolve; wait on higher client-resolve
   before force-pick or preferred pick (health + skipHealth); don’t trust hold
   scrapes ahead of an unresolved #1.
+- **Root hole**: `pickAutoStartPlaybackSource` honored `pickPreferred`’s
+  “wait” (`undefined`) only when health probing — with embed/toflix
+  `skipHealthProbe` it fell through and returned the first pool URL
+  (RiveStream). Now an undefined preferred always means wait.
 - `cinepro-watch-player.tsx`: exclude hold providers from trusted probe IDs;
-  block auto `resolvedSourceId` and force-pick until primary client-resolve is
-  `clientResolved` or scan-failed.
+  block auto `resolvedSourceId`, force-pick, **and** the parallel
+  `commitAutoStartOption` effect until primary is `clientResolved` or
+  scan-failed; `commitAutoStartOption` itself refuses demotions.
+- `usePlaybackSourceFallback`: pass through `scanFailedProviderIds`.
 
 ## Deploy
 Player build → `pm2 restart chillflix-player chillflix-embed` → nginx `pcv`
-bust `pcv=20261116015630listord` (chunk `9484-49de2428aa5261a0.js`).
+bust `pcv=20261116021201listord2` (chunk `9484-72e4e5eebfb0f560.js`).

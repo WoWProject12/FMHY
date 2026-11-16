@@ -696,6 +696,30 @@ export function CineProWatchPlayer({
         (option: PlaybackOption) => {
             const providerKey = normalizeProviderName(option.providerId ?? "")
             const isClientResolve = isClientResolveProvider(providerKey)
+            const primaryId = orderedEnabledProviderIds[0]
+            // Last line of defense: never auto-commit a lower scrape while
+            // Sources #1 client-resolve is still unlocking (manual taps use
+            // markManualSelection and never hit this path).
+            if (
+                !manualSelectionRef.current &&
+                primaryId &&
+                isClientResolveProvider(primaryId) &&
+                providerKey !== normalizeProviderName(primaryId)
+            ) {
+                const primaryReady = playbackOptions.some(
+                    (row) =>
+                        normalizeProviderName(row.providerId || "") ===
+                            normalizeProviderName(primaryId) &&
+                        row.clientResolved === true
+                )
+                const primaryFailed = scanFailedProviderIds.some(
+                    (id) =>
+                        normalizeProviderName(id) === normalizeProviderName(primaryId)
+                )
+                if (!primaryReady && !primaryFailed) {
+                    return
+                }
+            }
             const commitKey = `${mediaType}:${mediaId}:s${season ?? ""}:e${episode ?? ""}:${providerKey}:${option.id}`
 
             lockStartupSource()
@@ -729,6 +753,9 @@ export function CineProWatchPlayer({
             markSourceReady,
             mediaId,
             mediaType,
+            orderedEnabledProviderIds,
+            playbackOptions,
+            scanFailedProviderIds,
             season,
             selectedProviderKeyRef,
             selectedSourceIdRef,
@@ -865,6 +892,23 @@ export function CineProWatchPlayer({
                 }
             }
 
+            const primaryId = orderedEnabledProviderIds[0]
+            if (primaryId && isClientResolveProvider(primaryId)) {
+                const primaryReady = playbackOptions.some(
+                    (option) =>
+                        normalizeProviderName(option.providerId || "") ===
+                            normalizeProviderName(primaryId) &&
+                        option.clientResolved === true
+                )
+                const primaryFailed = scanFailedProviderIds.some(
+                    (id) =>
+                        normalizeProviderName(id) === normalizeProviderName(primaryId)
+                )
+                // Parallel to resolvedSourceId — do not commit RiveStream/#2
+                // while Sources #1 (VAPlayer) is still unlocking.
+                if (!primaryReady && !primaryFailed) return
+            }
+
             const preferred = pickAutoStartPlaybackSource(playbackOptions, {
                 skipHealthProbe,
                 sourceHealth,
@@ -967,6 +1011,21 @@ export function CineProWatchPlayer({
                 if (stillExists && !isCurrentProviderFailed()) return
             }
 
+            const primaryId = orderedEnabledProviderIds[0]
+            if (primaryId && isClientResolveProvider(primaryId)) {
+                const primaryReady = playbackOptions.some(
+                    (option) =>
+                        normalizeProviderName(option.providerId || "") ===
+                            normalizeProviderName(primaryId) &&
+                        option.clientResolved === true
+                )
+                const primaryFailed = scanFailedProviderIds.some(
+                    (id) =>
+                        normalizeProviderName(id) === normalizeProviderName(primaryId)
+                )
+                if (!primaryReady && !primaryFailed) return
+            }
+
             const preferred = pickAutoStartPlaybackSource(playbackOptions, {
                 skipHealthProbe,
                 sourceHealth,
@@ -994,6 +1053,7 @@ export function CineProWatchPlayer({
         prefer4k,
         providerOrder,
         requestProvider,
+        scanFailedProviderIds,
         selectedProviderKeyRef,
         selectedSourceId,
         showRealProviderNames,

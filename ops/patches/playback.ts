@@ -1124,16 +1124,11 @@ export function pickAutoStartPlaybackSource<
     const preferred = pickPreferredPlaybackSource(pickPool, new Set(), order, pickGate)
     if (preferred) return preferred
 
-    if (!args.skipHealthProbe && args.sourceHealth) {
-        return undefined
-    }
-
-    return (
-        sortEligibleByProviderRank(
-            pickPool.filter((option) => option.providerId),
-            order
-        )[0] ?? pickPool[0]
-    )
+    // pickPreferred returned undefined = wait on higher-ranked (or nothing
+    // eligible). Embed/toflix skipHealthProbe used to fall through here and
+    // grab the first pool URL (RiveStream) while VAPlayer #1 was still
+    // unlocking — which is exactly "Auto ignores Sources list".
+    return undefined
 }
 
 export function hasPendingSourceHealthProbe(
