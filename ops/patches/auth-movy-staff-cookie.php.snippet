@@ -1,0 +1,60 @@
+public static function setTokenCookie(string $token, int $expiresAt): void
+    {
+        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        setcookie(self::COOKIE, $token, [
+            'expires' => $expiresAt,
+            'path' => MOVY_BASE . '/',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        // JS-readable staff flag so head scripts can block Adcash before hydrate.
+        $role = 'user';
+        try {
+            $u = self::userFromToken($token);
+            if (is_array($u)) {
+                $role = strtolower((string) ($u['role'] ?? 'user'));
+            }
+        } catch (Throwable $e) {
+        }
+        if ($role === 'owner' || $role === 'admin') {
+            setcookie('movy_staff', '1', [
+                'expires' => $expiresAt,
+                'path' => '/',
+                'secure' => $secure,
+                'httponly' => false,
+                'samesite' => 'Lax',
+            ]);
+        } else {
+            setcookie('movy_staff', '', [
+                'expires' => time() - 3600,
+                'path' => '/',
+                'secure' => $secure,
+                'httponly' => false,
+                'samesite' => 'Lax',
+            ]);
+        }
+    }
+
+    public static function clearTokenCookie(): void
+    {
+        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        setcookie(self::COOKIE, '', [
+            'expires' => time() - 3600,
+            'path' => MOVY_BASE . '/',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        setcookie('movy_staff', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'secure' => $secure,
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    
