@@ -18,22 +18,22 @@ const SITE = 'https://www.rivestream.app';
 const UA =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36';
 
-/** Prefer providers that usually return HLS for Hollywood titles. */
+/** Prefer Rift (4K when stocked) then Pulse (often 1080) before Citadel (720 cap). */
 const PREFERRED = [
-    'citadel',
-    'pulse',
-    'apogee',
-    'electra',
     'rift',
+    'pulse',
+    'electra',
     'fortress',
+    'valiant',
+    'apogee',
+    'asiacloud',
+    'citadel',
     'primevids',
     'apollo',
-    'asiacloud',
     'kismet',
     'mirage',
     'prometheus',
     'lumen',
-    'valiant',
     'sentinel',
     'vanguard',
     'oberon'
@@ -73,77 +73,97 @@ function cacheKey(media: ProviderMediaObject): string {
     return `movie:${media.tmdbId}`;
 }
 
+function proxyQueryHeaders(rawUrl: string): Record<string, string> | null {
+    try {
+        const hdrRaw = new URL(rawUrl).searchParams.get('headers');
+        if (!hdrRaw) return null;
+        const parsed = JSON.parse(hdrRaw) as Record<string, unknown>;
+        const headers: Record<string, string> = {
+            'User-Agent': UA,
+            Accept: '*/*',
+            Referer: SITE,
+            Origin: SITE
+        };
+        for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'string' && v) headers[k] = v;
+        }
+        headers.Accept = '*/*';
+        return headers;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Unwrap HLS proxy wrappers (corsflix / valhalla) to the real master URL.
+ * CRITICAL: Pulse embeds Origin/Referer for play.xpass.top in the wrapper
+ * headers= query — those MUST ride with the unwrapped URL. Dropping them
+ * makes vip/mov3 hosts 403 and the probe marks every rung dead (max Citadel 720).
+ */
 function unwrapStreamProxy(rawUrl: string): { url: string; headers: Record<string, string> } {
     try {
         const u = new URL(rawUrl);
-        // cors.corsflix.net/m3u8?url=<inner> (and similar) — probe/resolve against the
-        // real CDN master or relative tiles.m3u8 resolves to corsflix and lies.
         const nested =
             u.searchParams.get('url') ||
             u.searchParams.get('u') ||
             u.searchParams.get('destination');
-        if (
+        const isHlsProxy =
             nested &&
             /^https?:\/\//i.test(nested) &&
             (/corsflix\.net$/i.test(u.hostname) ||
                 /\/m3u8\/?$/i.test(u.pathname) ||
-                /proxy\.valhallastream\.com$/i.test(u.hostname))
-        ) {
-            let headers: Record<string, string> = {
+                /proxy\.valhallastream\.com$/i.test(u.hostname));
+        if (isHlsProxy && nested) {
+            const fromProxy = proxyQueryHeaders(rawUrl);
+            const headers = fromProxy || {
                 'User-Agent': UA,
                 Accept: '*/*',
                 Referer: SITE,
                 Origin: SITE
             };
-            const hdrRaw = u.searchParams.get('headers');
-            if (hdrRaw) {
-                try {
-                    const parsed = JSON.parse(hdrRaw) as Record<string, unknown>;
-                    for (const [k, v] of Object.entries(parsed)) {
-                        if (typeof v === 'string' && v) headers[k] = v;
-                    }
-                } catch {
-                    /* keep defaults */
+            // Prefer leaf CDN URL with the wrapper's upstream headers.
+            // Do not recurse in a way that resets Origin/Referer to rivestream.
+            try {
+                const inner = new URL(nested);
+                const deeper =
+                    inner.searchParams.get('url') ||
+                    inner.searchParams.get('u') ||
+                    inner.searchParams.get('destination');
+                if (
+                    deeper &&
+                    /^https?:\/\//i.test(deeper) &&
+                    (/corsflix\.net$/i.test(inner.hostname) ||
+                        /\/m3u8\/?$/i.test(inner.pathname) ||
+                        /proxy\.valhallastream\.com$/i.test(inner.hostname))
+                ) {
+                    const deeperHeaders = proxyQueryHeaders(nested) || headers;
+                    return { url: deeper, headers: deeperHeaders };
                 }
+            } catch {
+                /* use nested as-is */
             }
-            headers.Accept = '*/*';
-            return unwrapStreamProxy(nested); // unwrap nested proxies
+            return { url: nested, headers };
         }
         if (!/proxy\.valhallastream\.com$/i.test(u.hostname)) {
             return { url: rawUrl, headers: { ...HEADERS, Accept: '*/*', Referer: SITE, Origin: SITE } };
         }
         const inner = u.searchParams.get('url');
         if (!inner) return { url: rawUrl, headers: { ...HEADERS } };
-        let headers: Record<string, string> = {
-            'User-Agent': UA,
-            Accept: '*/*',
-            Referer: SITE,
-            Origin: SITE
-        };
-        const hdrRaw = u.searchParams.get('headers');
-        if (hdrRaw) {
-            try {
-                const parsed = JSON.parse(hdrRaw) as Record<string, unknown>;
-                for (const [k, v] of Object.entries(parsed)) {
-                    if (typeof v === 'string' && v) headers[k] = v;
-                }
-            } catch {
-                /* keep defaults */
-            }
-        }
-        return { url: inner, headers };
+        return { url: inner, headers: proxyQueryHeaders(rawUrl) || { ...HEADERS } };
     } catch {
         return { url: rawUrl, headers: { ...HEADERS } };
     }
 }
 
 function parseHeightQuality(blob: string): string | null {
-    const b = blob.toLowerCase();
-    if (/2160|4k|uhd/.test(b)) return '2160p';
-    if (/1080/.test(b)) return '1080p';
-    if (/720/.test(b)) return '720p';
-    if (/480/.test(b)) return '480p';
-    if (/360/.test(b)) return '360p';
+    const b = String(blob || '').toLowerCase();
+    // Match path/label tokens only — NOT raw substrings inside CDN signatures
+    // (e.g. "...q4k37..." in an hscow Signature falsely became 2160p).
+    if (/(?:^|[^a-z0-9])(?:2160p?|4k|uhd)(?:[^a-z0-9]|$)/i.test(b)) return '2160p';
+    if (/(?:^|[^a-z0-9])1080p?(?:[^a-z0-9]|$)/i.test(b)) return '1080p';
+    if (/(?:^|[^a-z0-9])720p?(?:[^a-z0-9]|$)/i.test(b)) return '720p';
+    if (/(?:^|[^a-z0-9])480p?(?:[^a-z0-9]|$)/i.test(b)) return '480p';
+    if (/(?:^|[^a-z0-9])360p?(?:[^a-z0-9]|$)/i.test(b)) return '360p';
     return null;
 }
 
@@ -521,9 +541,9 @@ export class RivestreamProvider extends BaseProvider {
 
             const errors: string[] = [];
 
-            // Collect from every subprovider for a short window after the first
-            // hit so Citadel dubs AND higher-res backends (valiant 1080, etc.) merge.
-            const MERGE_MS = 4500;
+            // Wait after first hit so Rift/Pulse 4K·1080 can join Citadel dubs.
+            // Probing corsflix ABR ladders is slower than Citadel jpg-ts.
+            const MERGE_MS = 9000;
             const batches = await new Promise<
                 Array<Array<Source & { _dedupe?: string; _heights?: number[] }>>
             >((resolve) => {
@@ -589,12 +609,31 @@ export class RivestreamProvider extends BaseProvider {
                 );
             }
 
-            const cleaned = [...merged.values()].map((item) => {
-                const { _dedupe, _heights, ...clean } = item;
-                void _dedupe;
-                void _heights;
-                return clean;
-            });
+            const cleaned = [...merged.values()]
+                .sort((a, b) => {
+                    const ha = Math.max(
+                        0,
+                        ...(a._heights || []),
+                        parseInt(String(a.quality), 10) || 0
+                    );
+                    const hb = Math.max(
+                        0,
+                        ...(b._heights || []),
+                        parseInt(String(b.quality), 10) || 0
+                    );
+                    if (hb !== ha) return hb - ha;
+                    const la = String(a.audioTracks?.[0]?.language || '');
+                    const lb = String(b.audioTracks?.[0]?.language || '');
+                    const eng = (x: string) =>
+                        !x || /^english$/i.test(x) || /^original$/i.test(x) ? 0 : 1;
+                    return eng(la) - eng(lb) || la.localeCompare(lb);
+                })
+                .map((item) => {
+                    const { _dedupe, _heights, ...clean } = item;
+                    void _dedupe;
+                    void _heights;
+                    return clean;
+                });
 
             const result: ProviderResult = {
                 sources: cleaned,

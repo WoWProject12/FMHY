@@ -24,7 +24,7 @@ File: `src/providers/rivestream/rivestream.ts` (+ emitted `dist/.../rivestream.j
 - Before rejecting `jpeg-slideshow`, `segmentLooksLive()` the first `*.jpg` URI.
   - Real image bytes → still reject.
   - MPEG-TS / fMP4 → **accept** as a single-variant playable playlist (hscow disguise).
-- Reorder `PREFERRED` to try **citadel / pulse** before the currently-broken ISE backends.
+- Reorder `PREFERRED` to try **rift / pulse** (4K·1080 when stocked) before Citadel (720 cap).
 
 Verified:
 
@@ -52,10 +52,19 @@ the Chillflix player.
 Now the winning subprovider (usually Citadel) returns **all** probed rows (e.g. Furiosa:
 `720p/480p × English/Hindi/Tamil/Telugu`) with `audioTracks` language labels.
 
-**Why max 720p on Furiosa?** Upstream Citadel only lists 720p and 480p for that TMDB id —
-there is no 1080p/4K row from that backend (sibling `/1080/` `/2160/` paths 403). Other Rive
-backends were empty/ISE/decoy for this title when checked. Use **Cine4K** (or another 4K
-source) for UHD — Rivestream cannot invent rungs Citadel does not publish.
+**Why max 720p before the Pulse fix?** Citadel only lists 720/480 for Furiosa. **Pulse**
+does publish an ABR ladder up to ~1920×804 (labeled **1080p**), but we used to unwrap
+`cors.corsflix.net/m3u8?url=…&headers={xpass}` and then probe the inner CDN with
+**rivestream** Origin/Referer — every rung 403'd and Pulse was dropped. Fix: keep the
+wrapper's `headers=` (play.xpass.top) on the unwrapped vip.*/mov3.* URL.
+
+**Rift / 4K:** Rivestream's UI lists **Rift** as the 4K backend. Same scrapper API
+(` /api/provider?provider=rift&id=`). As of 2026-11-16 it returns `sources:[]` for
+Furiosa and 250+ other TMDB ids (VPS, Cursor egress, and valhalla proxy) — nothing to
+merge. We still prefer Rift first + 9s merge window so 4K appears when stocked.
+
+Also tightened `parseHeightQuality` so CDN Signature blobs containing the letters
+`4k` (e.g. `…q4k37…`) no longer mislabel Citadel 720 as 2160p.
 
 ## Quality sheet vs Languages (follow-up)
 Labels like `720p · Hindi` were treated as **heights only** by
@@ -65,5 +74,5 @@ then showed only **720p HD / 480p SD** and **no Languages column**.
 Reshape for the player:
 - English → pure heights (`720p`, `480p`) → **Quality**
 - Dubs → pure language names (`Hindi`, `Tamil`, `Telugu`) → **Languages**
-- Also merge other Rive backends for ~4.5s after the first hit so a late 1080p (e.g. valiant)
+- Also merge other Rive backends for ~9s after the first hit so Rift/Pulse 4K·1080
   can join when Citadel is only 720p.
