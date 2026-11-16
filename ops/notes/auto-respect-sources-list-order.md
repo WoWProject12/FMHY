@@ -58,4 +58,4 @@ blanking now only applies when Auto is **not** scanning.
 Player build → `pm2 restart chillflix-player chillflix-embed` → nginx `pcv`
 bust `pcv=20261116024658seqscan` (chunks `1643-a8bc…` / `8887-8aee…`),
 then `pcv=20261116025945sheetscan` (chunk `8887-1c68996d8af993c7.js`) after MediaPlayer Sources circle wiring,
-then `pcv=…embedprobe` after embed quietScanUi exception for active scans.
+then `pcv=20261116033055embedprobe` after embed quietScanUi exception for active scans.
