@@ -7,9 +7,46 @@ import { fetchVideasyEncryptedBlob, fetchVideasySeed } from "@/lib/videasy-fetch
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-const CITY_FALLBACKS: Record<string, string[]> = {
-  miami: ["boise"],
-  boise: ["miami"],
+/** Miami-only policy — never fan out to boise/other cities. */
+const CITY_FALLBACKS: Record<string, string[]> = {}
+
+type BlobHit = { blob: string; seed: string; server: string; expiresAt: number }
+const blobCache = new Map<string, BlobHit>()
+const BLOB_CACHE_TTL_MS = 180_000
+const BLOB_CACHE_MAX = 800
+
+function blobKey(
+  mediaType: string,
+  tmdbId: string,
+  seasonId: string | undefined,
+  episodeId: string | undefined
+) {
+  const s = mediaType === "tv" ? String(seasonId ?? "1") : "0"
+  const e = mediaType === "tv" ? String(episodeId ?? "1") : "0"
+  return `${mediaType}:${tmdbId}:${s}:${e}`
+}
+
+function takeBlob(key: string): BlobHit | null {
+  const hit = blobCache.get(key)
+  if (!hit) return null
+  if (hit.expiresAt <= Date.now() || !hit.blob || !hit.seed) {
+    blobCache.delete(key)
+    return null
+  }
+  return hit
+}
+
+function putBlob(key: string, blob: string, seed: string, server: string) {
+  if (blobCache.size >= BLOB_CACHE_MAX) {
+    const first = blobCache.keys().next().value
+    if (first) blobCache.delete(first)
+  }
+  blobCache.set(key, {
+    blob,
+    seed,
+    server,
+    expiresAt: Date.now() + BLOB_CACHE_TTL_MS,
+  })
 }
 
 export async function POST(request: Request) {
@@ -34,7 +71,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 })
   }
 
-  const server = String(body.server ?? "").trim().toLowerCase()
+  // Product policy: Videasy is Miami-only on chillflix.
+  const server = "miami"
   const tmdbId = String(body.tmdbId ?? "").trim()
   const title = String(body.title ?? "").trim()
   const mediaType = body.mediaType === "tv" ? "tv" : "movie"
@@ -44,6 +82,18 @@ export async function POST(request: Request) {
       { error: "Missing server, TMDB id, or title." },
       { status: 400 }
     )
+  }
+
+  const cacheKey = blobKey(mediaType, tmdbId, body.seasonId, body.episodeId)
+  const cached = takeBlob(cacheKey)
+  // Second tap: serve blob+seed without reminting (mint soft-gap / 429).
+  if (cached?.blob && cached.seed) {
+    return NextResponse.json({
+      blob: cached.blob,
+      seed: cached.seed,
+      server: cached.server,
+      cached: true,
+    })
   }
 
   const meta = {
@@ -61,7 +111,12 @@ export async function POST(request: Request) {
   async function tryServer(
     city: string,
     seed: string
-  ): Promise<{ blob?: string; blocked?: boolean; error?: string; seedInvalid?: boolean }> {
+  ): Promise<{
+    blob?: string
+    blocked?: boolean
+    error?: string
+    seedInvalid?: boolean
+  }> {
     const result = await fetchVideasyEncryptedBlob(city, meta, media, seed)
     if (result.blob) return result
     const err = result.error ?? ""
@@ -91,7 +146,6 @@ export async function POST(request: Request) {
     let seed = seedResult.seed!
     let result = await tryServer(city, seed)
 
-    // One-shot seed burned / invalid → remint once for this city.
     if (!result.blob && result.seedInvalid) {
       const remint = await fetchVideasySeed(tmdbId, { fresh: true })
       if (remint.seed) {
@@ -102,7 +156,12 @@ export async function POST(request: Request) {
     }
 
     if (result.blob) {
-      return NextResponse.json({ blob: result.blob, server: city })
+      putBlob(cacheKey, result.blob, seed, city)
+      return NextResponse.json({
+        blob: result.blob,
+        seed,
+        server: city,
+      })
     }
     if (result.blocked) {
       blocked = true
@@ -110,12 +169,11 @@ export async function POST(request: Request) {
       continue
     }
     lastError = result.error ?? lastError
-    // Upstream "no streams" — try next city before giving up.
     if (/HTTP 500|no streams|empty/i.test(lastError) && ci + 1 < cities.length) {
-      // Fresh seed for the next city (previous seed may still be valid but
-      // cities are one-shot; remint to be safe).
-      const remint = await fetchVideasySeed(tmdbId, { fresh: true })
-      if (remint.seed) seedResult = remint
+      if (!seedFromBody) {
+        const remint = await fetchVideasySeed(tmdbId, { fresh: true })
+        if (remint.seed) seedResult = remint
+      }
       continue
     }
   }

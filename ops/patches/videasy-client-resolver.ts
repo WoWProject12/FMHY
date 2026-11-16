@@ -183,14 +183,26 @@ export function prefetchVideasySeed(tmdbId: string): void {
  * Resolve miami/boise into a short cache while the embed is idle so the
  * Sources tap can return immediately instead of waiting on seed+city RTT.
  */
+const prefetchResolveInflight = new Map<string, Promise<unknown>>()
+
 export function prefetchVideasyResolve(media: VideasyClientMedia): void {
   if (typeof window === "undefined") return
   const id = String(media?.tmdbId || "").trim()
   if (!/^\d+$/.test(id)) return
-  // Warm bridge only. Full resolve-prefetch doubled seed traffic and fed the
-  // shared mint into 429/503 so taps hung ~16s on the BFF fallback.
   markViewerDirectDeadIfNonNative()
   void warmVideasyOriginBridge()
+  // One background BFF resolve per tab (single-flight). Fills the 90s client
+  // stream cache + 180s server blob cache so a later Sources tap is near-instant.
+  // Cap at 1 in-flight title to avoid mint stampedes.
+  const key = mediaCacheKey(media)
+  if (takeCachedStreams(media)?.length) return
+  if (prefetchResolveInflight.has(key) || prefetchResolveInflight.size >= 1) return
+  const job = resolveVideasyStreamsClient(media)
+    .catch(() => null)
+    .finally(() => {
+      if (prefetchResolveInflight.get(key) === job) prefetchResolveInflight.delete(key)
+    })
+  prefetchResolveInflight.set(key, job)
 }
 
 /** Warm bridge iframe early so tap does not wait on sslip TLS + ready ping. */
@@ -1873,9 +1885,10 @@ export async function resolveVideasyStreamsClient(
     if (typeof console !== "undefined") {
       console.info("[videasy] BFF/yoru seed+city fallback (shared mint lane)")
     }
-    // Same practice as VAPlayer unlock-pending: soft-gap can take 20–60s under
-    // load. Keep polling until streams appear, a hard miss, or the deadline —
-    // so every title gets a fair wait without per-title warming.
+    // Soft-gap can take 20–60s under load. Poll until streams / hard miss /
+    // deadline. Do NOT mint outside resolveWithMode — api mode already tries
+    // the 180s blob cache with an empty seed first, then mints once on miss.
+    // The old outer mint burned a seed before the cache check (slow retaps).
     const waitMs = Math.min(60_000, Math.max(12_000, budgetLeft()))
     const deadline = Date.now() + waitMs
     let attempt = 0
@@ -1887,26 +1900,13 @@ export async function resolveVideasyStreamsClient(
       if (attempt > 1) {
         progress("mint-retry")
         const delay = Math.min(
-          6_000,
-          Math.max(1_500, 2_000 * Math.min(attempt - 1, 3)),
+          4_000,
+          Math.max(1_000, 1_500 * Math.min(attempt - 1, 3)),
           Math.max(500, deadline - Date.now())
         )
         await new Promise((r) => setTimeout(r, delay))
       }
 
-      const mintSeed = await mintSeedOnce(media.tmdbId, {
-        pool: true,
-        fresh: attempt > 1,
-        allowMintFallback: true,
-      })
-      if (!mintSeed) {
-        lastFailure =
-          "Videasy session is rate-limited right now. Wait a few seconds and retry."
-        continue
-      }
-
-      // One pooled seed for miami.
-      rememberSeed(media.tmdbId, mintSeed, 12_000)
       const hit = await resolveWithMode(
         meta,
         media,

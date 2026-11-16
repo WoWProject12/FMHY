@@ -559,6 +559,8 @@ export function MovyPlayerSkin(props: {
     void import("@/lib/providers/videasy-client-resolver")
       .then((mod) => {
         mod.warmVideasyOriginBridge?.()
+        // Background miami BFF resolve into blob/stream cache so Videasy tap is fast.
+        mod.prefetchVideasyResolve?.(prefetchMedia)
       })
       .catch(() => {})
   }, [sheet, prefetchMedia])
@@ -1423,6 +1425,7 @@ export function MovyPlayerSkin(props: {
                     void import("@/lib/providers/videasy-client-resolver")
                       .then((m) => {
                         m.warmVideasyOriginBridge?.()
+                        m.prefetchVideasyResolve?.(prefetchMedia)
                         try {
                           ;(
                             window as unknown as { __videasyPrime?: () => void }
