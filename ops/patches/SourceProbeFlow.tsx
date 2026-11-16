@@ -1,7 +1,6 @@
 "use client"
 
-import { Check, ChevronRight, Loader2, Minus, X } from "lucide-react"
-import { useMemo } from "react"
+import { Check, Loader2, Minus, X } from "lucide-react"
 
 import type { ProviderProbeRow } from "@/hooks/useSourceLoadingProgress"
 import { useTranslations } from "@/lib/i18n/client"
@@ -12,21 +11,6 @@ interface SourceProbeFlowProps {
     currentTestingProvider?: ProviderProbeRow
     sourcesLoadingMore?: boolean
     className?: string
-}
-
-function FailedPill({ name }: { name: string }) {
-    return (
-        <div
-            className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full border border-white/10",
-                "bg-black/50 px-3 py-1.5 text-[11px] text-white/40",
-                "animate-in fade-in slide-in-from-left-4 duration-500"
-            )}
-        >
-            <X className="size-3 shrink-0" />
-            <span className="font-medium">{name}</span>
-        </div>
-    )
 }
 
 function RowStatusIcon({ status }: { status: ProviderProbeRow["status"] }) {
@@ -77,97 +61,12 @@ export function SourceProbeFlow({
     className,
 }: SourceProbeFlowProps) {
     const { t } = useTranslations()
-    const failedRows = useMemo(
-        () => rows.filter((row) => row.status === "failed"),
-        [rows]
-    )
-    const foundRows = useMemo(
-        () => rows.filter((row) => row.status === "found"),
-        [rows]
-    )
     const centerTesting =
         currentTestingProvider ?? rows.find((row) => row.status === "testing")
 
-    const nextPending = useMemo(() => {
-        if (!centerTesting) {
-            return rows.find((row) => row.status === "pending")
-        }
-
-        const testingIndex = rows.findIndex((row) => row.id === centerTesting.id)
-        return rows.slice(testingIndex + 1).find((row) => row.status === "pending")
-    }, [rows, centerTesting])
-
     return (
-        <div className={cn("flex w-full max-w-lg flex-col items-center gap-4", className)}>
-            <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 sm:gap-4">
-                <div className="flex min-h-[44px] items-center justify-end gap-2 overflow-hidden">
-                    {nextPending ? (
-                        <div
-                            className={cn(
-                                "flex items-center gap-1.5 text-xs text-white/40",
-                                "animate-in fade-in slide-in-from-left-6 duration-700"
-                            )}
-                        >
-                            <span className="truncate font-medium">{nextPending.displayName}</span>
-                            <ChevronRight className="size-3.5 shrink-0 animate-pulse text-white/30" />
-                        </div>
-                    ) : sourcesLoadingMore && !centerTesting ? (
-                        <span className="animate-pulse text-xs text-white/30">
-                            {t("player.probe.resolving")}
-                        </span>
-                    ) : null}
-                </div>
-
-                <div className="flex min-h-[52px] shrink-0 items-center justify-center px-1">
-                    {centerTesting ? (
-                        <div
-                            className={cn(
-                                "flex items-center gap-2.5 rounded-full border border-white/20",
-                                "bg-black/55 px-5 py-2.5 shadow-[0_0_28px_rgba(0,0,0,0.35)]",
-                                "animate-in zoom-in-95 fade-in duration-300"
-                            )}
-                        >
-                            <Loader2 className="size-4 shrink-0 animate-spin text-[#e6c98a]" />
-                            <span className="text-sm font-semibold tracking-tight text-white">
-                                {centerTesting.displayName}
-                            </span>
-                        </div>
-                    ) : foundRows.length > 0 ? (
-                        <div
-                            className={cn(
-                                "flex items-center gap-2.5 rounded-full border border-emerald-400/35",
-                                "bg-emerald-500/15 px-5 py-2.5",
-                                "animate-in zoom-in-95 fade-in duration-300"
-                            )}
-                        >
-                            <Check className="size-4 shrink-0 text-emerald-400" />
-                            <span className="text-sm font-semibold text-emerald-100">
-                                {foundRows[foundRows.length - 1]?.displayName}
-                            </span>
-                        </div>
-                    ) : (
-                        <div
-                            className={cn(
-                                "flex items-center gap-2.5 rounded-full border border-white/15",
-                                "bg-black/50 px-5 py-2.5"
-                            )}
-                        >
-                            <Loader2 className="size-4 shrink-0 animate-spin text-white/70" />
-                            <span className="text-sm font-medium text-white/70">
-                                {t("player.probe.startingScan")}
-                            </span>
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex min-h-[44px] items-center justify-start gap-2 overflow-hidden">
-                    {failedRows.slice(-2).map((row) => (
-                        <FailedPill key={row.id} name={row.displayName} />
-                    ))}
-                </div>
-            </div>
-
-            <div className="w-full max-w-sm space-y-1 rounded-lg border border-white/10 bg-black/70 p-1.5 backdrop-blur-md">
+        <div className={cn("flex w-full max-w-sm flex-col items-center gap-2", className)}>
+            <div className="w-full space-y-1 rounded-lg border border-white/10 bg-black/70 p-1.5 backdrop-blur-md">
                 {rows.map((row) => {
                     const testing = row.status === "testing"
                     return (
@@ -191,7 +90,8 @@ export function SourceProbeFlow({
                                 className={cn(
                                     "inline-flex shrink-0 items-center rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/45",
                                     testing && "border-white/25 text-white/75",
-                                    row.status === "found" && "border-emerald-500/30 text-emerald-300/80",
+                                    row.status === "found" &&
+                                        "border-emerald-500/30 text-emerald-300/80",
                                     row.status === "failed" && "text-white/30"
                                 )}
                             >

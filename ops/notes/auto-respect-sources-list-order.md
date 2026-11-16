@@ -87,3 +87,4 @@ Live: `pcv=20261116040255fullchrome`.
 Live: `pcv=20261116042010siteload` (no auto Settings popup) + site-matched SourceProbeFlow (center pill + Sources-style rows; not the tiny foreign card).
 Live: `pcv=20261116043055goldload` — gold-themed SourceProbeFlow; play/±10s hidden behind loading (`hideTransportControls`).
 Live: `pcv=20261116044020loadchrome` — loading uses same player chrome as playback (parent-hosted Movy on .lol); probe toned down (white/zinc, one gold spinner accent); transport stays under probe.
+Live: `pcv=20261116044741nocarousel` — removed the Rive > VAPlayer carousel/breadcrumb row above the probe list (list-only SourceProbeFlow).
