@@ -41,7 +41,7 @@ def with_unlock_mutex():
     """Serialize captcha/unlock work across concurrent resolve workers."""
     UNLOCK_LOCK.parent.mkdir(parents=True, exist_ok=True)
     fh = open(UNLOCK_LOCK, "a+")
-    deadline = time.time() + float(os.environ.get("VAPLAYER_UNLOCK_LOCK_WAIT", "100"))
+    deadline = time.time() + float(os.environ.get("VAPLAYER_UNLOCK_LOCK_WAIT", "25"))
     while True:
         try:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

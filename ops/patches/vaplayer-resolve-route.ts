@@ -114,35 +114,68 @@ async function playlistReachable(url: string): Promise<boolean> {
   }
 }
 
-/** Cap concurrent unlock Pythons — each waits on a flock but still eats ~40MB. */
+/** Cap concurrent unlock Pythons.
+ *  Upstream captcha uses a global flock, so >2 workers mostly sleep on the
+ *  mutex while still occupying slots — that starved titles like 969681.
+ */
 const UNLOCK_MAX_INFLIGHT = Math.max(
   1,
   Number(process.env.VAPLAYER_UNLOCK_MAX_INFLIGHT || 2)
 )
+/** How long a title may wait for a free unlock slot before failing open. */
+const UNLOCK_SLOT_WAIT_MS = Math.max(
+  2_000,
+  Number(process.env.VAPLAYER_UNLOCK_SLOT_WAIT_MS || 12_000)
+)
+const UNLOCK_WAITERS_MAX = Math.max(
+  4,
+  Number(process.env.VAPLAYER_UNLOCK_WAITERS_MAX || 12)
+)
 let unlockInflight = 0
 const unlockWaiters: Array<() => void> = []
 const unlockSingleflight = new Map<string, Promise<UnlockResult>>()
+/** Keys that have acquired a slot and spawned Python (vs still queued). */
+const unlockSpawned = new Set<string>()
+
+class UnlockSlotTimeout extends Error {
+  constructor() {
+    super("VAPlayer unlock busy (slot wait timeout)")
+    this.name = "UnlockSlotTimeout"
+  }
+}
 
 async function acquireUnlockSlot(): Promise<() => void> {
-  if (unlockInflight < UNLOCK_MAX_INFLIGHT) {
-    unlockInflight += 1
-    return () => {
-      unlockInflight = Math.max(0, unlockInflight - 1)
-      const next = unlockWaiters.shift()
-      if (next) next()
-    }
-  }
-  await new Promise<void>((resolve) => {
-    unlockWaiters.push(() => {
-      unlockInflight += 1
-      resolve()
-    })
-  })
-  return () => {
+  const release = () => {
     unlockInflight = Math.max(0, unlockInflight - 1)
     const next = unlockWaiters.shift()
     if (next) next()
   }
+  if (unlockInflight < UNLOCK_MAX_INFLIGHT) {
+    unlockInflight += 1
+    return release
+  }
+  if (unlockWaiters.length >= UNLOCK_WAITERS_MAX) {
+    throw new UnlockSlotTimeout()
+  }
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      const idx = unlockWaiters.indexOf(wake)
+      if (idx >= 0) unlockWaiters.splice(idx, 1)
+      reject(new UnlockSlotTimeout())
+    }, UNLOCK_SLOT_WAIT_MS)
+    const wake = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      unlockInflight += 1
+      resolve()
+    }
+    unlockWaiters.push(wake)
+  })
+  return release
 }
 
 function runUnlock(params: {
@@ -151,6 +184,8 @@ function runUnlock(params: {
   season?: number
   episode?: number
   force?: boolean
+  /** Same key as unlockSingleflight / unlockSpawned. */
+  spawnKey: string
 }): Promise<UnlockResult> {
   const args = [UNLOCK_PY, "--type", params.type, "--tmdb", params.tmdbId]
   if (params.type === "tv") {
@@ -159,7 +194,23 @@ function runUnlock(params: {
   if (params.force) args.push("--force")
   return new Promise((resolve) => {
     void (async () => {
-      const release = await acquireUnlockSlot()
+      let release: (() => void) | null = null
+      const flightKey = params.spawnKey
+      try {
+        release = await acquireUnlockSlot()
+      } catch (err) {
+        resolve({
+          ok: false,
+          error:
+            err instanceof Error
+              ? err.message
+              : "VAPlayer unlock busy (slot wait timeout)",
+          streams: [],
+          via: "unlock-busy",
+        })
+        return
+      }
+      unlockSpawned.add(flightKey)
       const child = spawn("python3", args, {
         env: process.env,
         stdio: ["ignore", "pipe", "pipe"],
@@ -169,6 +220,11 @@ function runUnlock(params: {
       const timer = setTimeout(() => {
         child.kill("SIGKILL")
       }, 90_000)
+      const finish = (result: UnlockResult) => {
+        unlockSpawned.delete(flightKey)
+        release?.()
+        resolve(result)
+      }
       child.stdout.on("data", (chunk) => {
         stdout += String(chunk)
         if (stdout.length > 4 * 1024 * 1024) child.kill("SIGKILL")
@@ -178,15 +234,13 @@ function runUnlock(params: {
       })
       child.on("error", (err) => {
         clearTimeout(timer)
-        release()
-        resolve({ ok: false, error: err.message, streams: [] })
+        finish({ ok: false, error: err.message, streams: [] })
       })
       child.on("close", () => {
         clearTimeout(timer)
-        release()
         const raw = stdout.trim()
         if (!raw) {
-          resolve({
+          finish({
             ok: false,
             error: (stderr || "unlock produced no output").slice(0, 300),
             streams: [],
@@ -195,9 +249,9 @@ function runUnlock(params: {
         }
         const line = raw.split("\n").filter(Boolean).at(-1) || raw
         try {
-          resolve(JSON.parse(line) as UnlockResult)
+          finish(JSON.parse(line) as UnlockResult)
         } catch {
-          resolve({ ok: false, error: `unlock bad json: ${line.slice(0, 180)}`, streams: [] })
+          finish({ ok: false, error: `unlock bad json: ${line.slice(0, 180)}`, streams: [] })
         }
       })
     })()
@@ -217,8 +271,9 @@ function runUnlockSingleflight(
   const flightKey = params.force ? `${key}:force` : key
   const existing = unlockSingleflight.get(flightKey)
   if (existing) return existing
-  const p = runUnlock(params).finally(() => {
+  const p = runUnlock({ ...params, spawnKey: flightKey }).finally(() => {
     unlockSingleflight.delete(flightKey)
+    unlockSpawned.delete(flightKey)
   })
   unlockSingleflight.set(flightKey, p)
   return p
@@ -296,22 +351,40 @@ export async function GET(request: Request) {
       }
     }
 
-    // 2) Remint (singleflight so concurrent viewers share one unlock → fewer 429s).
-    let unlocked = await runUnlockSingleflight(key, {
+    // 2) Remint with soft timeout so Sources can fall through (~45s client budget).
+    // Unlock keeps running in singleflight for the next viewer / retry.
+    const SOFT_MS = Math.max(
+      8_000,
+      Number(process.env.VAPLAYER_RESOLVE_SOFT_MS || 4_000)
+    )
+    const unlockPromise = runUnlockSingleflight(key, {
       type,
       tmdbId,
       season: seasonN,
       episode: episodeN,
       force,
     })
+    const softTimer = new Promise<"soft-timeout">((resolve) => {
+      setTimeout(() => resolve("soft-timeout"), SOFT_MS)
+    })
+    const raced = await Promise.race([
+      unlockPromise.then((u) => ({ kind: "unlock" as const, u })),
+      softTimer.then((k) => ({ kind: k, u: null as UnlockResult | null })),
+    ])
+
+    let unlocked: UnlockResult | null =
+      raced.kind === "unlock" ? raced.u : null
     let streams = okStreams(unlocked)
 
-    // 3) Unlock failed / 429 → last-resort reuse if JWT somehow still valid.
+    // Soft-timeout: prefer any still-alive cache rather than hanging the player.
     if (!streams.length) {
       const fallback = await readUnlockCacheAlive(key)
       const fbStreams = okStreams(fallback)
       if (fallback && fbStreams.length) {
-        unlocked = { ...fallback, via: "cache-fallback" }
+        unlocked = {
+          ...fallback,
+          via: raced.kind === "soft-timeout" ? "cache-soft" : "cache-fallback",
+        }
         streams = fbStreams
       }
     }
@@ -329,6 +402,43 @@ export async function GET(request: Request) {
         tried: [`unlock:tmdb:${type}:${tmdbId}`],
       })
     }
+
+    // Still unlocking in background — tell client to retry soon instead of 55s hang.
+    // If this title has not even spawned Python yet, the unlock queue is saturated:
+    // fail open (no retryAfterMs) so Auto can leave VAPlayer instead of polling.
+    if (raced.kind === "soft-timeout") {
+      const flightKey = `${key}${force ? ":force" : ""}`
+      if (!unlockSpawned.has(flightKey)) {
+        return playbackJsonResponse({
+          ok: false,
+          error: "VAPlayer unlock busy (queued behind captcha)",
+          streams: [],
+          via: "unlock-busy",
+          tried: [`unlock:tmdb:${type}:${tmdbId}`],
+        })
+      }
+      return playbackJsonResponse({
+        ok: false,
+        error: "VAPlayer unlock still running — retry",
+        retryAfterMs: 4000,
+        streams: [],
+        via: "unlock-pending",
+        tried: [`unlock:tmdb:${type}:${tmdbId}`],
+      })
+    }
+
+    // Slot/mutex saturation — fail open so Auto can leave VAPlayer instead of
+    // polling unlock-pending until the Sources budget dies.
+    if (unlocked?.via === "unlock-busy" || /unlock busy/i.test(unlocked?.error || "")) {
+      return playbackJsonResponse({
+        ok: false,
+        error: unlocked?.error || "VAPlayer unlock busy",
+        streams: [],
+        via: "unlock-busy",
+        tried: [`unlock:tmdb:${type}:${tmdbId}`],
+      })
+    }
+
     return playbackJsonResponse({
       ok: false,
       error: unlocked?.error || "no streams for this title/episode",
