@@ -448,6 +448,8 @@ export function useMediaSources({
   // scrape started from it used to throw the shared list away.
   const sharedLookupSettledRef = useRef(false)
   const scanFailedRef = useRef<Set<string>>(new Set())
+  /** Hard-empty / completed miss — do not clear between scan passes (Auto demotion). */
+  const hardFailedRef = useRef<Set<string>>(new Set())
   const fetchGenerationRef = useRef(0)
   const [backgroundPendingCapReached, setBackgroundPendingCapReached] = useState(false)
 
@@ -455,6 +457,7 @@ export function useMediaSources({
     if (!enabled) {
       providerScanAttemptedRef.current = false
       scanFailedRef.current = new Set()
+      hardFailedRef.current = new Set()
       setScanFailedProviderIds([])
       setScanningProviderId(undefined)
       setProviderScanStartedAt(undefined)
@@ -1171,6 +1174,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
 
     providerBootstrapAttemptedRef.current = false
     scanFailedRef.current = new Set()
+    hardFailedRef.current = new Set()
     setScanFailedProviderIds([])
     setScanningProviderId(undefined)
     setError(undefined)
@@ -1564,15 +1568,33 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
         setScanFailedProviderIds([...scanFailedRef.current])
       }
 
-      const markProviderFailed = (providerId: string) => {
+      const markProviderFailed = (
+        providerId: string,
+        options?: { hard?: boolean }
+      ) => {
         scanFailedRef.current.add(providerId)
+        if (options?.hard) {
+          hardFailedRef.current.add(providerId)
+        }
         setScanFailedProviderIds([...scanFailedRef.current])
       }
 
       const clearProviderFailed = (providerId: string) => {
+        hardFailedRef.current.delete(providerId)
         if (!scanFailedRef.current.delete(providerId)) return
         setScanFailedProviderIds([...scanFailedRef.current])
       }
+
+      const isSoftPendingPayload = (payload: {
+        diagnostics?: Array<{ code?: string; message?: string }>
+      }) =>
+        (payload.diagnostics ?? []).some(
+          (item) =>
+            item.code === "CLIENT_PROVIDER_UNAVAILABLE" &&
+            /rate-limited|unlock-pending|still running|soft-gap|wait a few|session is|retry/i.test(
+              String(item.message || "")
+            )
+        )
 
       const hasPlayableAutomaticSource = () =>
         sourcesRef.current.length > 0 &&
@@ -1697,14 +1719,22 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
                 playbackTokenRef.current
               )
             )
-            const found = sourcesIncludeProvider(payload.sources, providerId)
+            const found =
+              sourcesIncludeStartedProvider(payload.sources, providerId) ||
+              sourcesIncludeStartedProvider(sourcesRef.current, providerId)
             if (found) {
               clearProviderFailed(providerId)
               setDiagnostics((previous) =>
                 previous.filter((item) => item.code !== "CINEPRO_BACKGROUND")
               )
-            } else if (options.markFailedOnMiss) {
-              markProviderFailed(providerId)
+            } else if (isSoftPendingPayload(payload)) {
+              // Unlock/mint still running — keep Auto waiting on #1, do not demote.
+            } else {
+              // Hard empty (no streams for this title): demote Auto to #2 now.
+              // Soft marks used to wait until the last scan pass because
+              // between-pass clears wiped scanFailed — so Rive never got a turn
+              // when VA simply had nothing.
+              markProviderFailed(providerId, { hard: true })
             }
             return found
           }
@@ -1735,7 +1765,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             // Empty completed scrape (not a timeout): mark failed immediately so
             // pickPreferred can promote #2 instead of waiting out sourcesLoadingMore
             // for a dead #1 (e.g. VAPlayer without CAPSOLVER).
-            markProviderFailed(providerId)
+            markProviderFailed(providerId, { hard: true })
           }
           return found
         } catch (err) {
@@ -1800,6 +1830,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             if (shouldStopDiscovering()) break
             if (pass < SCAN_PASS_COUNT - 1) {
               for (const providerId of scanIds) {
+                if (hardFailedRef.current.has(providerId)) continue
                 scanFailedRef.current.delete(providerId)
               }
               setScanFailedProviderIds([...scanFailedRef.current])
@@ -1951,10 +1982,12 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             }
           }
 
-          // Prepare soft retries: clear failed marks so the next circle
-          // can force-fresh providers that timed out or returned empty.
+          // Soft retries: clear timeout/soft fails so the next circle can
+          // force-fresh. Keep hard-empty fails sticky so Auto can demote past
+          // a provider that truly has no source (VAPlayer empty → RiveStream).
           if (pass < SCAN_PASS_COUNT - 1 && !shouldStopDiscovering()) {
             for (const providerId of scanIds) {
+              if (hardFailedRef.current.has(providerId)) continue
               if (!sourcesIncludeProvider(sourcesRef.current, providerId)) {
                 scanFailedRef.current.delete(providerId)
               }

@@ -30,6 +30,12 @@ RiveStream. Manual VAPlayer tap worked.
   scan-failed; `commitAutoStartOption` itself refuses demotions.
 - `usePlaybackSourceFallback`: pass through `scanFailedProviderIds`.
 
+## Demotion when #1 is empty
+Waiting on VAPlayer must not block forever when it has **no** streams.
+Client-resolve hard-empty now marks `scanFailed` immediately (`hard: true`),
+and between-pass clears no longer wipe hard fails — Auto can move to #2
+(RiveStream/7Movies) right away. Soft unlock-pending still waits.
+
 ## Deploy
 Player build → `pm2 restart chillflix-player chillflix-embed` → nginx `pcv`
-bust `pcv=20261116021201listord2` (chunk `9484-72e4e5eebfb0f560.js`).
+bust (latest `…vademote`).
