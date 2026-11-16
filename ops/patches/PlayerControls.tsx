@@ -111,6 +111,8 @@ interface PlayerControlsProps {
     parentHostedEmbed?: boolean
     /** Cross-origin iframe source — don't cover pause/seek; let the embed handle it. */
     iframeEmbed?: boolean
+    /** Hide play / ±10s while Auto Sources loading sits in the center. */
+    hideTransportControls?: boolean
     mediaTitle?: string
     mediaId?: string | number
     mediaType?: string
@@ -186,6 +188,7 @@ export function PlayerControls({
     skipSegment = null,
     parentHostedEmbed = false,
     iframeEmbed = false,
+    hideTransportControls = false,
     mediaTitle,
     mediaId,
     mediaType,
@@ -266,6 +269,7 @@ export function PlayerControls({
                     show={show}
                     isPlaying={isPlaying}
                     isLoading={isLoading}
+                    hideTransportControls={hideTransportControls}
                     currentTime={currentTime}
                     duration={duration}
                     isFullscreen={isFullscreen}
@@ -406,7 +410,7 @@ export function PlayerControls({
                 </Button>
             </div>
 
-            {!watchPartyGuest && !iframeEmbed ? (
+            {!watchPartyGuest && !iframeEmbed && !hideTransportControls ? (
                 <div
                     className="pointer-events-none absolute inset-0 flex items-center justify-center md:hidden"
                     onClick={(e) => e.stopPropagation()}
@@ -491,7 +495,7 @@ export function PlayerControls({
 
                     <div className="flex items-center justify-between gap-4">
                         <div className="flex min-w-0 items-center gap-2">
-                            {!watchPartyGuest ? (
+                            {!watchPartyGuest && !hideTransportControls ? (
                                 <>
                                     <Button variant="ghost" size="icon" className="text-white hover:bg-[#e6c98a]/12 hover:text-[#e6c98a]" onClick={() => onSeek([Math.max(0, currentTime - 10)])} title={t("player.back10s")}>
                                         <RotateCcw width={20} height={20} />
@@ -527,7 +531,7 @@ export function PlayerControls({
                                 </>
                             ) : null}
 
-                            <div className={`flex min-w-0 items-center gap-2 ${watchPartyGuest ? "" : "ml-4"}`}>
+                            <div className={`flex min-w-0 items-center gap-2 ${watchPartyGuest || hideTransportControls ? "" : "ml-4"}`}>
                                 <Button variant="ghost" size="icon" onClick={onToggleMute} className="text-white hover:bg-[#e6c98a]/12 hover:text-[#e6c98a]" title={isMuted || volume === 0 ? t("player.unmute") : t("player.mute")}>
                                     {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                                 </Button>

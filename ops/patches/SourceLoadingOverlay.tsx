@@ -164,10 +164,11 @@ export function SourceLoadingOverlay({
         >
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.05),transparent_55%)]" />
 
-            {/* Same player chrome as playback — probe sits above transport, not a different loading shell. */}
+            {/* Same player chrome as playback — hide center play/±10 so they don't sit on the probe. */}
             <PlayerControls
                 isPlaying={false}
                 isLoading
+                hideTransportControls
                 currentTime={0}
                 duration={0}
                 volume={1}
