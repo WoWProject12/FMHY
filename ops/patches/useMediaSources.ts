@@ -280,8 +280,12 @@ const SCAN_PASS_TIMEOUTS_MS = [15_000, 28_000, 45_000] as const
 const SCAN_PASS_COUNT = 3
 /** Keep #1 alive longer than secondaries so a slow primary is not false-failed. */
 const SCAN_PRIMARY_TIMEOUT_BONUS_MS = 20_000
-/** After #1 head-start, fetch this many secondaries at once. */
-const SCAN_SECONDARY_CONCURRENCY = 6
+/**
+ * Auto Sources walk is sequential (one provider at a time) so the Sources
+ * sheet can show a single testing spinner and failed X marks in list order.
+ * Parallel secondaries made scanningProviderId jump and skipped visible demotion.
+ */
+const SCAN_SECONDARY_CONCURRENCY = 1
 
 function shouldAutoRetry(diagnostics: MediaDiagnostic[]) {
   return diagnostics.some((item) => item.code === "CINEPRO_OFFLINE")
@@ -1728,12 +1732,12 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
                 previous.filter((item) => item.code !== "CINEPRO_BACKGROUND")
               )
             } else if (isSoftPendingPayload(payload)) {
-              // Unlock/mint still running — keep Auto waiting on #1, do not demote.
+              // Unlock/mint still running after this attempt's budget — soft-fail
+              // so Auto walks to the next Sources row (spinner moves on). Soft
+              // marks clear between passes for another try; hard empties stick.
+              markProviderFailed(providerId)
             } else {
               // Hard empty (no streams for this title): demote Auto to #2 now.
-              // Soft marks used to wait until the last scan pass because
-              // between-pass clears wiped scanFailed — so Rive never got a turn
-              // when VA simply had nothing.
               markProviderFailed(providerId, { hard: true })
             }
             return found
@@ -1774,7 +1778,9 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             setError(message)
             throw err
           }
-          if (options.markFailedOnMiss) {
+          // Soft-fail timeouts so sequential Auto can mark X and test the next
+          // Sources row instead of freezing the spinner on a hung unlock.
+          if (options.markFailedOnMiss || isClientResolveProvider(providerId)) {
             markProviderFailed(providerId)
           }
           return false
@@ -1782,10 +1788,10 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       }
 
       // Multi-pass discovery (3 circles through admin order):
-      // - Pass 1: head-start on #1, then overlap secondaries so a fast Huhu
-      //   is not stuck behind a 30s Flixhqz. Soft-fail timeouts (retry later).
-      // - Pass 2–3: force-fresh retries for providers still missing.
-      // Stop as soon as a health probe marks a stream ready.
+      // - Each pass walks enabled Sources one-by-one (testing spinner + failed X).
+      // - Soft-fail timeouts/unlock-pending; hard-fail true empties.
+      // - Pass 2–3 force-fresh soft fails. Stop when #1 client-resolve is ready
+      //   or playback is active.
       const waitForProbeSettle = async (providerId?: string) => {
         const settleDeadline = Date.now() + PROVIDER_SETTLE_MS
         while (Date.now() < settleDeadline) {
@@ -1860,103 +1866,36 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             continue
           }
 
-          // First two in admin order start together. Head-start (admin Sources)
-          // is how long we wait for one of them before the rest of the list joins.
-          const leadIds = pending.slice(0, Math.min(2, pending.length))
-          const restIds = pending.slice(leadIds.length)
-          const primaryId = leadIds[0]!
+          // Walk admin Sources order one-by-one so Auto shows which row is
+          // testing (spinner) and which failed (X), then demotes to the next.
+          const primaryId = pending[0] ?? scanIds[0]!
+          for (let index = 0; index < pending.length; index += 1) {
+            if (shouldStopDiscovering()) break
 
-          const leadTimeoutMs = Math.min(
-            timeoutMs + SCAN_PRIMARY_TIMEOUT_BONUS_MS,
-            SCAN_PASS_TIMEOUTS_MS[SCAN_PASS_TIMEOUTS_MS.length - 1]
-          )
+            const providerId = pending[index]!
+            const isPrimary = normalizeProviderName(providerId) ===
+              normalizeProviderName(scanIds[0] ?? "")
+            const providerTimeoutMs = isPrimary
+              ? Math.min(
+                  timeoutMs + SCAN_PRIMARY_TIMEOUT_BONUS_MS,
+                  SCAN_PASS_TIMEOUTS_MS[SCAN_PASS_TIMEOUTS_MS.length - 1]
+                )
+              : timeoutMs
 
-          setScanningProviderId(leadIds[0])
-          const leadPromises = leadIds.map((providerId) =>
-            tryProvider(providerId, {
+            setScanningProviderId(providerId)
+            const found = await tryProvider(providerId, {
               useFetchTimeout: true,
               markFailedOnMiss: pass === SCAN_PASS_COUNT - 1,
               forceFresh,
-              scanTimeoutMs: leadTimeoutMs,
+              scanTimeoutMs: providerTimeoutMs,
             })
-          )
 
-          if (pass === 0) {
-            const leadWindowMs = getHeadStartMs()
-            const leadDeadline = Date.now() + leadWindowMs
-            while (Date.now() < leadDeadline) {
-              if (shouldStopDiscovering()) break
-              if (
-                leadIds.some((providerId) =>
-                  sourcesIncludeProvider(sourcesRef.current, providerId)
-                )
-              ) {
-                break
-              }
-              await sleep(100)
-            }
-          }
-
-          if (shouldStopDiscovering()) {
-            void Promise.allSettled(leadPromises)
-            break
-          }
-
-          // Fire the rest (Movy, 7Movies, Bingr, …) after the lead window.
-          if (restIds.length > 0) {
-            setScanningProviderId(restIds[0] ?? primaryId)
-
-            const queue = [...restIds]
-            const active = new Set<Promise<boolean>>()
-
-            const launchNext = () => {
-              while (
-                active.size < SCAN_SECONDARY_CONCURRENCY &&
-                queue.length > 0 &&
-                !shouldStopDiscovering()
-              ) {
-                const providerId = queue.shift()!
-                const task = tryProvider(providerId, {
-                  useFetchTimeout: true,
-                  markFailedOnMiss: pass === SCAN_PASS_COUNT - 1,
-                  forceFresh,
-                  scanTimeoutMs: timeoutMs,
-                }).finally(() => {
-                  active.delete(task)
-                })
-                active.add(task)
-              }
-            }
-
-            const watchForReady = (async () => {
-              while (!shouldStopDiscovering()) {
-                if (hasPlayableAutomaticSource()) {
-                  await waitForProbeSettle()
-                  if (shouldStopDiscovering()) return
-                }
-                if (active.size === 0 && queue.length === 0) return
-                launchNext()
-                if (active.size === 0) return
-                await Promise.race([
-                  ...active,
-                  sleep(150).then(() => false),
-                ])
-              }
-            })()
-
-            launchNext()
-            await watchForReady
-          }
-
-          // Leads may still be resolving — await them before the next pass.
-          const leadResults = await Promise.all(leadPromises)
-          for (let i = 0; i < leadIds.length; i += 1) {
-            const providerId = leadIds[i]!
-            if (leadResults[i] || sourcesIncludeProvider(sourcesRef.current, providerId)) {
+            if (found || sourcesIncludeStartedProvider(sourcesRef.current, providerId)) {
               clearProviderFailed(providerId)
               await waitForProbeSettle(providerId)
-              if (shouldStopDiscovering()) break
             }
+
+            if (shouldStopDiscovering()) break
           }
 
           if (shouldStopDiscovering()) break
@@ -1966,29 +1905,13 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             if (shouldStopDiscovering()) break
           }
 
-          // If everything is still empty, wait a short grace for in-flight
-          // secondaries — but do NOT burn the full pass budget when #1 already
-          // returned empty (that made Always-#1 dead providers feel "stuck").
-          if (!shouldStopDiscovering() && !hasPlayableAutomaticSource()) {
-            const primaryEmpty = scanFailedRef.current.has(primaryId)
-            const graceMs = primaryEmpty ? 2_500 : Math.max(0, timeoutMs - (Date.now() - passBudgetStartedAt))
-            const waitUntil = Date.now() + graceMs
-            while (Date.now() < waitUntil && !shouldStopDiscovering()) {
-              if (hasPlayableAutomaticSource()) {
-                await waitForProbeSettle()
-                break
-              }
-              await sleep(200)
-            }
-          }
-
           // Soft retries: clear timeout/soft fails so the next circle can
           // force-fresh. Keep hard-empty fails sticky so Auto can demote past
           // a provider that truly has no source (VAPlayer empty → RiveStream).
           if (pass < SCAN_PASS_COUNT - 1 && !shouldStopDiscovering()) {
             for (const providerId of scanIds) {
               if (hardFailedRef.current.has(providerId)) continue
-              if (!sourcesIncludeProvider(sourcesRef.current, providerId)) {
+              if (!sourcesIncludeStartedProvider(sourcesRef.current, providerId)) {
                 scanFailedRef.current.delete(providerId)
               }
             }

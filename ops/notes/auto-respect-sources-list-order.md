@@ -36,6 +36,12 @@ Client-resolve hard-empty now marks `scanFailed` immediately (`hard: true`),
 and between-pass clears no longer wipe hard fails — Auto can move to #2
 (RiveStream/7Movies) right away. Soft unlock-pending still waits.
 
+## Sequential Auto walk (testing / failed circles)
+Auto now tests Sources **one-by-one** in admin order (`scanningProviderId`
+tracks the active row). Soft unlock-pending / timeouts soft-fail so the
+spinner moves to the next row; hard-empty stays sticky. Overlay/settings
+already render testing spinner + failed X via `SourceProbeFlow`.
+
 ## Deploy
 Player build → `pm2 restart chillflix-player chillflix-embed` → nginx `pcv`
-bust `pcv=20261116022844vademote` (chunk `1643-167a9f9dc16b1c77.js`).
+bust `pcv=20261116024658seqscan` (chunks `1643-a8bc…` / `8887-8aee…`).
