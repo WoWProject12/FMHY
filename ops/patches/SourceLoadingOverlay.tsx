@@ -243,12 +243,10 @@ export function SourceLoadingOverlay({
                         <p className="text-sm font-medium text-white">{infrastructureMessage}</p>
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center gap-2">
-                        <div className="relative flex size-6 items-center justify-center">
-                            <div className="absolute inset-0 animate-spin rounded-full border border-white/15 border-t-white/70" />
-                        </div>
-                        <p className="text-[11px] text-white/55">{t("player.loading.findingFastest")}</p>
-                    </div>
+                    <SourceProbeFlow
+                        rows={[]}
+                        sourcesLoadingMore={sourcesLoadingMore || sourcesFetching}
+                    />
                 )}
             </div>
         </div>

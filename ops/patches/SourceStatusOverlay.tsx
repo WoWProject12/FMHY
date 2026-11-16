@@ -6,7 +6,6 @@ import { useSourceLoadingProgress } from "@/hooks/useSourceLoadingProgress"
 import type { SourceHealthStatus } from "@/hooks/useSourceHealth"
 import { useShowRealProviderNames } from "@/hooks/use-show-real-provider-names"
 import { useStreamSourcesConfig } from "@/hooks/useStreamSourcesConfig"
-import { useTranslations } from "@/lib/i18n/client"
 import { normalizeProviderName } from "@/lib/stream-sources-defaults"
 import { getOrderedEnabledProviderIds } from "@/components/player/utils/playback"
 import { cn } from "@/lib/utils"
@@ -52,7 +51,6 @@ export function SourceStatusOverlay({
     showRealProviderNames: showRealProviderNamesProp,
     isFullscreen = false,
 }: SourceStatusOverlayProps) {
-    const { t } = useTranslations()
     const { config, order: providerOrder, enabledIds } = useStreamSourcesConfig()
     const orderedEnabledProviderIds = getOrderedEnabledProviderIds(providerOrder, enabledIds)
     const hookShowRealProviderNames = useShowRealProviderNames()
@@ -105,7 +103,7 @@ export function SourceStatusOverlay({
         [sources]
     )
 
-    const { rows, currentTestingProvider, foundCount } = useSourceLoadingProgress({
+    const { rows, currentTestingProvider } = useSourceLoadingProgress({
         active: showScanPanel,
         sources: probeSources,
         diagnostics: unavailableDiagnostics,
@@ -121,13 +119,6 @@ export function SourceStatusOverlay({
         providerOrder: orderedEnabledProviderIds,
         scanFailedProviderIds,
     })
-
-    const healthReadyCount = useMemo(
-        () => Object.values(sourceHealth ?? {}).filter((status) => status === "ready").length,
-        [sourceHealth]
-    )
-
-    const readyCount = Math.max(foundCount, healthReadyCount)
 
     if (!currentSource && !showScanPanel) {
         return null
@@ -152,29 +143,11 @@ export function SourceStatusOverlay({
                     : "justify-center py-6 max-md:justify-start max-md:pt-[48%] max-md:pb-24 md:justify-center md:py-6"
             )}
         >
-            {rows.length > 0 ? (
-                <SourceProbeFlow
-                    rows={rows}
-                    currentTestingProvider={currentTestingProvider}
-                    sourcesLoadingMore={sourcesLoadingMore || isLoading}
-                />
-            ) : (
-                <div className="flex flex-col items-center gap-2">
-                    <div className="relative flex size-6 items-center justify-center">
-                        <div className="absolute inset-0 animate-spin rounded-full border border-white/15 border-t-white/75" />
-                    </div>
-                    <p className="max-w-[14rem] text-center text-[11px] font-medium text-white/75">
-                        {t("player.status.findingStream")}
-                    </p>
-                </div>
-            )}
-
-            {rows.length > 0 ? (
-                <p className="mt-2 text-center text-[9px] tabular-nums tracking-wide text-white/35">
-                    {t("player.ready", { count: readyCount })}
-                    {sources.length > 0 ? ` · ${t("player.loaded", { count: sources.length })}` : ""}
-                </p>
-            ) : null}
+            <SourceProbeFlow
+                rows={rows}
+                currentTestingProvider={currentTestingProvider}
+                sourcesLoadingMore={sourcesLoadingMore || isLoading}
+            />
         </div>
     )
 }
