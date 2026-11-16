@@ -18,8 +18,8 @@ function FailedPill({ name }: { name: string }) {
     return (
         <div
             className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full border border-white/8",
-                "bg-white/[0.04] px-3 py-1.5 text-[11px] text-zinc-500",
+                "flex shrink-0 items-center gap-1.5 rounded-full border border-[#e6c98a]/15",
+                "bg-[#100c09]/70 px-3 py-1.5 text-[11px] text-[#e6c98a]/45",
                 "animate-in fade-in slide-in-from-left-4 duration-500"
             )}
         >
@@ -33,39 +33,39 @@ function RowStatusIcon({ status }: { status: ProviderProbeRow["status"] }) {
     if (status === "found") {
         return (
             <span
-                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/15"
+                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-[#e6c98a]/45 bg-[#e6c98a]/15"
                 aria-hidden
             >
-                <Check className="size-2.5 text-emerald-400" />
+                <Check className="size-2.5 text-[#e6c98a]" />
             </span>
         )
     }
     if (status === "failed") {
         return (
             <span
-                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.04]"
+                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03]"
                 aria-hidden
             >
-                <X className="size-2.5 text-white/45" />
+                <X className="size-2.5 text-white/40" />
             </span>
         )
     }
     if (status === "testing") {
         return (
             <span
-                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-white/35 bg-white/10"
+                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-[#e6c98a]/50 bg-[#e6c98a]/12"
                 aria-hidden
             >
-                <Loader2 className="size-2.5 animate-spin text-white" />
+                <Loader2 className="size-2.5 animate-spin text-[#e6c98a]" />
             </span>
         )
     }
     return (
         <span
-            className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-white/15"
+            className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-[#e6c98a]/18"
             aria-hidden
         >
-            <Minus className="size-2.5 text-white/30" />
+            <Minus className="size-2.5 text-[#e6c98a]/35" />
         </span>
     )
 }
@@ -104,15 +104,15 @@ export function SourceProbeFlow({
                     {nextPending ? (
                         <div
                             className={cn(
-                                "flex items-center gap-1.5 text-xs text-white/40",
+                                "flex items-center gap-1.5 text-xs text-[#e6c98a]/45",
                                 "animate-in fade-in slide-in-from-left-6 duration-700"
                             )}
                         >
                             <span className="truncate font-medium">{nextPending.displayName}</span>
-                            <ChevronRight className="size-3.5 shrink-0 animate-pulse text-white/30" />
+                            <ChevronRight className="size-3.5 shrink-0 animate-pulse text-[#e6c98a]/35" />
                         </div>
                     ) : sourcesLoadingMore && !centerTesting ? (
-                        <span className="animate-pulse text-xs text-white/30">
+                        <span className="animate-pulse text-xs text-[#e6c98a]/35">
                             {t("player.probe.resolving")}
                         </span>
                     ) : null}
@@ -122,38 +122,38 @@ export function SourceProbeFlow({
                     {centerTesting ? (
                         <div
                             className={cn(
-                                "flex items-center gap-2.5 rounded-full border border-white/25",
-                                "bg-white/[0.08] px-5 py-2.5 shadow-[0_0_32px_rgba(255,255,255,0.08)]",
+                                "flex items-center gap-2.5 rounded-full border border-[#e6c98a]/40",
+                                "bg-[#e6c98a]/12 px-5 py-2.5 shadow-[0_0_32px_rgba(230,201,138,0.18)]",
                                 "animate-in zoom-in-95 fade-in duration-300"
                             )}
                         >
-                            <Loader2 className="size-4 shrink-0 animate-spin text-white" />
-                            <span className="text-sm font-semibold tracking-tight text-white">
+                            <Loader2 className="size-4 shrink-0 animate-spin text-[#e6c98a]" />
+                            <span className="text-sm font-semibold tracking-tight text-[#f6f1e8]">
                                 {centerTesting.displayName}
                             </span>
                         </div>
                     ) : foundRows.length > 0 ? (
                         <div
                             className={cn(
-                                "flex items-center gap-2.5 rounded-full border border-emerald-400/35",
-                                "bg-emerald-500/15 px-5 py-2.5 shadow-[0_0_28px_rgba(52,211,153,0.15)]",
+                                "flex items-center gap-2.5 rounded-full border border-[#e6c98a]/45",
+                                "bg-[#e6c98a]/15 px-5 py-2.5 shadow-[0_0_28px_rgba(230,201,138,0.2)]",
                                 "animate-in zoom-in-95 fade-in duration-300"
                             )}
                         >
-                            <Check className="size-4 shrink-0 text-emerald-400" />
-                            <span className="text-sm font-semibold text-emerald-100">
+                            <Check className="size-4 shrink-0 text-[#e6c98a]" />
+                            <span className="text-sm font-semibold text-[#f6f1e8]">
                                 {foundRows[foundRows.length - 1]?.displayName}
                             </span>
                         </div>
                     ) : (
                         <div
                             className={cn(
-                                "flex items-center gap-2.5 rounded-full border border-white/15",
-                                "bg-white/[0.05] px-5 py-2.5"
+                                "flex items-center gap-2.5 rounded-full border border-[#e6c98a]/25",
+                                "bg-[#e6c98a]/08 px-5 py-2.5"
                             )}
                         >
-                            <Loader2 className="size-4 shrink-0 animate-spin text-white/70" />
-                            <span className="text-sm font-medium text-white/70">
+                            <Loader2 className="size-4 shrink-0 animate-spin text-[#e6c98a]/80" />
+                            <span className="text-sm font-medium text-[#f6f1e8]/80">
                                 {t("player.probe.startingScan")}
                             </span>
                         </div>
@@ -167,18 +167,24 @@ export function SourceProbeFlow({
                 </div>
             </div>
 
-            <div className="w-full max-w-sm space-y-1.5 rounded-lg border border-white/10 bg-white/[0.04] p-1.5">
+            <div
+                className={cn(
+                    "w-full max-w-sm space-y-1 rounded-xl border border-[#e6c98a]/18",
+                    "bg-gradient-to-b from-[#1a1510]/95 to-[#100c09]/95 p-1.5",
+                    "shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md"
+                )}
+            >
                 {rows.map((row) => {
                     const testing = row.status === "testing"
                     return (
                         <div
                             key={row.id}
                             className={cn(
-                                "flex min-h-9 items-center justify-between rounded-md px-2 py-2 transition-colors",
-                                testing && "bg-white/10 text-zinc-100",
-                                row.status === "found" && "text-emerald-300/90",
-                                row.status === "failed" && "text-zinc-500",
-                                row.status === "pending" && "text-zinc-400"
+                                "flex min-h-9 items-center justify-between rounded-lg px-2.5 py-2 transition-colors",
+                                testing && "bg-[#e6c98a]/12 text-[#f6f1e8]",
+                                row.status === "found" && "text-[#e6c98a]",
+                                row.status === "failed" && "text-[#f6f1e8]/35",
+                                row.status === "pending" && "text-[#f6f1e8]/55"
                             )}
                         >
                             <span className="flex min-w-0 items-center gap-2">
@@ -189,9 +195,11 @@ export function SourceProbeFlow({
                             </span>
                             <span
                                 className={cn(
-                                    "inline-flex shrink-0 items-center rounded-full border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400",
-                                    testing && "border-zinc-600 text-zinc-300",
-                                    row.status === "failed" && "text-zinc-500"
+                                    "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px]",
+                                    "border-[#e6c98a]/20 text-[#e6c98a]/55",
+                                    testing && "border-[#e6c98a]/40 text-[#e6c98a]",
+                                    row.status === "found" && "border-[#e6c98a]/35 text-[#e6c98a]",
+                                    row.status === "failed" && "border-white/10 text-[#f6f1e8]/35"
                                 )}
                             >
                                 {testing ? (
@@ -200,7 +208,7 @@ export function SourceProbeFlow({
                                         {t("player.testingLabel")}
                                     </>
                                 ) : row.status === "found" ? (
-                                    <Check className="size-3 text-emerald-400" />
+                                    <Check className="size-3 text-[#e6c98a]" />
                                 ) : row.status === "failed" ? (
                                     "Failed"
                                 ) : (
@@ -212,7 +220,7 @@ export function SourceProbeFlow({
                 })}
             </div>
 
-            <p className="text-center text-xs text-white/45">
+            <p className="text-center text-xs text-[#e6c98a]/55">
                 {centerTesting
                     ? t("player.probe.checking", { name: centerTesting.displayName })
                     : sourcesLoadingMore

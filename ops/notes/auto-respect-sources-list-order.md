@@ -85,3 +85,4 @@ then `pcv=20261116035210compactprobe` (chunk `8887-53ba3e20fbc6f53d.js`) after t
 
 Live: `pcv=20261116040255fullchrome`.
 Live: `pcv=20261116042010siteload` (no auto Settings popup) + site-matched SourceProbeFlow (center pill + Sources-style rows; not the tiny foreign card).
+Live: `pcv=20261116043055goldload` — gold-themed SourceProbeFlow; play/±10s hidden behind loading (`hideTransportControls`).

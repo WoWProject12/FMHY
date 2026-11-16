@@ -146,7 +146,7 @@ export function SourceStatusOverlay({
     return (
         <div
             className={cn(
-                "pointer-events-none absolute inset-0 z-20 flex flex-col items-center bg-black/35 px-4",
+                "pointer-events-none absolute inset-0 z-[60] flex flex-col items-center bg-[#100c09]/55 px-4",
                 isFullscreen
                     ? "justify-center py-6"
                     : "justify-center py-6 max-md:justify-start max-md:pt-[48%] max-md:pb-24 md:justify-center md:py-6"
