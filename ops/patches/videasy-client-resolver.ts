@@ -50,7 +50,7 @@ type SeedCacheEntry = {
 }
 
 /** Prefer the cities that EncDec marks as likely 4K; return as soon as one hits. */
-const PRIORITY_SERVERS = ["miami", "boise"] as const
+const PRIORITY_SERVERS = ["miami"] as const
 const SERVER_FETCH_TIMEOUT_MS = 4_000
 const PRIORITY_FETCH_TIMEOUT_MS = 3_500
 /** Rest cities start after this, or immediately once a priority city is usable. */
@@ -1144,15 +1144,18 @@ async function fetchBlobViaApi(
 
     const data = (await response.json()) as {
       blob?: string
+      seed?: string
       error?: string
       blocked?: boolean
+      cached?: boolean
     }
 
     if (!response.ok) {
       return { error: data.error ?? `Videasy fetch failed (HTTP ${response.status}).` }
     }
 
-    return { blob: data.blob, blocked: data.blocked }
+    // Prefer server seed on cache hits — blob decrypt requires the mint that made it.
+    return { blob: data.blob, seed: data.seed, blocked: data.blocked }
   } catch (error) {
     const timedOut =
       error instanceof Error &&
@@ -1395,16 +1398,41 @@ async function fetchFromServer(
 
   // Fallback: explicit bridge seed + city (or BFF when mode=api).
   const allowMint = mode === "api"
-  let seed = await claimSeedForCity(media.tmdbId, allowMint)
-  if (!seed) {
-    return {
-      streams: [],
-      fetchError:
-        "Could not get Videasy session. Hard-refresh and try again (bridge blocked or busy).",
+  let seed = ""
+  if (mode === "api") {
+    // Soft try: pooled seed only — do NOT mint yet. BFF may return a
+    // 180s blob cache hit (second Sources tap) without touching mint.
+    seed = takePooledSeed(media.tmdbId) || ""
+  } else {
+    seed = (await claimSeedForCity(media.tmdbId, allowMint)) || ""
+    if (!seed) {
+      return {
+        streams: [],
+        fetchError:
+          "Could not get Videasy session. Hard-refresh and try again (bridge blocked or busy).",
+      }
     }
   }
 
   let fetched = await fetchCityBlob(server, meta, media, seed, mode, cityTimeout)
+  // Cache miss with no seed — mint once then retry BFF.
+  if (mode === "api" && !fetched.blob && !fetched.blocked) {
+    const minted = await mintSeedOnce(media.tmdbId, {
+      pool: false,
+      fresh: false,
+      allowMintFallback: true,
+    })
+    if (minted) {
+      seed = minted
+      fetched = await fetchCityBlob(server, meta, media, seed, mode, cityTimeout)
+    } else if (!seed) {
+      return {
+        streams: [],
+        fetchError:
+          "Videasy session is rate-limited right now. Wait a few seconds and retry.",
+      }
+    }
+  }
 
   // movy: on 401 remint once for this city only (do not wipe sibling pool).
   // Direct/bridge mode must still allow one BFF remint — burned shared cache
@@ -1431,13 +1459,20 @@ async function fetchFromServer(
     return { streams: [], fetchError: fetched.error ?? "Videasy fetch failed." }
   }
 
+  // Cache hits return the original seed — required to decrypt the blob.
+  const decryptSeed =
+    typeof (fetched as { seed?: string }).seed === "string" &&
+    (fetched as { seed?: string }).seed!.trim()
+      ? (fetched as { seed?: string }).seed!.trim()
+      : seed
+
   // NEVER Helios/Atlantic CDN (burns atlantic.st watermark). Raw kite only.
-  let decrypted = decryptLocal(fetched.blob, media.tmdbId, seed)
+  let decrypted = decryptLocal(fetched.blob, media.tmdbId, decryptSeed)
   if (!decrypted.sources?.length) {
-    decrypted = await decryptDirect(fetched.blob, media.tmdbId, seed)
+    decrypted = await decryptDirect(fetched.blob, media.tmdbId, decryptSeed)
   }
   if (!decrypted.sources?.length) {
-    decrypted = await decryptViaApi(fetched.blob, media.tmdbId, seed)
+    decrypted = await decryptViaApi(fetched.blob, media.tmdbId, decryptSeed)
   }
   if (!decrypted.sources?.length) {
     return { streams: [], decryptError: decrypted.error }
@@ -1522,7 +1557,7 @@ async function raceServersForStreams(
   const rest = servers.filter(
     (s) => !(PRIORITY_SERVERS as readonly string[]).includes(s)
   )
-  // First paint: Miami only. No parallel cities, no rest-city tail.
+  // First paint: Miami only. No boise / rest-city tail.
   const firstWave = (priority.length ? priority : [...servers]).slice(0, 1)
   const laterWave: string[] = []
   const total = firstWave.length
@@ -1838,30 +1873,65 @@ export async function resolveVideasyStreamsClient(
     if (typeof console !== "undefined") {
       console.info("[videasy] BFF/yoru seed+city fallback (shared mint lane)")
     }
-    // One shot only. Retrying through soft-gap made "Starting Videasy" hang
-    // ~10–16s while mint returned 429/503. Fail fast so the UI can recover.
-    const mintSeed = await mintSeedOnce(media.tmdbId, {
-      pool: true,
-      fresh: false,
-      allowMintFallback: true,
-    })
-    if (!mintSeed) {
-      return {
-        streams: [],
-        failureReason:
-          "Videasy session is rate-limited right now. Wait a few seconds and retry.",
+    // Same practice as VAPlayer unlock-pending: soft-gap can take 20–60s under
+    // load. Keep polling until streams appear, a hard miss, or the deadline —
+    // so every title gets a fair wait without per-title warming.
+    const waitMs = Math.min(60_000, Math.max(12_000, budgetLeft()))
+    const deadline = Date.now() + waitMs
+    let attempt = 0
+    let lastFailure =
+      "Videasy session is rate-limited right now. Wait a few seconds and retry."
+
+    while (Date.now() + 500 < deadline) {
+      attempt += 1
+      if (attempt > 1) {
+        progress("mint-retry")
+        const delay = Math.min(
+          6_000,
+          Math.max(1_500, 2_000 * Math.min(attempt - 1, 3)),
+          Math.max(500, deadline - Date.now())
+        )
+        await new Promise((r) => setTimeout(r, delay))
       }
+
+      const mintSeed = await mintSeedOnce(media.tmdbId, {
+        pool: true,
+        fresh: attempt > 1,
+        allowMintFallback: true,
+      })
+      if (!mintSeed) {
+        lastFailure =
+          "Videasy session is rate-limited right now. Wait a few seconds and retry."
+        continue
+      }
+
+      // One pooled seed for miami.
+      rememberSeed(media.tmdbId, mintSeed, 12_000)
+      const hit = await resolveWithMode(
+        meta,
+        media,
+        "",
+        "api",
+        onPartial,
+        ["miami"]
+      )
+      if (hit.streams.length) return hit
+
+      invalidateSeed(media.tmdbId)
+      const reason = String(hit.failureReason || "")
+      // Hard content miss — stop polling (same title will stay empty).
+      if (/no streams available|not found|copyright/i.test(reason)) {
+        return hit
+      }
+      lastFailure =
+        reason ||
+        "Videasy session is rate-limited right now. Wait a few seconds and retry."
     }
-    // One pooled seed for first city only; boise claims a fresh seed.
-    rememberSeed(media.tmdbId, mintSeed, 12_000)
-    return resolveWithMode(
-      meta,
-      media,
-      "",
-      "api",
-      onPartial,
-      ["miami", "boise"]
-    )
+
+    return {
+      streams: [],
+      failureReason: lastFailure,
+    }
   }
 
   // On chillflix.* anyip bridge is often dead/slow - BFF/WARP first so
@@ -1882,17 +1952,14 @@ export async function resolveVideasyStreamsClient(
   void warmVideasyOriginBridge()
 
   progress("cities")
-  last = await resolveWithMode(meta, media, "", "direct", onPartial, [
-    "miami",
-    "boise",
-  ])
+  last = await resolveWithMode(meta, media, "", "direct", onPartial, ["miami"])
   if (last.streams.length) {
     rememberStreams(media, last.streams)
     progress("ready")
     return last
   }
 
-    // miami then boise (sequential via MAX_CITY_INFLIGHT=1).
+    // Miami-only.
 
   // Last ditch: rebuild bridge and one runner resolve (mobile iframe often
   // needs a second TLS attempt after the first timeout).

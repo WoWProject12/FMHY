@@ -14,4 +14,4 @@ sat black at 00:00 with pause UI (duration from TMDB, e.g. Bridget Jones `95610`
 Keep tokenized VA URLs on cinepro proxy (server sets nextgen Origin). Only unwrap
 untokenized / kite-style hosts to viewer-direct.
 
-Hard-refresh after `pcv` bust.
+Hard-refresh after `pcv=20261116005938wfiw`.

@@ -1651,14 +1651,18 @@ export function CineProWatchPlayer({
                 providerOrder,
                 showRealProviderNames
             )
-            // Unlock still running (soft-timeout): keep Starting, auto-retry once.
+            // Soft-wait still running (VA unlock / Videasy mint soft-gap): keep
+            // Starting, auto-retry — same practice for both client-resolve lanes.
             // Do not flash Tap-again over another playing source.
-            const pendingUnlock =
-                providerKey === "vaplayer" &&
-                /still running|unlock-pending|retry/i.test(
-                    String(diagnosticMessage || "")
-                )
-            if (pendingUnlock) {
+            const pendingMsg = String(diagnosticMessage || "")
+            const pendingSoftWait =
+                (providerKey === "vaplayer" &&
+                    /still running|unlock-pending|retry/i.test(pendingMsg)) ||
+                (providerKey === "videasy" &&
+                    /rate-limited|soft-gap|wait a few|session is|retry/i.test(
+                        pendingMsg
+                    ))
+            if (pendingSoftWait) {
                 setRuntimeError(`Starting ${label}…`)
                 window.setTimeout(() => {
                     void requestProvider(providerId)

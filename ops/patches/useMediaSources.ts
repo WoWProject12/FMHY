@@ -891,8 +891,12 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       }
 
       if (!result.sources.length) {
-        // Still merge-replace so a stale Videasy/Movy/VAPlayer row cannot stay
-        // selected after a fresh resolve returned nothing.
+        const softPending = /rate-limited|unlock-pending|still running|soft-gap|wait a few|session is|retry/i.test(
+          String(result.failureReason || "")
+        )
+        // Soft-wait (VA unlock / Videasy mint gap): keep any prior streams —
+        // wiping them left a black player until a manual retap (same class of
+        // bug as VAPlayer auto-start empty replace).
         return applyPayload(
           {
             sources: [],
@@ -907,7 +911,9 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
                 ]
               : [],
           },
-          { merge: true, replaceProviderIds: [providerId] }
+          softPending
+            ? { merge: true }
+            : { merge: true, replaceProviderIds: [providerId] }
         )
       }
 
