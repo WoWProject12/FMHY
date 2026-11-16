@@ -38,4 +38,4 @@ and between-pass clears no longer wipe hard fails — Auto can move to #2
 
 ## Deploy
 Player build → `pm2 restart chillflix-player chillflix-embed` → nginx `pcv`
-bust (latest `…vademote`).
+bust `pcv=20261116022844vademote` (chunk `1643-167a9f9dc16b1c77.js`).
