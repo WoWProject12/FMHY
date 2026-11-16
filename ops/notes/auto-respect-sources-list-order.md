@@ -90,3 +90,4 @@ Live: `pcv=20261116044020loadchrome` — loading uses same player chrome as play
 Live: `pcv=20261116044741nocarousel` — removed the Rive > VAPlayer carousel/breadcrumb row above the probe list (list-only SourceProbeFlow).
 Live: `pcv=20261116045726hidetransport` — hide Movy/native center play/±10 while Auto Sources loading is on screen (`hideTransportControls`).
 Live: `pcv=20261116051237vanishprobe` — minimal Auto probe: “Looking for the fastest source” + loading line; failed sources vanish instead of staying as Failed.
+Live: `pcv=20261116052331seqonly` — stop parallel bulk /sources during Auto; only one Sources row shows testing (no MeowTV-while-#2).

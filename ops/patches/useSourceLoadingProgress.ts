@@ -246,6 +246,13 @@ export function useSourceLoadingProgress({
     const labelOrder = providerOrder ?? providers.map((provider) => provider.id)
 
     const rows: ProviderProbeRow[] = useMemo(() => {
+        // While Auto walks Sources, only the active row may show "testing".
+        // Health probes / leftover URLs used to mark MeowTV (etc.) checking at
+        // the same time as #2 — that looked like parallel testing.
+        const exclusiveTestingId = activeTestingProviderId
+            ? normalizeProviderName(activeTestingProviderId)
+            : undefined
+
         return providers.map((provider) => {
             let status: ProviderProbeStatus = "pending"
 
@@ -261,10 +268,20 @@ export function useSourceLoadingProgress({
                 status = "failed"
             }
 
-            if (
+            if (exclusiveTestingId) {
+                if (provider.id === exclusiveTestingId) {
+                    if (status !== "found" && status !== "failed") {
+                        status = "testing"
+                    }
+                } else if (status === "testing") {
+                    // Another provider's health "checking" must not light up
+                    // while Auto is officially testing a different row.
+                    status = "pending"
+                }
+            } else if (
                 status === "pending" &&
                 activeProbeProviderId === provider.id &&
-                (scanActive || Boolean(activeTestingProviderId) || sourcesFetching)
+                (scanActive || sourcesFetching)
             ) {
                 status = "testing"
             }

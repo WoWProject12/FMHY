@@ -1335,74 +1335,33 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
           }
         }
 
-        // Bulk fetch stays in the background — do not block first play on it.
-        void fetchSources()
-          .then((result) => {
-            if (isStale()) return
-
-            if (
-              result.sources.length === 0 &&
-              isBackgroundSourcesPending(result.diagnostics)
-            ) {
-              window.setTimeout(() => {
-                if (!isStale() && sourcesRef.current.length === 0) {
-                  void fetchSources({ merge: true }).catch(() => undefined)
-                }
-              }, BACKGROUND_MERGE_KICK_MS)
-            }
-
-            if (shouldAutoRetry(result.diagnostics)) {
-              retryTimer = window.setTimeout(() => {
-                if (!isStale()) {
-                  void fetchSources({
-                    retry: true,
-                    fresh: true,
-                    merge: true,
-                  }).catch(() => undefined)
-                }
-              }, OFFLINE_RETRY_MS)
-            }
-          })
-          .catch((err) => {
-            if (isStale()) return
-
-            const isTimeout =
-              err instanceof Error &&
-              (err.name === "AbortError" ||
-                err.message === "Provider scan timed out")
-
-            if (isTimeout) {
-              setError(undefined)
-              retryTimer = window.setTimeout(() => {
-                if (!isStale()) {
-                  void fetchSources({
-                    retry: true,
-                    fresh: true,
-                    merge: true,
-                  }).catch(() => undefined)
-                }
-              }, OFFLINE_RETRY_MS)
-              return
-            }
-
-            const message =
-              err instanceof Error ? err.message : "Failed to load sources"
-
-            void applyEmergencyFallback(message).then((fallback) => {
-              if (isStale()) return
-              void fetchSources({ merge: true }).catch(() => undefined)
-              if (fallback.sources.length === 0) {
-                setError(message)
-              }
-            })
-          })
-          .finally(() => {
+        // Do NOT fire an unscoped /sources bulk fetch here. That scraped every
+        // provider (including MeowTV near the bottom) in parallel while Auto was
+        // still testing #1/#2. The sequential provider scan walks admin order
+        // one-by-one via tryProvider / fetchSources({ provider }).
+        if (!isStale()) {
+          // Cap the initial spinner; the sequential scan owns refreshing.
+          window.setTimeout(() => {
             if (loadingCapTimer) window.clearTimeout(loadingCapTimer)
             if (!isStale()) {
               setIsLoading(false)
-              setIsRefreshing(false)
             }
-          })
+          }, 0)
+          // Keep a late emergency only if the sequential walk produced nothing.
+          window.setTimeout(() => {
+            if (isStale()) return
+            if (sourcesRef.current.length > 0) return
+            if (playbackActiveRef.current) return
+            void applyEmergencyFallback("No sources from sequential scan")
+              .then((fallback) => {
+                if (isStale()) return
+                if (fallback.sources.length === 0) {
+                  setError("Failed to load sources")
+                }
+              })
+              .catch(() => undefined)
+          }, Math.max(BACKGROUND_MERGE_KICK_MS, 12_000))
+        }
       } catch (err) {
         if (isStale()) return
         const message =
@@ -2078,6 +2037,10 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
     if (
       !enabled ||
       playbackActive ||
+      // Sequential Auto walk owns scrapes — unscoped polls would hit MeowTV
+      // (and every other scraper) while we are still testing #1/#2.
+      Boolean(scanningProviderId) ||
+      isScanningProviders ||
       !isBackgroundSourcesPending(diagnostics)
     ) {
       return
@@ -2125,7 +2088,14 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       if (timer) window.clearInterval(timer)
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
-  }, [diagnostics, enabled, fetchSources, playbackActive, scanningProviderId])
+  }, [
+    diagnostics,
+    enabled,
+    fetchSources,
+    isScanningProviders,
+    playbackActive,
+    scanningProviderId,
+  ])
 
   useEffect(() => {
     if (!enabled || !playbackToken || TOKEN_REFRESH_INTERVAL_MS <= 0) {
