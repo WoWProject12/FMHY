@@ -82,3 +82,5 @@ then `pcv=20261116025945sheetscan` (chunk `8887-1c68996d8af993c7.js`) after Medi
 then `pcv=20261116033055embedprobe` after embed quietScanUi exception for active scans,
 then `pcv=20261116034520scan4s` (chunk `1643-705a2df034d7e234.js`) after the ~4s Auto row budget,
 then `pcv=20261116035210compactprobe` (chunk `8887-53ba3e20fbc6f53d.js`) after the compact SourceProbeFlow restyle.
+
+Live: `pcv=20261116040255fullchrome`.
