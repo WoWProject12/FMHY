@@ -40,6 +40,10 @@ import {
 import { cn } from "@/lib/utils"
 import { isClientResolveProvider } from "@/lib/client-resolve-providers"
 
+// PlayerControls mounts Settings twice (mobile top + bottom). Only one
+// instance may honor the global open event or sheets stack on top of each other.
+let openPlayerSettingsOwner: symbol | null = null
+
 interface PlayerSettingsProps {
     playbackRate: number
     onPlaybackRateChange: (rate: number) => void
@@ -343,7 +347,10 @@ export function PlayerSettings({
     }, [open])
 
     useEffect(() => {
+        const owner = Symbol("player-settings")
+        openPlayerSettingsOwner = owner
         const onOpenRequest = (event: Event) => {
+            if (openPlayerSettingsOwner !== owner) return
             const detail = (event as CustomEvent<{ tab?: string }>).detail
             const tab = typeof detail?.tab === "string" ? detail.tab : "source"
             setActiveTab(tab)
@@ -358,6 +365,7 @@ export function PlayerSettings({
                 "chillflix:open-player-settings",
                 onOpenRequest as EventListener
             )
+            if (openPlayerSettingsOwner === owner) openPlayerSettingsOwner = null
         }
     }, [onOpenChange])
 

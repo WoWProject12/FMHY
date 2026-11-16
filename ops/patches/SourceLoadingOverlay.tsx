@@ -140,19 +140,8 @@ export function SourceLoadingOverlay({
             quality: option.quality,
         })) ?? []
 
-    // Open the real player Settings → Sources sheet while Auto walks the list.
-    useEffect(() => {
-        if (playbackStarted || !active) return
-        const timer = window.setTimeout(() => {
-            window.dispatchEvent(
-                new CustomEvent("chillflix:open-player-settings", {
-                    detail: { tab: "source" },
-                })
-            )
-        }, 120)
-        return () => window.clearTimeout(timer)
-    }, [active, playbackStarted])
-
+    // Keep chrome visible while Auto walks the list — do NOT auto-open
+    // Settings (two PlayerSettings mounts would stack duplicate sheets).
     useEffect(() => {
         if (playbackStarted) return
         setControlsVisible(true)

@@ -152,11 +152,6 @@ export function SourceStatusOverlay({
                     : "justify-center py-6 max-md:justify-start max-md:pt-[48%] max-md:pb-24 md:justify-center md:py-6"
             )}
         >
-            <div className="relative mb-2.5 flex shrink-0 items-center justify-center">
-                <div className="h-6 w-6 rounded-full border border-white/10 bg-white/[0.03]" />
-                <div className="absolute h-6 w-6 animate-spin rounded-full border border-white/15 border-t-white/75" />
-            </div>
-
             {rows.length > 0 ? (
                 <SourceProbeFlow
                     rows={rows}
@@ -164,15 +159,22 @@ export function SourceStatusOverlay({
                     sourcesLoadingMore={sourcesLoadingMore || isLoading}
                 />
             ) : (
-                <p className="max-w-[14rem] text-center text-[11px] font-medium text-white/75">
-                    {t("player.status.findingStream")}
-                </p>
+                <div className="flex flex-col items-center gap-2">
+                    <div className="relative flex size-6 items-center justify-center">
+                        <div className="absolute inset-0 animate-spin rounded-full border border-white/15 border-t-white/75" />
+                    </div>
+                    <p className="max-w-[14rem] text-center text-[11px] font-medium text-white/75">
+                        {t("player.status.findingStream")}
+                    </p>
+                </div>
             )}
 
-            <p className="mt-2 text-center text-[9px] tabular-nums tracking-wide text-white/35">
-                {t("player.ready", { count: readyCount })}
-                {sources.length > 0 ? ` · ${t("player.loaded", { count: sources.length })}` : ""}
-            </p>
+            {rows.length > 0 ? (
+                <p className="mt-2 text-center text-[9px] tabular-nums tracking-wide text-white/35">
+                    {t("player.ready", { count: readyCount })}
+                    {sources.length > 0 ? ` · ${t("player.loaded", { count: sources.length })}` : ""}
+                </p>
+            ) : null}
         </div>
     )
 }
