@@ -58,6 +58,12 @@ blanking now only applies when Auto is **not** scanning.
 SourceProbeFlow dropped the wide carousel + oversized spinner for a small
 status list (tiny status circles, tighter card). Overlay rings shrunk to ~24–28px.
 
+## Black screen on .lol ?play=true
+`quietScanUi` blanked the embed whenever scan flags were briefly false, and
+parent-hosted MediaPlayer hid SourceStatusOverlay. Cinema parent only shows a
+back chevron → pure black. Loading always mounts SourceLoadingOverlay now;
+probe overlay also shows under parent-hosted until playback progresses.
+
 ## ~4s per Sources row
 Auto was hanging on VAPlayer because scan budgets were 15–45s (+20s #1
 bonus) and the client unlock poll defaulted to 60s. Row budget is now

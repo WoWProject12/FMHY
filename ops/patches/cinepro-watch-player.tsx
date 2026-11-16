@@ -2159,15 +2159,12 @@ const quietStallAttemptRef = useRef(0)
     }, [isCurrentProviderFailed, isLoading, sources, sourcesLoadingMore])
 
     const hostedOnParent = Boolean(embedOptions?.hostedOnParent)
-    // Embed iframes: keep blank chrome when idle/reconnecting so Toflix Play
-    // stays light — but show SourceProbeFlow while Auto walks Sources
-    // (testing/failed circles). Hiding the overlay entirely made Auto look stuck.
-    const quietScanUi =
-        Boolean(embedMode) &&
-        !sourcesLoadingMore &&
-        !isScanningProviders &&
-        !activeTestingProviderId &&
-        scanFailedProviderIds.length === 0
+    // Never blank the loading stage. chillflix.lol ?play=true only draws a
+    // back chevron in the parent — quiet black embed looked like a dead page.
+    // Keep quiet only for brief reconnect holds after playback was already live.
+    const quietScanUi = Boolean(
+        embedMode && hostedOnParent && (playbackStable || playbackActive)
+    )
 
     const handleEmbedControlsVisible = useCallback((visible: boolean) => {
         postEmbedMessage(EMBED_MESSAGE_CONTROLS_VISIBLE, { visible })
@@ -2290,10 +2287,8 @@ const quietStallAttemptRef = useRef(0)
             </div>
         )
     } else if (showSourceLoading || !showHardUnavailable) {
-        // Toflix / parent embeds: no Please wait, spinner, Alpha, or fake player chrome.
-        builtinPlayer = quietScanUi ? (
-            <div className="h-full min-h-0 w-full bg-black" aria-hidden="true" />
-        ) : (
+        // Always show the compact probe — parent cinema shells do not cover this.
+        builtinPlayer = (
         <SourceLoadingOverlay
             active={true}
             sources={sources}

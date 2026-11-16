@@ -5006,7 +5006,9 @@ export function MediaPlayer({
         </div>
       ) : null}
 
-      {!parentHostedEmbed && sources && sources.length > 0 ? (
+      {/* Show probe even for parent-hosted cinema shells — .lol ?play=true only
+          draws a back chevron, so hiding this left a pure black iframe. */}
+      {sources && sources.length > 0 ? (
         <SourceStatusOverlay
           sources={sources}
           currentSourceId={source.id}
