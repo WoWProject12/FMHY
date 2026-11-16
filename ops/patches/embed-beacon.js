@@ -470,26 +470,19 @@
     function gestureProbe() {
       if (gestureProbed) return
       gestureProbed = true
+      // Never window.open here — that caused a blank first-click popup with no ad.
+      // Infer popup capability from sandbox attrs / frame context only.
       var readable = readableSandboxBlocksPopups()
-      var openOk = true
+      var openOk = readable === true ? false : true
       try {
-        var w = window.open("about:blank", "_blank")
-        if (!w) openOk = false
-        else {
-          try {
-            w.close()
-          } catch (e1) {}
-        }
-      } catch (e2) {
-        openOk = false
-      }
+        if (window.__cfNoAds) openOk = false
+      } catch (e0) {}
       send("ad_probe", {
-        canPopup: readable === true ? false : openOk,
+        canPopup: openOk,
         sandboxed: readable === true,
         adsLib: probeAdsLib(),
-        probeKind: readable == null ? "gesture" : "gesture-frame",
+        probeKind: readable == null ? "gesture-passive" : "gesture-frame-passive",
       })
-      // Analytics only on click — never show the gate from a Play tap.
       try {
         document.removeEventListener("click", gestureProbe, true)
       } catch (e3) {}
