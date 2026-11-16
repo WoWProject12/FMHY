@@ -1338,24 +1338,19 @@ function sortEligibleByProviderRank<T extends { providerId?: string }>(
 }
 
 
-/** Low-ranked / fast server scrapes that must not beat client-resolve #1–N. */
+/** Fast server/bulk scrapes that must not beat client-resolve #1–N. */
 export function shouldHoldForHigherRankedProviders(providerId?: string): boolean {
     const key = normalizeProviderName(providerId ?? "")
     if (!key) return false
-    // Client-resolve (incl. FileSuN HLS) — user/auto may pick these; do not
-    // treat them as scrapes to escape back to VAPlayer.
+    // Client-resolve peers (VAPlayer, Videasy, 7Movies, …) may auto-start by
+    // admin order among themselves.
     if (isClientResolveProvider(key)) return false
-    // Bulk/cinepro leftovers that must not beat VAPlayer/Videasy on cold start.
-    return (
-        key === "huhu" ||
-        key === "flixhq" ||
-        key === "flixhqz" ||
-        key === "vidlink" ||
-        key === "cinesu" ||
-        key === "vidsrc" ||
-        key === "vidsrcsh" ||
-        !isAutomaticProviderId(key)
-    )
+    // RiveStream/CNO/MeowTV/etc. return URLs in ~1–2s from CinePro while
+    // VAPlayer is still unlocking. Treating automatic server scrapes as
+    // "free to start" made auto always land on RiveStream even when VA was
+    // #1 in Sources and played fine on manual tap. Hold all non-client
+    // scrapes until higher-ranked client-resolve finishes or fails.
+    return true
 }
 
 export function pickPreferredPlaybackSource<T extends { id: string; providerId?: string }>(

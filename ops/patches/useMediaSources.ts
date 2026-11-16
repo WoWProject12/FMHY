@@ -324,13 +324,14 @@ function sourcesIncludeStartedProvider(sources: MediaSource[], providerId: strin
   )
 }
 
-/** VAPlayer/Videasy/Movy/7Movies — not FileSuN/Huhu bulk scrapes. */
+/** VAPlayer/Videasy/7Movies/… — not RiveStream/CNO/FileSuN bulk scrapes. */
 function sourcesHavePreferredAutoStartProvider(sources: MediaSource[]): boolean {
   return sources.some((source) => {
-    const id = source.provider?.id
-    if (shouldHoldForHigherRankedProviders(id)) return false
-    if (isClientResolveProvider(id || "") && source.clientResolved !== true) return false
-    return true
+    const id = source.provider?.id || ""
+    // Only a resolved client-resolve row is "preferred" enough to stop waiting
+    // on VAPlayer #1. RiveStream URLs used to count here and auto-skipped VA.
+    if (!isClientResolveProvider(id)) return false
+    return source.clientResolved === true
   })
 }
 
