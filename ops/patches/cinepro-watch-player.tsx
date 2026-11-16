@@ -531,7 +531,10 @@ export function CineProWatchPlayer({
         return options
             .filter(
                 (option) =>
-                    !isProviderRequiringHealthProbe(option.providerId, option.src)
+                    !isProviderRequiringHealthProbe(option.providerId, option.src) &&
+                    // Never pre-trust RiveStream/CNO/etc. — that marked them ready
+                    // and auto-started below VAPlayer in the Sources list.
+                    !shouldHoldForHigherRankedProviders(option.providerId)
             )
             .map((option) => option.id)
     }, [gatedPlaybackOptions, hasPlayableBatch, playbackOptions, skipHealthProbe])
@@ -1082,32 +1085,19 @@ export function CineProWatchPlayer({
 
         const primaryId = orderedEnabledProviderIds[0]
         if (primaryId && isClientResolveProvider(primaryId)) {
-            const hasPrimary = playbackOptions.some(
-                (option) => option.providerId === primaryId
+            const primaryReady = playbackOptions.some(
+                (option) =>
+                    normalizeProviderName(option.providerId || "") ===
+                        normalizeProviderName(primaryId) &&
+                    option.clientResolved === true
             )
             const primaryFailed = scanFailedProviderIds.some(
                 (id) => normalizeProviderName(id) === normalizeProviderName(primaryId)
             )
-            // Block auto-start only when the only thing available would be a
-            // native bulk fallback (Huhu). Videasy/Movy may start while VAPlayer
-            // is still scraping — otherwise the dark watch cover never lifts.
-            const hasPeerClientResolve = playbackOptions.some((option) => {
-                const id = normalizeProviderName(option.providerId || "")
-                return (
-                    id &&
-                    id !== normalizeProviderName(primaryId) &&
-                    id !== "huhu" &&
-                    id !== "flixhq" &&
-                    id !== "vidlink" &&
-                    isClientResolveProvider(id)
-                )
-            })
-            if (
-                !hasPrimary &&
-                !primaryFailed &&
-                !hasPeerClientResolve &&
-                (sourcesLoadingMore || isScanningProviders || Boolean(scanningProviderId))
-            ) {
+            // Respect Sources order: do not auto-resolve onto #2/#3 while #1
+            // (VAPlayer) is still unlocking — even after the server scan goes
+            // quiet (RiveStream already has URLs). Wait until #1 is ready or failed.
+            if (!primaryReady && !primaryFailed) {
                 return ""
             }
         }
@@ -1152,28 +1142,22 @@ export function CineProWatchPlayer({
         const primaryIsClientResolve = Boolean(
             primaryId && isClientResolveProvider(primaryId)
         )
-        const hasPeerClientResolve = playbackOptions.some((option) => {
-            const id = normalizeProviderName(option.providerId || "")
-            return (
-                id &&
-                id !== normalizeProviderName(primaryId || "") &&
-                id !== "huhu" &&
-                id !== "flixhq" &&
-                id !== "vidlink" &&
-                isClientResolveProvider(id)
-            )
-        })
+        const primaryReady = Boolean(
+            primaryId &&
+                playbackOptions.some(
+                    (option) =>
+                        normalizeProviderName(option.providerId || "") ===
+                            normalizeProviderName(primaryId) &&
+                        option.clientResolved === true
+                )
+        )
+        const primaryFailed = scanFailedProviderIds.some(
+            (id) => normalizeProviderName(id) === normalizeProviderName(primaryId || "")
+        )
         const primaryStillPending =
-            primaryIsClientResolve &&
-            !hasPeerClientResolve &&
-            (sourcesLoadingMore || isScanningProviders || Boolean(scanningProviderId)) &&
-            !playbackOptions.some((option) => option.providerId === primaryId) &&
-            !scanFailedProviderIds.some(
-                (id) => normalizeProviderName(id) === normalizeProviderName(primaryId!)
-            )
+            primaryIsClientResolve && !primaryReady && !primaryFailed
 
-        // Client-resolve #1 absent — don't force-start Huhu/native while #1 scrapes.
-        // Peer client-resolve (Videasy/Movy) may force-start so the cover can lift.
+        // Client-resolve #1 still unlocking — never force-start RiveStream/etc.
         if (primaryStillPending) {
             return
         }

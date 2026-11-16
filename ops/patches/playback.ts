@@ -932,9 +932,14 @@ export function filterPlaybackOptionsByScanGate<
             if (failed.has(higherId)) {
                 continue
             }
-            // After the head-start window, do not block on primary merely because
-            // it returned a URL — let secondaries compete / be auto-tried.
-            if (headStartExpired && higherId === primaryId) {
+            // After head-start, non-client primaries may yield. Client-resolve
+            // #1 (VAPlayer) must stay gated until it fails — otherwise RiveStream
+            // unlocks in the gate at 2s and auto ignores Sources order.
+            if (
+                headStartExpired &&
+                higherId === primaryId &&
+                !isClientResolveProvider(primaryId)
+            ) {
                 continue
             }
             return false
@@ -1013,13 +1018,37 @@ export function pickForceStartPlaybackSource<
         return undefined
     }
 
-    // Never force-start FileSuN/Huhu/etc while any higher-ranked provider has
-    // not explicitly failed — Continue Watching was landing on dead FileSuN.
+    // Never force-start FileSuN/Huhu/RiveStream while any higher-ranked
+    // client-resolve provider has not explicitly failed — auto was landing
+    // on RiveStream while VAPlayer (#1 in Sources) was still unlocking.
     const nonHold = (eligible.length > 0 ? eligible : pool).filter(
         (option) => !shouldHoldForHigherRankedProviders(option.providerId)
     )
     if (nonHold.length > 0) {
-        return sortEligibleByProviderRank(nonHold, order)[0]
+        const candidate = sortEligibleByProviderRank(nonHold, order)[0]
+        if (candidate?.providerId) {
+            const candKey = normalizeProviderName(candidate.providerId)
+            const candRank = order.findIndex(
+                (id) => normalizeProviderName(id) === candKey
+            )
+            const higherClientPending = order
+                .slice(0, Math.max(0, candRank))
+                .some((providerId) => {
+                    const key = normalizeProviderName(providerId)
+                    if (!isClientResolveProvider(key)) return false
+                    if (args.pickGate?.scanFailedProviderIds?.has(key)) return false
+                    if (args.pickGate?.unavailableProviderIds?.has(key)) return false
+                    if (args.pickGate?.healthFailedProviderIds?.has(key)) return false
+                    return !nonHold.some(
+                        (option) =>
+                            normalizeProviderName(option.providerId ?? "") === key
+                    )
+                })
+            if (higherClientPending) {
+                return undefined
+            }
+        }
+        return candidate
     }
 
     const higherStillOpen = order.some((providerId) => {
@@ -1034,6 +1063,7 @@ export function pickForceStartPlaybackSource<
         return undefined
     }
 
+    // All higher client-resolve failed — allow hold scrapes (RiveStream) now.
     return eligible[0] ?? pool[0] ?? options[0]
 }
 
@@ -1210,12 +1240,21 @@ export function isProviderResolvedForPlayback(
 ): boolean {
     if (!gate) return true
 
-    return (
+    if (
         gate.unavailableProviderIds?.has(providerId) ||
         gate.healthFailedProviderIds?.has(providerId) ||
-        gate.scanFailedProviderIds?.has(providerId) ||
-        !gate.sourcesLoadingMore
-    )
+        gate.scanFailedProviderIds?.has(providerId)
+    ) {
+        return true
+    }
+
+    // Client-resolve still unlocking/soft-pending — a quiet scan is NOT "done".
+    // Treating !sourcesLoadingMore as resolved let RiveStream jump #1 in the list.
+    if (isClientResolveProvider(providerId)) {
+        return false
+    }
+
+    return !gate.sourcesLoadingMore
 }
 
 /** Probe every ranked stream per provider (HLS first, then MP4 qualities). */
@@ -1481,8 +1520,56 @@ export function pickPreferredPlaybackSource<T extends { id: string; providerId?:
         const providerOptions = eligible.filter((option) => option.providerId === providerId)
 
         if (providerOptions.length > 0) {
+            const nativeIndex = order.indexOf(providerId)
+            // Embed/skipHealth path used to return RiveStream here while VAPlayer
+            // (#1) was still unlocking and absent from the eligible pool.
+            const higherClientPending = order
+                .slice(0, Math.max(0, nativeIndex))
+                .some((higherId) => {
+                    if (skipProviderIds.has(higherId)) return false
+                    if (!isClientResolveProvider(higherId)) return false
+                    if (gate?.scanFailedProviderIds?.has(higherId)) return false
+                    if (gate?.unavailableProviderIds?.has(higherId)) return false
+                    if (gate?.healthFailedProviderIds?.has(higherId)) return false
+                    return !eligible.some(
+                        (option) =>
+                            normalizeProviderName(option.providerId ?? "") ===
+                            normalizeProviderName(higherId)
+                    )
+                })
+            if (higherClientPending) {
+                return undefined
+            }
+            if (shouldHoldForHigherRankedProviders(providerId)) {
+                const higherPending = order
+                    .slice(0, Math.max(0, nativeIndex))
+                    .some((higherId) => {
+                        if (skipProviderIds.has(higherId)) return false
+                        return (
+                            !gate?.scanFailedProviderIds?.has(higherId) &&
+                            !gate?.unavailableProviderIds?.has(higherId) &&
+                            !gate?.healthFailedProviderIds?.has(higherId)
+                        )
+                    })
+                if (higherPending) {
+                    return undefined
+                }
+            }
             const sorted = sortEligibleByProviderRank(providerOptions, order)
             return sorted[0]
+        }
+
+        // Client-resolve still absent from the pool — wait (don't continue to
+        // RiveStream) until it fails or sources finish without it.
+        if (isClientResolveProvider(providerId)) {
+            const failed =
+                gate?.scanFailedProviderIds?.has(providerId) ||
+                gate?.unavailableProviderIds?.has(providerId) ||
+                gate?.healthFailedProviderIds?.has(providerId)
+            if (!failed && (gate?.sourcesLoadingMore || !isProviderResolvedForPlayback(providerId, gate))) {
+                return undefined
+            }
+            continue
         }
 
         const hasSourceForProvider = options.some(
