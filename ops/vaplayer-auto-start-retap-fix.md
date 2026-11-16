@@ -12,8 +12,14 @@ Sources-tap path. That skipped:
 ## Fix (live `.pw` player)
 1. `playback.ts`: auto-start eligibility requires `clientResolved` for VAPlayer /
    Videasy / Movy — never pick unresolved bulk/shared stubs.
-2. `cinepro-watch-player.tsx`: `commitAutoStartOption` for auto/force/upgrade picks —
-   VAPlayer/NoTorrent re-resolve like Sources, all client-resolve remount at 0.
+2. `cinepro-watch-player.tsx`: `commitAutoStartOption` remounts client-resolve at
+   **start@0** (nonce bump) — same as the useful half of a Sources tap.
 3. First auto client-resolve mount forces `resumeTime=0` if commit has not stamped it yet.
 
-Hard-refresh embeds after `pcv=20261116004041o0yh`.
+## Regression (same night)
+First cut also **alwaysFresh re-scraped** VAPlayer on auto-start. Soft-timeout empty
+`replaceProviderIds` wiped the streams the scan had just resolved → black player at
+00:00 with pause UI (e.g. Bridget Jones `95610`). Auto-start now **remounts only**;
+manual Sources tap still alwaysFresh.
+
+Hard-refresh embeds after the latest `pcv` bust.

@@ -684,17 +684,16 @@ export function CineProWatchPlayer({
     }, [])
 
     /**
-     * Auto-start must mirror a Sources tap for VAPlayer/client-resolve:
-     * start@0 + remount (+ always-fresh resolve for VAPlayer). Bare
-     * setSelectedSourceId left Continue Watching seeks on a fresh CDN URL
-     * and sat black until the user re-tapped the same source.
+     * Auto-start for VAPlayer/client-resolve must remount at 0 like a Sources
+     * tap. Bare setSelectedSourceId kept Continue Watching seeks and sat black.
+     * Do NOT alwaysFresh re-scrape here — a soft-timeout empty replace wiped the
+     * streams the provider scan just resolved (Bridget Jones 95610 regression).
      */
     const commitAutoStartOption = useCallback(
         (option: PlaybackOption) => {
             const providerKey = normalizeProviderName(option.providerId ?? "")
             const isClientResolve = isClientResolveProvider(providerKey)
-            const alwaysFresh =
-                providerKey === "vaplayer" || providerKey === "notorrent"
+            const commitKey = `${mediaType}:${mediaId}:s${season ?? ""}:e${episode ?? ""}:${providerKey}:${option.id}`
 
             lockStartupSource()
             if (option.providerId) {
@@ -706,54 +705,15 @@ export function CineProWatchPlayer({
                 livePlaybackTimeRef.current = 0
             }
 
-            if (isClientResolve && alwaysFresh) {
-                const commitKey = `${mediaType}:${mediaId}:s${season ?? ""}:e${episode ?? ""}:${providerKey}`
-                if (autoClientResolveCommitRef.current === commitKey) {
-                    syncSelectedSourceId(option.id)
-                    setSelectedSourceId(option.id)
-                    selectedSourceIdRef.current = option.id
-                    setSourceSwitchNonce((nonce) => nonce + 1)
-                    return
-                }
-                autoClientResolveCommitRef.current = commitKey
-
-                const startLabel = resolveProviderUserLabel(
-                    providerKey,
-                    getProviderDisplayName(providerKey),
-                    providerOrder,
-                    showRealProviderNames
-                )
-                setRuntimeError(`Starting ${startLabel}…`)
-
-                void requestProvider(providerKey)
-                    .then((payload) => {
-                        if (manualSelectionRef.current) return
-                        const refreshed = mapSourcesToPlaybackOptions(payload.sources, {
-                            providerOrder: orderedEnabledProviderIds,
-                            showRealProviderNames,
-                        })
-                        const matching = refreshed.find(
-                            (item) =>
-                                normalizeProviderName(item.providerId ?? "") ===
-                                providerKey
-                        )
-                        if (!matching) return
-                        setRuntimeError(undefined)
-                        setUpgradeResumeTime(0)
-                        livePlaybackTimeRef.current = 0
-                        syncSelectedSourceId(matching.id)
-                        setSelectedSourceId(matching.id)
-                        selectedSourceIdRef.current = matching.id
-                        setSourceSwitchNonce((nonce) => nonce + 1)
-                    })
-                    .catch(() => undefined)
-                return
-            }
+            const alreadyCommitted = autoClientResolveCommitRef.current === commitKey
+            autoClientResolveCommitRef.current = commitKey
 
             syncSelectedSourceId(option.id)
             setSelectedSourceId(option.id)
             selectedSourceIdRef.current = option.id
-            if (isClientResolve) {
+
+            // Remount once per auto commit so HLS starts clean at 0.
+            if (isClientResolve && !alreadyCommitted) {
                 setSourceSwitchNonce((nonce) => nonce + 1)
             }
             if (shouldMarkAutoPickSourceReady(option, sourceHealth)) {
@@ -763,17 +723,12 @@ export function CineProWatchPlayer({
         [
             episode,
             lockStartupSource,
-            manualSelectionRef,
             markSourceReady,
             mediaId,
             mediaType,
-            orderedEnabledProviderIds,
-            providerOrder,
-            requestProvider,
             season,
             selectedProviderKeyRef,
             selectedSourceIdRef,
-            showRealProviderNames,
             sourceHealth,
             syncSelectedSourceId,
         ]
