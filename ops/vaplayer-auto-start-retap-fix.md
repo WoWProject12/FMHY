@@ -22,4 +22,4 @@ First cut also **alwaysFresh re-scraped** VAPlayer on auto-start. Soft-timeout e
 00:00 with pause UI (e.g. Bridget Jones `95610`). Auto-start now **remounts only**;
 manual Sources tap still alwaysFresh.
 
-Hard-refresh embeds after the latest `pcv` bust.
+Hard-refresh embeds after `pcv=20261116005101vwz6`.
