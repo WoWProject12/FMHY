@@ -1,56 +1,30 @@
 # to.vidsrc.party scraper block (2026-11-16)
 
-## What they were doing
-IP **`88.218.196.122`** hit chillflix.pw APIs at high volume
-(`/api/cinepro/sources`, `/api/playback/vaplayer-resolve`, `/api/4k/resolve`, …)
-while **forging** `Referer` / `parent_origin` as chillflix.pw / chillflix.lol so
-playback-guard passed.
-
-They run **their own JWPlayer** (`vidsrc.party/embed.js`) fed by their
-`/api/play/...` backend — not our embed HTML — so Embedders host-gate alone
-never paints “Watch free on Chillflix” on their page.
+## Goal
+IP **`88.218.196.122`** scrapes chillflix.pw APIs by TMDB id with forged
+chillflix Referer. For every such request we return a **fake playable stream**
+that is the Chillflix advertise slate (not real movie/TV), so their JWPlayer
+plays “Watch free on Chillflix / chillflix.lol”.
 
 ## Live defenses
-1. **Nginx IP deny** `88.218.196.122` in
-   `/etc/nginx/snippets/chillflix-scraper-deny.conf` on sources / vaplayer / 4k /
-   provider proxies.
-2. **`error_page 403 = @chillflix_scraper_advertise`** returns a **normal
-   `/api/cinepro/sources`-shaped JSON** (not a custom advertise blob) with one
-   HLS source:
-   `https://www.chillflix.pw/advertise/master.m3u8`
-   → media playlist + `.ts` segments. Slate video text:
-   **Watch free on Chillflix / Open chillflix.lol**.
-3. **APICACHE key** `"$binary_remote_addr$request_uri"` so scrapers cannot reuse
-   other viewers’ real source HITs.
-4. **Node `assertIpNotBlocked`** same payload (belt-and-suspenders).
-5. Host gate for any real chillflix embed; MySQL blocklist column **MEDIUMTEXT**.
+1. Nginx **deny** `88.218.196.122` on sources / vaplayer / 4k / provider proxies.
+2. `error_page 403 = @chillflix_scraper_advertise` → **sources-shaped** JSON with:
+   - HLS: `https://www.chillflix.pw/stream/v1/cf/master-jpg.m3u8`
+     (`.jpg`-named TS segments — same pattern their working upstreams use)
+   - MP4 fallback: `https://www.chillflix.pw/stream/v1/cf/720/source.mp4`
+3. Per-IP apicache key so they cannot reuse other viewers’ real source HITs.
+4. Node `assertIpNotBlocked` same payload.
 
-## Why the spinner (no ad) happened
-- First advertise JSON did not match their sources schema / was mp4-only → their
-  `/api/play` ignored it → endless “Finding source”.
-- Their client also requested `/advertise/master.m3u8` (404 until added).
-- Even when Chillflix is blocked, vidsrc may still try **other** providers
-  (`anv.to`, etc.). The Chillflix slate only appears when their backend
-  **selects** our returned HLS.
+Do **not** put `advertise` in the stream URL path — their backend was probing
+`/advertise/...` then failing JW setup. Neutral `/stream/v1/cf/...` paths are
+ingested (master + playlist + `.jpg` segs + full MP4 observed in logs).
 
 ## Verify
 ```bash
-# Deny → sources-shaped advertise
+# temp: deny 127.0.0.1 in chillflix-scraper-deny.conf
 curl -sS -H 'Host: www.chillflix.pw' -H 'Accept-Encoding: identity' \
-  'http://127.0.0.1/api/cinepro/sources?type=tv&tmdbId=1429&season=1&episode=1'
-# (with deny 127.0.0.1 temporarily) expect sources[0].url = .../advertise/master.m3u8
-
-curl -sI https://www.chillflix.pw/advertise/master.m3u8
-curl -s https://www.chillflix.pw/advertise/hls/index.m3u8
+  'http://127.0.0.1/api/cinepro/sources?type=movie&tmdbId=155'
+# sources[0].url → .../stream/v1/cf/master-jpg.m3u8
 ```
 
-`pw-timing.log` for `88.218.196.122`: API bodies ~192/464 bytes; should also
-show `GET /advertise/master.m3u8` and ideally `/advertise/hls/seg*.ts`.
-
-## Admin Block
-| Where | Effect |
-|---|---|
-| Embedders → Block | Host gate + optional scraper IP |
-| Stream theft → Hot IPs → Block | IP deny → advertise HLS + optional host |
-
-`POST /api/internal/scrape-intel` `{ action: "blockIp", ip, host? }`.
+Hard-refresh the vidsrc embed after changes (their `/api/play` caches jobs).
