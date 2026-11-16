@@ -191,9 +191,8 @@ export function prefetchVideasyResolve(media: VideasyClientMedia): void {
   if (!/^\d+$/.test(id)) return
   markViewerDirectDeadIfNonNative()
   void warmVideasyOriginBridge()
-  // One background BFF resolve per tab (single-flight). Fills the 90s client
-  // stream cache + 180s server blob cache so a later Sources tap is near-instant.
-  // Cap at 1 in-flight title to avoid mint stampedes.
+  // Warm browser Origin-bridge + one background resolve (bridge-first).
+  // Cap at 1 in-flight title — never stampede shared WARP mint.
   const key = mediaCacheKey(media)
   if (takeCachedStreams(media)?.length) return
   if (prefetchResolveInflight.has(key) || prefetchResolveInflight.size >= 1) return
@@ -490,10 +489,11 @@ const VIDEASY_SEED_API = "https://api.wecollege.net"
  * viewer IP + Accept:application/json only — no Referer spoof required.
  */
 const VIDEASY_ORIGIN_BRIDGE_ORIGIN =
-  "https://movy.sx.31-171-131-116.anyip.dev"
+  "https://movy.sx.82.41.181.83.nip.io"
 const VIDEASY_ORIGIN_BRIDGE_URLS = [
   `${VIDEASY_ORIGIN_BRIDGE_ORIGIN}/`, // index-runner.html + runner.js
-  "https://vidy.st.31-171-131-116.anyip.dev/",
+  "https://vidy.st.82.41.181.83.nip.io/",
+  "https://movy.sx.82-41-181-83.sslip.io/",
 ] as const
 const VIDEASY_BRIDGE_SOURCE = "chillflix-videasy-bridge"
 let videasyBridgeUrlIndex = 0
@@ -504,7 +504,14 @@ let videasyBridgeUrlIndex = 0
 function isVideasyBridgeOrigin(origin: string): boolean {
   try {
     const host = new URL(origin).hostname.toLowerCase()
-    if (host.endsWith(".anyip.dev") || host === "anyip.dev") return true
+    if (
+      host.endsWith(".anyip.dev") ||
+      host === "anyip.dev" ||
+      host.endsWith(".nip.io") ||
+      host.endsWith(".sslip.io")
+    ) {
+      return true
+    }
     return host.includes("movy.sx") || host.includes("vidy.st")
   } catch {
     return false
@@ -1934,19 +1941,9 @@ export async function resolveVideasyStreamsClient(
     }
   }
 
-  // On chillflix.* anyip bridge is often dead/slow - BFF/WARP first so
-  // Starting Videasy does not hang. Native movy/vidy keep viewer-IP.
+  // Browser-first: viewer IP via nip.io Origin bridge (hostname contains
+  // movy.sx / vidy.st → CF ACL). Shared WARP mint is last resort only.
   let last: VideasyClientResolveResult = { streams: [] }
-
-  if (!isNativeVideasyHostOrigin()) {
-    progress("mint-fallback")
-    last = await runBff()
-    if (last.streams.length) {
-      rememberStreams(media, last.streams)
-      progress("ready")
-      return last
-    }
-  }
 
   progress("bridge")
   void warmVideasyOriginBridge()
@@ -1959,11 +1956,8 @@ export async function resolveVideasyStreamsClient(
     return last
   }
 
-    // Miami-only.
-
-  // Last ditch: rebuild bridge and one runner resolve (mobile iframe often
-  // needs a second TLS attempt after the first timeout).
-  if (budgetLeft() >= 5_000) {
+  // Rebuild bridge once (TLS/iframe race on mobile).
+  if (budgetLeft() >= 4_000) {
     progress("bridge-retry")
     resetVideasyOriginBridge()
     videasyBridgeUrlIndex += 1
@@ -1990,8 +1984,7 @@ export async function resolveVideasyStreamsClient(
     }
   }
 
-    // Bridge/direct viewer-IP failed (common on chillflix.*). Fall back to
-  // BFF/movy-relay seed + WARP city so Sources -> Videasy still starts.
+  // Last resort only: BFF → shared WARP mint (slow / rate-limited).
   if (budgetLeft() >= 3_000) {
     progress("mint-fallback")
     last = await runBff()

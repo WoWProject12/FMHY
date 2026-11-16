@@ -546,9 +546,8 @@ export function MovyPlayerSkin(props: {
     void import("@/lib/providers/videasy-client-resolver")
       .then((mod) => {
         if (cancelled) return
+        // Warm browser Origin-bridge only on mount (no mint stampede).
         mod.warmVideasyOriginBridge?.()
-        // Warm miami blob as soon as the player mounts (server singleflight).
-        mod.prefetchVideasyResolve?.(prefetchMedia)
       })
       .catch(() => {})
     return () => {
