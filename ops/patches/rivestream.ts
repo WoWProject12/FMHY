@@ -161,6 +161,21 @@ function isCdnSlotLabel(label: string): boolean {
     return /^(tcloud|dcloud|ipcloud|cloud|auto|hd|sd|fhd|default|hls)$/i.test(label.trim());
 }
 
+
+/** Pull dub label from Citadel-style "720p | Hindi" / "720p · Hindi" claims. */
+function languageFromClaim(label: string): { label: string; language: string } | null {
+    const raw = String(label || '').trim();
+    if (!raw) return null;
+    const m =
+        raw.match(/[|·]\s*([A-Za-z][A-Za-z .'-]{1,32})\s*$/) ||
+        raw.match(/\b(English|Hindi|Tamil|Telugu|Spanish|French|German|Italian|Portuguese|Korean|Japanese|Chinese|Arabic|Turkish|Russian)\b/i);
+    if (!m) return null;
+    const name = m[1].trim().replace(/\s+/g, ' ');
+    if (!name || /^auto$/i.test(name)) return null;
+    return { label: name, language: name };
+}
+
+
 function inferQuality(label: string, url: string): string {
     const fromLabel = parseHeightQuality(label);
     if (fromLabel) {
@@ -501,10 +516,10 @@ export class RivestreamProvider extends BaseProvider {
 
             const errors: string[] = [];
 
-            // Race subproviders: return as soon as ANY playable playlist lands.
-            // Prefer earlier PREFERRED entries when several resolve in the same tick.
-            const winner = await new Promise<
-                (Source & { _dedupe?: string; _heights?: number[] }) | null
+            // Race subproviders: first provider with playable HLS wins, but we
+            // keep *all* of its langs/qualities (Citadel ships EN/HI/TA/TE × 720/480).
+            const winnerBatch = await new Promise<
+                Array<Source & { _dedupe?: string; _heights?: number[] }> | null
             >((resolve) => {
                 let pending = ordered.length;
                 let done = false;
@@ -519,12 +534,7 @@ export class RivestreamProvider extends BaseProvider {
                             if (done) return;
                             if (part.sources.length) {
                                 done = true;
-                                resolve(
-                                    part.sources[0] as Source & {
-                                        _dedupe?: string;
-                                        _heights?: number[];
-                                    }
-                                );
+                                resolve(part.sources);
                                 return;
                             }
                             pending -= 1;
@@ -542,18 +552,21 @@ export class RivestreamProvider extends BaseProvider {
                 });
             });
 
-            if (!winner) {
+            if (!winnerBatch?.length) {
                 return this.empty(
                     errors.slice(0, 3).join(' · ') || 'No Rivestream HLS for this title'
                 );
             }
 
-            const { _dedupe, _heights, ...clean } = winner;
-            void _dedupe;
-            void _heights;
+            const cleaned = winnerBatch.map((item) => {
+                const { _dedupe, _heights, ...clean } = item;
+                void _dedupe;
+                void _heights;
+                return clean;
+            });
 
             const result: ProviderResult = {
-                sources: [clean],
+                sources: cleaned,
                 subtitles: [],
                 diagnostics: []
             };
@@ -609,14 +622,16 @@ export class RivestreamProvider extends BaseProvider {
         if (json.error) return { sources: [], error: `${providerId}: ${json.error}` };
         const raw = json.data?.sources || json.sources || [];
         const sources: Array<Source & { _dedupe?: string; _heights?: number[] }> = [];
+        const seen = new Set<string>();
 
-        // First playable playlist from this subprovider — stop immediately.
-        for (const item of raw.slice(0, 4)) {
+        // Probe every row — Citadel returns each language × height as its own URL.
+        for (const item of raw.slice(0, 16)) {
             const rawUrl = String(item.url || '').trim();
             if (!rawUrl || !/^https?:\/\//i.test(rawUrl)) continue;
             const unwrapped = unwrapStreamProxy(rawUrl);
             if (/bigtits|tiktokcdn\.com|tiktok\.com\/|musical\.ly|byteicdn\.com|\/api\/decoy\//i.test(unwrapped.url)) continue;
-            const claimed = inferQuality(String(item.quality || item.source || ''), unwrapped.url);
+            const claimRaw = String(item.quality || item.source || '');
+            const claimed = inferQuality(claimRaw, unwrapped.url);
             const probed = await probeHlsMaster(unwrapped.url, unwrapped.headers);
             if (!probed.ok) continue;
 
@@ -629,24 +644,46 @@ export class RivestreamProvider extends BaseProvider {
                 } else {
                     quality = claimed;
                 }
-            } else if (/·/.test(claimed) && parseHeightQuality(claimed) === quality) {
-                // Keep language suffix from claim when height matches.
-                quality = claimed;
+            } else if (/[|·]/.test(claimRaw) || /·/.test(claimed)) {
+                // Prefer claim so "720p | Hindi" stays language-tagged for the Languages panel.
+                const height = parseHeightQuality(quality) || parseHeightQuality(claimed);
+                const lang = languageFromClaim(claimRaw) || languageFromClaim(claimed);
+                quality = height && lang ? `${height} · ${lang.label}` : claimed !== 'Auto' ? claimed : quality;
             }
 
             const playUrl = probed.playUrl || unwrapped.url;
+            const dedupe = upstreamDedupeKey(playUrl);
+            if (seen.has(dedupe)) continue;
+            seen.add(dedupe);
+
+            const lang =
+                languageFromClaim(claimRaw) ||
+                languageFromClaim(claimed) ||
+                languageFromClaim(quality);
             sources.push({
                 url: this.createProxyUrl(playUrl, unwrapped.headers),
                 type: 'hls',
                 quality,
-                audioTracks: [{ label: 'Original', language: 'Original' }],
+                audioTracks: lang
+                    ? [{ label: lang.label, language: lang.language }]
+                    : [{ label: 'Original', language: 'Original' }],
                 provider: { id: this.id, name: this.name },
-                _dedupe: upstreamDedupeKey(playUrl),
+                _dedupe: dedupe,
                 _heights: probed.heights
             });
-            break;
         }
-        return { sources };
+
+        // Highest height first; English before other dubs at the same height.
+        sources.sort((a, b) => {
+            const ha = Math.max(0, ...(a._heights || []), parseInt(String(a.quality), 10) || 0);
+            const hb = Math.max(0, ...(b._heights || []), parseInt(String(b.quality), 10) || 0);
+            if (hb !== ha) return hb - ha;
+            const la = String(a.audioTracks?.[0]?.language || '');
+            const lb = String(b.audioTracks?.[0]?.language || '');
+            const eng = (x: string) => (/^english$/i.test(x) ? 0 : 1);
+            return eng(la) - eng(lb) || la.localeCompare(lb);
+        });
+        return { sources }
     }
 
     private empty(message: string): ProviderResult {

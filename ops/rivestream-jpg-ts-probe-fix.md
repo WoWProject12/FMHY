@@ -43,3 +43,15 @@ Note: `fresh=1` (not `fresh=true`) is what the Next route treats as cache-bust
 Rive ISE until the player process cache expires or restarts.
 
 Patch mirror in repo: `ops/patches/rivestream.ts`.
+
+## Languages + quality ladder (follow-up)
+Provider previously kept **only the first** playable URL (`break` after one probe) and
+the race resolved to a **single** source — so Hindi/Tamil/Telugu and 480p never reached
+the Chillflix player.
+
+Now the winning subprovider (usually Citadel) returns **all** probed rows (e.g. Furiosa:
+`720p/480p × English/Hindi/Tamil/Telugu`) with `audioTracks` language labels.
+
+**Why max 720p on Furiosa?** Upstream Citadel only lists 720p and 480p for that TMDB id —
+there is no 1080p/4K row from that backend. Other Rive backends were empty/ISE for this
+title when checked.
