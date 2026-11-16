@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, Clapperboard, ChevronDown, HardDrive, Loader2, Settings, Captions, Volume2, Gauge } from "lucide-react"
+import { Check, Clapperboard, ChevronDown, HardDrive, Loader2, Minus, Settings, Captions, Volume2, Gauge, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { PlaybackSourceRetryPanel } from "@/components/player/PlaybackSourceRetryPanel"
@@ -732,14 +732,14 @@ export function PlayerSettings({
                         <TabsContent value="source" className="m-0 px-1 pb-1">
                             <div className="mb-2 flex items-center justify-between gap-2 px-1">
                                 <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                                    {sourcesLoadingMore
+                                    {sourcesLoadingMore || activeTestingProviderId
                                         ? currentTestingProvider
                                             ? t("player.testing", { name: currentTestingProvider.displayName })
                                             : probeHeadline
                                         : t("player.providersReady", { count: loadedProviderCount })}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {sourcesLoadingMore ? (
+                                    {sourcesLoadingMore || activeTestingProviderId ? (
                                         <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400">
                                             <Loader2 className="size-3 animate-spin" />
                                             {t("player.scanning")}
@@ -765,19 +765,71 @@ export function PlayerSettings({
                                         sourcesLoadingMore && probeDisplayNameById.has(id)
                                             ? probeDisplayNameById.get(id)!
                                             : name
+                                    const probeStatus = probeStatusById.get(id)
+                                    const isTestingRow =
+                                        probeStatus === "testing" || activeTestingProviderId === id
+                                    const isFailedRow =
+                                        probeStatus === "failed" ||
+                                        scanFailedProviderIds.some(
+                                            (failedId) => normalizeProviderName(failedId) === id
+                                        )
+                                    const statusCircle =
+                                        isTestingRow ? (
+                                            <span
+                                                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-white/35 bg-white/10"
+                                                aria-hidden
+                                            >
+                                                <Loader2 className="size-2.5 animate-spin text-white" />
+                                            </span>
+                                        ) : isFailedRow ? (
+                                            <span
+                                                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.04]"
+                                                aria-hidden
+                                            >
+                                                <X className="size-2.5 text-white/45" />
+                                            </span>
+                                        ) : probeStatus === "found" || isActiveProvider ? (
+                                            <span
+                                                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/15"
+                                                aria-hidden
+                                            >
+                                                <Check className="size-2.5 text-emerald-400" />
+                                            </span>
+                                        ) : sourcesLoadingMore || Boolean(activeTestingProviderId) ? (
+                                            <span
+                                                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-white/15"
+                                                aria-hidden
+                                            >
+                                                <Minus className="size-2.5 text-white/30" />
+                                            </span>
+                                        ) : null
+                                    const showProbeWalk =
+                                        !isActiveProvider &&
+                                        allSources.length === 0 &&
+                                        (loading || isTestingRow || (isFailedRow && sourcesLoadingMore))
 
                                     return (
                                     <div key={id} className={cn(SETTINGS_PANEL, "p-1", isActiveProvider && "border-emerald-500/25 bg-emerald-500/5")}>
-                                        {unavailable ? (
+                                        {unavailable || (isFailedRow && providerSources.length === 0 && !showProbeWalk) ? (
                                             <button
                                                 type="button"
                                                 disabled={Boolean(selectingSourceId) || !onRequestProvider}
                                                 onClick={() => void handleProviderClick(id)}
                                                 className="flex w-full min-h-9 items-center justify-between rounded-md px-2 py-2 text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-200 disabled:opacity-60"
                                             >
-                                                <ProviderNameWithFlag providerId={id} name={displayName} />
+                                                <span className="flex min-w-0 items-center gap-2">
+                                                    {statusCircle}
+                                                    <ProviderNameWithFlag providerId={id} name={displayName} />
+                                                </span>
                                                 {selectingSourceId === `provider:${id}` ? (
                                                     <Loader2 className="size-3.5 shrink-0 animate-spin max-md:size-4" />
+                                                ) : isFailedRow ? (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="shrink-0 border-zinc-700 py-0 text-[10px] text-zinc-500 max-md:text-xs"
+                                                    >
+                                                        Failed
+                                                    </Badge>
                                                 ) : (
                                                     <Badge
                                                         variant="outline"
@@ -787,25 +839,27 @@ export function PlayerSettings({
                                                     </Badge>
                                                 )}
                                             </button>
-                                        ) : loading && !isActiveProvider && allSources.length === 0 ? (
+                                        ) : showProbeWalk ? (
                                             <button
                                                 type="button"
                                                 disabled={Boolean(selectingSourceId)}
                                                 onClick={() => void handleProviderClick(id)}
                                                 className="flex w-full min-h-9 items-center justify-between rounded-md px-2 py-2 text-zinc-300 transition-colors hover:bg-white/10 disabled:opacity-60"
                                             >
-                                                <ProviderNameWithFlag providerId={id} name={displayName} />
+                                                <span className="flex min-w-0 items-center gap-2">
+                                                    {statusCircle}
+                                                    <ProviderNameWithFlag providerId={id} name={displayName} />
+                                                </span>
                                                 <Badge
                                                     variant="outline"
                                                     className="shrink-0 border-zinc-700 py-0 text-[10px] text-zinc-400"
                                                 >
-                                                    {probeStatusById.get(id) === "testing" ||
-                                                    activeTestingProviderId === id ? (
+                                                    {isTestingRow ? (
                                                         <>
                                                             <Loader2 className="mr-1 inline size-3 animate-spin" />
                                                             {t("player.testingLabel")}
                                                         </>
-                                                    ) : probeStatusById.get(id) === "failed" ? (
+                                                    ) : isFailedRow ? (
                                                         "Failed"
                                                     ) : (
                                                         t("player.queued")
@@ -819,7 +873,10 @@ export function PlayerSettings({
                                                 onClick={() => void handleProviderClick(id)}
                                                 className="flex w-full min-h-9 items-center justify-between rounded-md px-2 py-2 text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-200 disabled:opacity-60"
                                             >
-                                                <ProviderNameWithFlag providerId={id} name={displayName} />
+                                                <span className="flex min-w-0 items-center gap-2">
+                                                    {statusCircle}
+                                                    <ProviderNameWithFlag providerId={id} name={displayName} />
+                                                </span>
                                                 {selectingSourceId === `provider:${id}` ? (
                                                     <Loader2 className="size-3.5 shrink-0 animate-spin max-md:size-4" />
                                                 ) : (

@@ -2225,6 +2225,7 @@ const quietStallAttemptRef = useRef(0)
             unavailableProviders={unavailableProviders}
             sourceHealth={sourceHealth}
             activeTestingProviderId={activeTestingProviderId}
+            scanFailedProviderIds={scanFailedProviderIds}
             playbackToken={playbackToken}
             watchMeta={stableWatchMeta}
             resumeTime={

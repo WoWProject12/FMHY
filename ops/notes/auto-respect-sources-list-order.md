@@ -42,6 +42,14 @@ tracks the active row). Soft unlock-pending / timeouts soft-fail so the
 spinner moves to the next row; hard-empty stays sticky. Overlay/settings
 already render testing spinner + failed X via `SourceProbeFlow`.
 
+## Sources sheet circles (MediaPlayer path)
+`scanFailedProviderIds` / `activeTestingProviderId` now flow
+cinepro → MediaPlayer → PlayerControls → PlayerSettings **and**
+SourceStatusOverlay. Each Sources row shows a status circle (spin /
+failed X / ready check / queued dash) while Auto walks the list; the
+mobile PlayerSettings path also gets testing + failed props (was missing).
+
 ## Deploy
 Player build → `pm2 restart chillflix-player chillflix-embed` → nginx `pcv`
-bust `pcv=20261116024658seqscan` (chunks `1643-a8bc…` / `8887-8aee…`).
+bust `pcv=20261116024658seqscan` (chunks `1643-a8bc…` / `8887-8aee…`),
+then `pcv=20261116025945sheetscan` (chunk `8887-1c68996d8af993c7.js`) after MediaPlayer Sources circle wiring.
