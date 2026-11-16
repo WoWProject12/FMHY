@@ -2159,9 +2159,15 @@ const quietStallAttemptRef = useRef(0)
     }, [isCurrentProviderFailed, isLoading, sources, sourcesLoadingMore])
 
     const hostedOnParent = Boolean(embedOptions?.hostedOnParent)
-    // Embed iframes: parent cinema covers the scan. Do not mount the heavy
-    // source overlay here — that made Toflix Play feel slow.
-    const quietScanUi = Boolean(embedMode)
+    // Embed iframes: keep blank chrome when idle/reconnecting so Toflix Play
+    // stays light — but show SourceProbeFlow while Auto walks Sources
+    // (testing/failed circles). Hiding the overlay entirely made Auto look stuck.
+    const quietScanUi =
+        Boolean(embedMode) &&
+        !sourcesLoadingMore &&
+        !isScanningProviders &&
+        !activeTestingProviderId &&
+        scanFailedProviderIds.length === 0
 
     const handleEmbedControlsVisible = useCallback((visible: boolean) => {
         postEmbedMessage(EMBED_MESSAGE_CONTROLS_VISIBLE, { visible })
