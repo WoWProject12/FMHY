@@ -850,7 +850,7 @@ async function resolveViaMovyRunner(
         console.warn("[videasy] runner resolve timeout")
       }
       finish(null)
-    }, 16_000)
+    }, 9_000)
     window.addEventListener("message", onMessage)
     try {
       win.postMessage(
@@ -1941,23 +1941,17 @@ export async function resolveVideasyStreamsClient(
     }
   }
 
-  // Browser-first: viewer IP via nip.io Origin bridge (hostname contains
-  // movy.sx / vidy.st → CF ACL). Shared WARP mint is last resort only.
+  // Race browser Origin-bridge (viewer IP) with BFF/mint. Bridge is preferred
+  // when it wins; mint guarantees playback if the iframe/CF path flakes.
   let last: VideasyClientResolveResult = { streams: [] }
-
   progress("bridge")
   void warmVideasyOriginBridge()
 
-  progress("cities")
-  last = await resolveWithMode(meta, media, "", "direct", onPartial, ["miami"])
-  if (last.streams.length) {
-    rememberStreams(media, last.streams)
-    progress("ready")
-    return last
-  }
-
-  // Rebuild bridge once (TLS/iframe race on mobile).
-  if (budgetLeft() >= 4_000) {
+  const bridgeJob = (async (): Promise<VideasyClientResolveResult> => {
+    progress("cities")
+    let hit = await resolveWithMode(meta, media, "", "direct", onPartial, ["miami"])
+    if (hit.streams.length) return hit
+    if (budgetLeft() < 4_000) return hit
     progress("bridge-retry")
     resetVideasyOriginBridge()
     videasyBridgeUrlIndex += 1
@@ -1975,25 +1969,41 @@ export async function resolveVideasyStreamsClient(
           decrypted = await decryptViaApi(interpreted.blob, media.tmdbId, ran.seed)
         }
         if (decrypted.sources?.length) {
-          last = { streams: toStreams(decrypted.sources) }
-          rememberStreams(media, last.streams)
-          progress("ready")
-          return last
+          return { streams: toStreams(decrypted.sources) }
         }
       }
     }
-  }
+    return hit
+  })()
 
-  // Last resort only: BFF → shared WARP mint (slow / rate-limited).
-  if (budgetLeft() >= 3_000) {
+  const mintJob = (async (): Promise<VideasyClientResolveResult> => {
+    // Small head-start for bridge, then mint in parallel so a dead iframe
+    // cannot leave Starting empty for 16s+.
+    await sleep(700)
+    if (budgetLeft() < 3_000) return { streams: [] }
     progress("mint-fallback")
-    last = await runBff()
-    if (last.streams.length) {
-      rememberStreams(media, last.streams)
-      progress("ready")
-      return last
-    }
+    return runBff()
+  })()
+
+  const first = await Promise.race([
+    bridgeJob.then((r) => ({ via: "bridge" as const, r })),
+    mintJob.then((r) => ({ via: "mint" as const, r })),
+  ])
+  if (first.r.streams.length) {
+    last = first.r
+    rememberStreams(media, last.streams)
+    progress("ready")
+    return last
   }
+  // Wait for the other path if the race winner was empty.
+  const other = first.via === "bridge" ? await mintJob : await bridgeJob
+  if (other.streams.length) {
+    last = other
+    rememberStreams(media, last.streams)
+    progress("ready")
+    return last
+  }
+  last = other.failureReason ? other : first.r
 
 return {
     streams: [],
