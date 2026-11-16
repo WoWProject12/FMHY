@@ -54,6 +54,10 @@ mobile PlayerSettings path also gets testing + failed props (was missing).
 set, so sequential Testing/Failed never appeared on `.pw/embed`. Quiet
 blanking now only applies when Auto is **not** scanning.
 
+## Compact probe UI
+SourceProbeFlow dropped the wide carousel + oversized spinner for a small
+status list (tiny status circles, tighter card). Overlay rings shrunk to ~24–28px.
+
 ## ~4s per Sources row
 Auto was hanging on VAPlayer because scan budgets were 15–45s (+20s #1
 bonus) and the client unlock poll defaulted to 60s. Row budget is now
@@ -65,4 +69,5 @@ Player build → `pm2 restart chillflix-player chillflix-embed` → nginx `pcv`
 bust `pcv=20261116024658seqscan` (chunks `1643-a8bc…` / `8887-8aee…`),
 then `pcv=20261116025945sheetscan` (chunk `8887-1c68996d8af993c7.js`) after MediaPlayer Sources circle wiring,
 then `pcv=20261116033055embedprobe` after embed quietScanUi exception for active scans,
-then `pcv=20261116034520scan4s` (chunk `1643-705a2df034d7e234.js`) after the ~4s Auto row budget.
+then `pcv=20261116034520scan4s` (chunk `1643-705a2df034d7e234.js`) after the ~4s Auto row budget,
+then `pcv=…compactprobe` after the compact SourceProbeFlow restyle.

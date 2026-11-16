@@ -146,15 +146,15 @@ export function SourceStatusOverlay({
     return (
         <div
             className={cn(
-                "pointer-events-none absolute inset-0 z-20 flex flex-col items-center bg-black/40 px-4",
+                "pointer-events-none absolute inset-0 z-20 flex flex-col items-center bg-black/35 px-4",
                 isFullscreen
-                    ? "justify-center py-8"
-                    : "justify-center py-8 max-md:justify-start max-md:pt-[52%] max-md:pb-28 md:justify-center md:py-8"
+                    ? "justify-center py-6"
+                    : "justify-center py-6 max-md:justify-start max-md:pt-[48%] max-md:pb-24 md:justify-center md:py-6"
             )}
         >
-            <div className="relative mb-4 flex shrink-0 items-center justify-center max-md:mb-3">
-                <div className="h-12 w-12 rounded-full border border-white/10 bg-white/[0.03] max-md:h-10 max-md:w-10" />
-                <div className="absolute h-12 w-12 animate-spin rounded-full border-2 border-white/15 border-t-white/80 max-md:h-10 max-md:w-10" />
+            <div className="relative mb-2.5 flex shrink-0 items-center justify-center">
+                <div className="h-6 w-6 rounded-full border border-white/10 bg-white/[0.03]" />
+                <div className="absolute h-6 w-6 animate-spin rounded-full border border-white/15 border-t-white/75" />
             </div>
 
             {rows.length > 0 ? (
@@ -162,15 +162,14 @@ export function SourceStatusOverlay({
                     rows={rows}
                     currentTestingProvider={currentTestingProvider}
                     sourcesLoadingMore={sourcesLoadingMore || isLoading}
-                    className="max-w-lg scale-[0.88] sm:scale-100"
                 />
             ) : (
-                <p className="max-w-sm text-center text-sm font-medium text-white/90">
+                <p className="max-w-[14rem] text-center text-[11px] font-medium text-white/75">
                     {t("player.status.findingStream")}
                 </p>
             )}
 
-            <p className="mt-3 text-center text-[10px] text-white/45">
+            <p className="mt-2 text-center text-[9px] tabular-nums tracking-wide text-white/35">
                 {t("player.ready", { count: readyCount })}
                 {sources.length > 0 ? ` · ${t("player.loaded", { count: sources.length })}` : ""}
             </p>

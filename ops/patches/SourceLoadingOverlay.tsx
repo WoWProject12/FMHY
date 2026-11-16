@@ -163,11 +163,10 @@ export function SourceLoadingOverlay({
                 </div>
             ) : null}
 
-            <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-8">
-                <div className="relative mb-6 flex items-center justify-center">
-                    <div className="h-16 w-16 rounded-full border border-white/10 bg-white/[0.03]" />
-                    <div className="absolute h-16 w-16 animate-spin rounded-full border-2 border-white/15 border-t-white/80" />
-                    <div className="absolute h-8 w-8 rounded-full bg-white/10 blur-sm" />
+            <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 sm:px-6">
+                <div className="relative mb-3 flex items-center justify-center">
+                    <div className="h-7 w-7 rounded-full border border-white/10 bg-white/[0.03]" />
+                    <div className="absolute h-7 w-7 animate-spin rounded-full border border-white/15 border-t-white/75" />
                 </div>
 
                 {soapyOnlyFailure ? (
