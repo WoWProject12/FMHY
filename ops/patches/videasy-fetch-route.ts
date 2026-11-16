@@ -12,7 +12,8 @@ const CITY_FALLBACKS: Record<string, string[]> = {}
 
 type BlobHit = { blob: string; seed: string; server: string; expiresAt: number }
 const blobCache = new Map<string, BlobHit>()
-const BLOB_CACHE_TTL_MS = 180_000
+const blobInflight = new Map<string, Promise<Response>>()
+const BLOB_CACHE_TTL_MS = 900_000 // 15m — blob+seed reusable for decrypt
 const BLOB_CACHE_MAX = 800
 
 function blobKey(
@@ -86,7 +87,6 @@ export async function POST(request: Request) {
 
   const cacheKey = blobKey(mediaType, tmdbId, body.seasonId, body.episodeId)
   const cached = takeBlob(cacheKey)
-  // Second tap: serve blob+seed without reminting (mint soft-gap / 429).
   if (cached?.blob && cached.seed) {
     return NextResponse.json({
       blob: cached.blob,
@@ -96,97 +96,109 @@ export async function POST(request: Request) {
     })
   }
 
-  const meta = {
-    title,
-    year: String(body.year ?? "").trim(),
-    imdbId: normalizeImdbId(body.imdbId),
-  }
-  const media = {
-    type: mediaType as "movie" | "tv",
-    tmdbId,
-    season: body.seasonId,
-    episode: body.episodeId,
-  }
+  const existing = blobInflight.get(cacheKey)
+  if (existing) return existing
 
-  async function tryServer(
-    city: string,
-    seed: string
-  ): Promise<{
-    blob?: string
-    blocked?: boolean
-    error?: string
-    seedInvalid?: boolean
-  }> {
-    const result = await fetchVideasyEncryptedBlob(city, meta, media, seed)
-    if (result.blob) return result
-    const err = result.error ?? ""
-    if (/HTTP 401|SEED_INVALID|seed expired/i.test(err)) {
-      return { ...result, seedInvalid: true }
+  const job = (async (): Promise<Response> => {
+    const meta = {
+      title,
+      year: String(body.year ?? "").trim(),
+      imdbId: normalizeImdbId(body.imdbId),
     }
-    return result
-  }
+    const media = {
+      type: mediaType as "movie" | "tv",
+      tmdbId,
+      season: body.seasonId,
+      episode: body.episodeId,
+    }
 
-  const seedFromBody = body.seed?.trim()
-  let seedResult = seedFromBody
-    ? { seed: seedFromBody }
-    : await fetchVideasySeed(tmdbId)
-  if (!seedResult.seed) {
-    return NextResponse.json(
-      { error: seedResult.error ?? "Videasy seed fetch failed." },
-      { status: 502 }
-    )
-  }
-
-  const cities = [server, ...(CITY_FALLBACKS[server] || [])]
-  let lastError = "Videasy fetch failed."
-  let blocked = false
-
-  for (let ci = 0; ci < cities.length; ci++) {
-    const city = cities[ci]!
-    let seed = seedResult.seed!
-    let result = await tryServer(city, seed)
-
-    if (!result.blob && result.seedInvalid) {
-      const remint = await fetchVideasySeed(tmdbId, { fresh: true })
-      if (remint.seed) {
-        seed = remint.seed
-        seedResult = remint
-        result = await tryServer(city, seed)
+    async function tryServer(
+      city: string,
+      seed: string
+    ): Promise<{
+      blob?: string
+      blocked?: boolean
+      error?: string
+      seedInvalid?: boolean
+    }> {
+      const result = await fetchVideasyEncryptedBlob(city, meta, media, seed)
+      if (result.blob) return result
+      const err = result.error ?? ""
+      if (/HTTP 401|SEED_INVALID|seed expired/i.test(err)) {
+        return { ...result, seedInvalid: true }
       }
+      return result
     }
 
-    if (result.blob) {
-      putBlob(cacheKey, result.blob, seed, city)
-      return NextResponse.json({
-        blob: result.blob,
-        seed,
-        server: city,
-      })
+    const seedFromBody = body.seed?.trim()
+    let seedResult = seedFromBody
+      ? { seed: seedFromBody }
+      : await fetchVideasySeed(tmdbId)
+    if (!seedResult.seed) {
+      return NextResponse.json(
+        { error: seedResult.error ?? "Videasy seed fetch failed." },
+        { status: 502 }
+      )
     }
-    if (result.blocked) {
-      blocked = true
-      lastError = result.error ?? lastError
-      continue
-    }
-    lastError = result.error ?? lastError
-    if (/HTTP 500|no streams|empty/i.test(lastError) && ci + 1 < cities.length) {
-      if (!seedFromBody) {
+
+    const cities = [server, ...(CITY_FALLBACKS[server] || [])]
+    let lastError = "Videasy fetch failed."
+    let blocked = false
+
+    for (let ci = 0; ci < cities.length; ci++) {
+      const city = cities[ci]!
+      let seed = seedResult.seed!
+      let result = await tryServer(city, seed)
+
+      if (!result.blob && result.seedInvalid) {
         const remint = await fetchVideasySeed(tmdbId, { fresh: true })
-        if (remint.seed) seedResult = remint
+        if (remint.seed) {
+          seed = remint.seed
+          seedResult = remint
+          result = await tryServer(city, seed)
+        }
       }
-      continue
-    }
-  }
 
-  if (blocked) {
+      if (result.blob) {
+        putBlob(cacheKey, result.blob, seed, city)
+        return NextResponse.json({
+          blob: result.blob,
+          seed,
+          server: city,
+        })
+      }
+      if (result.blocked) {
+        blocked = true
+        lastError = result.error ?? lastError
+        continue
+      }
+      lastError = result.error ?? lastError
+      if (/HTTP 500|no streams|empty/i.test(lastError) && ci + 1 < cities.length) {
+        if (!seedFromBody) {
+          const remint = await fetchVideasySeed(tmdbId, { fresh: true })
+          if (remint.seed) seedResult = remint
+        }
+        continue
+      }
+    }
+
+    if (blocked) {
+      return NextResponse.json(
+        { error: lastError || "Videasy blocked this request.", blocked: true },
+        { status: 502 }
+      )
+    }
+
     return NextResponse.json(
-      { error: lastError || "Videasy blocked this request.", blocked: true },
+      { error: lastError || "Videasy fetch failed." },
       { status: 502 }
     )
-  }
+  })()
 
-  return NextResponse.json(
-    { error: lastError || "Videasy fetch failed." },
-    { status: 502 }
-  )
+  blobInflight.set(cacheKey, job)
+  try {
+    return await job
+  } finally {
+    if (blobInflight.get(cacheKey) === job) blobInflight.delete(cacheKey)
+  }
 }

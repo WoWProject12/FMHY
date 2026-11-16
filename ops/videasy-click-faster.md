@@ -1,24 +1,28 @@
 # Videasy click feels slow — why + speedups (2026-11-16)
 
-## Why a Sources → Videasy tap waits
+## Why it cannot be “instant” on a true cold start
 
-On chillflix the path is **BFF mint (WARP) → Miami city blob → decrypt → cinepro play**.
+Videasy needs a **one-shot wecollege seed** (via shared WARP mint) then a **Miami encrypted blob**, then decrypt. Upstream seed is ~50–150ms when free; the shared mint lane + Miami RTT are the real cost. Parallelizing cities or prefetch-minting every title stampedes CF into 429/soft-gap (historically ~16s hangs).
 
-| Step | Cold (typical) | Notes |
-|------|----------------|-------|
-| Shared mint `/seed` | ~0.2–2s when free; **many seconds** if soft-gap / slot wait | Upstream via WARP is ~50–150ms; delay is the shared lane (`SEED_GAP`, busy slot, 429 soft-gap) |
-| Miami `/api/videasy/fetch` | ~1–5s | Needs a one-shot seed |
-| Decrypt + HLS start | ~0.5–3s | |
-| Soft-wait UI | up to ~60s | Only when mint is rate-limited |
+## What we made faster
 
-Warm retaps should be fast via **90s client stream cache** + **180s BFF blob cache** — but the old `runBff` path **minted before** checking the blob cache, so retaps still felt cold.
+| Lever | Effect |
+|------|--------|
+| Cache-first BFF (`runBff`) | No mint before 15m blob cache check |
+| Server **singleflight** on `/api/videasy/fetch` | N concurrent viewers of same title share **one** mint+city |
+| Blob TTL **15m** (was 3m) | Retaps / reopen stay warm longer |
+| Client stream cache **15m** | In-tab retap skips resolve |
+| Prefetch on **player mount** + Sources open | Resolve often done before Videasy tap |
+| Mint gap **1.5s** (was 3.5s) | Less artificial wait between seeds |
 
-## Fixes live (`pcv=20261116081022vfast`)
+Live: `pcv=20261116083045vfast2`.
 
-1. **Cache-first BFF** — `runBff` no longer pre-mints; `resolveWithMode(api)` tries the 180s blob cache with an empty seed, then mints once on miss (`9484` + `videasy-client-resolver.ts`).
-2. **Shorter mint gap** — `SEED_GAP_MS` 3500 → **2000** (`seed-mint-warp.mjs`).
-3. **Sources prefetch** — opening Sources (or the Sources button) calls `prefetchVideasyResolve` (single-flight per tab) so miami resolve can finish **before** the Videasy tap (`9776` + `MovyPlayerSkin.tsx`).
+## What’s left (diminishing returns)
 
-## What users should do
+- Cold first title on a busy mint lane can still wait (soft-gap / slot).
+- Decrypted CDN URLs are not cached separately (blob+seed is); if those URLs die early, a remint is still required.
+- A dedicated always-on seed pool per title would fight one-shot seed semantics and 429s.
 
-Hard-refresh the embed once (`pcv=…vfast`). Open Sources, wait a beat, then tap Videasy — second/open-Sources-then-tap should be much quicker. First cold tap on a quiet mint lane is often a few seconds; under mint soft-gap it can still wait.
+## User tip
+
+Hard-refresh once. Open the title (prefetch starts), then tap Videasy — should often be near-instant when the blob is warm.

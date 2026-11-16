@@ -547,6 +547,8 @@ export function MovyPlayerSkin(props: {
       .then((mod) => {
         if (cancelled) return
         mod.warmVideasyOriginBridge?.()
+        // Warm miami blob as soon as the player mounts (server singleflight).
+        mod.prefetchVideasyResolve?.(prefetchMedia)
       })
       .catch(() => {})
     return () => {

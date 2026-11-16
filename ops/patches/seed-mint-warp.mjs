@@ -12,7 +12,7 @@ const WARP_SOCKS = process.env.WARP_SOCKS || "socks5h://127.0.0.1:40000"
 const SECRET = process.env.SEED_MINT_SECRET || ""
 const agent = new SocksProxyAgent(WARP_SOCKS)
 
-const SEED_GAP_MS = 2_000
+const SEED_GAP_MS = 1_500
 const SEED_SOFT_GAP_MS = 8_000
 // Short coalesce only — long cache handed burned one-shot seeds to every phone.
 const SEED_CACHE_MS = 2_500

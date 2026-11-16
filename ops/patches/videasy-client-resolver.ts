@@ -75,7 +75,7 @@ const SEED_MIN_GAP_MS = 200
 /** Hard wall for tap → first stream / give-up (keeps Starting from hanging). */
 const RESOLVE_BUDGET_MS = 45_000
 /** Keep a resolved ladder so Sources tap can return instantly after embed warmup. */
-const STREAM_CACHE_TTL_MS = 90_000
+const STREAM_CACHE_TTL_MS = 900_000
 const seedPool = new Map<string, SeedCacheEntry[]>()
 const seedMintInflight = new Map<string, Promise<string | null>>()
 const streamCache = new Map<
