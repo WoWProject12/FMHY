@@ -1941,17 +1941,19 @@ export async function resolveVideasyStreamsClient(
     }
   }
 
-  // Race browser Origin-bridge (viewer IP) with BFF/mint. Bridge is preferred
-  // when it wins; mint guarantees playback if the iframe/CF path flakes.
+  // Browser Origin-bridge first (viewer IP). Mint only if bridge is empty —
+  // parallel mint stampeded soft-gap / 429 and broke play.
   let last: VideasyClientResolveResult = { streams: [] }
   progress("bridge")
   void warmVideasyOriginBridge()
-
-  const bridgeJob = (async (): Promise<VideasyClientResolveResult> => {
-    progress("cities")
-    let hit = await resolveWithMode(meta, media, "", "direct", onPartial, ["miami"])
-    if (hit.streams.length) return hit
-    if (budgetLeft() < 4_000) return hit
+  progress("cities")
+  last = await resolveWithMode(meta, media, "", "direct", onPartial, ["miami"])
+  if (last.streams.length) {
+    rememberStreams(media, last.streams)
+    progress("ready")
+    return last
+  }
+  if (budgetLeft() >= 4_000) {
     progress("bridge-retry")
     resetVideasyOriginBridge()
     videasyBridgeUrlIndex += 1
@@ -1969,41 +1971,23 @@ export async function resolveVideasyStreamsClient(
           decrypted = await decryptViaApi(interpreted.blob, media.tmdbId, ran.seed)
         }
         if (decrypted.sources?.length) {
-          return { streams: toStreams(decrypted.sources) }
+          last = { streams: toStreams(decrypted.sources) }
+          rememberStreams(media, last.streams)
+          progress("ready")
+          return last
         }
       }
     }
-    return hit
-  })()
-
-  const mintJob = (async (): Promise<VideasyClientResolveResult> => {
-    // Small head-start for bridge, then mint in parallel so a dead iframe
-    // cannot leave Starting empty for 16s+.
-    await sleep(700)
-    if (budgetLeft() < 3_000) return { streams: [] }
+  }
+  if (budgetLeft() >= 3_000) {
     progress("mint-fallback")
-    return runBff()
-  })()
-
-  const first = await Promise.race([
-    bridgeJob.then((r) => ({ via: "bridge" as const, r })),
-    mintJob.then((r) => ({ via: "mint" as const, r })),
-  ])
-  if (first.r.streams.length) {
-    last = first.r
-    rememberStreams(media, last.streams)
-    progress("ready")
-    return last
+    last = await runBff()
+    if (last.streams.length) {
+      rememberStreams(media, last.streams)
+      progress("ready")
+      return last
+    }
   }
-  // Wait for the other path if the race winner was empty.
-  const other = first.via === "bridge" ? await mintJob : await bridgeJob
-  if (other.streams.length) {
-    last = other
-    rememberStreams(media, last.streams)
-    progress("ready")
-    return last
-  }
-  last = other.failureReason ? other : first.r
 
 return {
     streams: [],
