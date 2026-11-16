@@ -32,9 +32,14 @@ Verified:
 curl -sS 'http://127.0.0.1:3001/v1/movies/786892/provider/rivestream'
 # → 1 source, quality "720p · English", proxied img1.hscow.com …/720/index_287.m3u8
 
+# After chillflix-player restart (clears 1h in-memory sources cache):
 curl -sS -H 'Host: www.chillflix.pw' \
-  'http://127.0.0.1/api/cinepro/sources?type=movie&tmdbId=786892&provider=rivestream&fresh=1'
-# → total 1, provider rivestream
+  'http://127.0.0.1/api/cinepro/sources?type=movie&tmdbId=786892&fresh=true'
+# → total 2: rivestream + cineverse (no Rive ISE diagnostic)
 ```
+
+Note: `fresh=1` (not `fresh=true`) is what the Next route treats as cache-bust
+(`searchParams.get("fresh") === "1"`). Stale hour-long hits can still show the old
+Rive ISE until the player process cache expires or restarts.
 
 Patch mirror in repo: `ops/patches/rivestream.ts`.
