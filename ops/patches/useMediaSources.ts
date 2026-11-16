@@ -270,16 +270,16 @@ function buildSourcesFetchDedupeKey(
 }
 
 /** Auto-scan per-provider budget (legacy fallback). */
-const AUTO_PROVIDER_SCAN_TIMEOUT_MS = 8_000
+const AUTO_PROVIDER_SCAN_TIMEOUT_MS = 4_000
 /**
  * Multi-pass discovery (3 circles through admin order).
- * Soft timeouts per pass — early passes must not permanently skip slow scrapers.
- * Final pass allows cold Flixhqz-class resolves (~30s+).
+ * Keep each Auto row short (~4s) so unlock-pending VA doesn't freeze the
+ * testing spinner; later passes get a bit more budget for cold scrapes.
  */
-const SCAN_PASS_TIMEOUTS_MS = [15_000, 28_000, 45_000] as const
+const SCAN_PASS_TIMEOUTS_MS = [4_000, 6_000, 10_000] as const
 const SCAN_PASS_COUNT = 3
-/** Keep #1 alive longer than secondaries so a slow primary is not false-failed. */
-const SCAN_PRIMARY_TIMEOUT_BONUS_MS = 20_000
+/** No extra hang on #1 — same 4s budget as the rest of the list. */
+const SCAN_PRIMARY_TIMEOUT_BONUS_MS = 0
 /**
  * Auto Sources walk is sequential (one provider at a time) so the Sources
  * sheet can show a single testing spinner and failed X marks in list order.
@@ -839,7 +839,11 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
   )
 
   const fetchClientProvider = useCallback(
-    async (providerId: string, playbackToken?: string) => {
+    async (
+      providerId: string,
+      playbackToken?: string,
+      options?: { waitMs?: number }
+    ) => {
       let token = playbackToken
 
       // Mint and the VAPlayer scrape both wait on the network. Start them
@@ -877,6 +881,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
         season: type === "tv" && season !== undefined ? String(season) : undefined,
         episode: type === "tv" && episode !== undefined ? String(episode) : undefined,
         playbackToken: token,
+        waitMs: options?.waitMs,
       })
 
       const resolvedAt = Date.now()
@@ -1631,11 +1636,10 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       }
 
       // Cap how long we wait for probe/auto-start after a provider returns URLs.
-      // Full client probe timeout is 20s — waiting that per provider made cold
-      // starts feel broken. Probe-ready / probe-failed exits early below.
+      // Keep settle short so Auto can start the next row / playback quickly.
       const PROVIDER_SETTLE_MS = Math.min(
-        Math.max(getHeadStartMs(), 800),
-        6_000
+        Math.max(getHeadStartMs(), 400),
+        2_000
       )
 
       const tryProvider = async (
@@ -1720,7 +1724,12 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             const payload = await runWithOptionalTimeout(() =>
               fetchClientProviderRef.current(
                 providerId,
-                playbackTokenRef.current
+                playbackTokenRef.current,
+                {
+                  // Match the Auto row budget so unlock-pending doesn't poll
+                  // for 60s while the spinner sits on VAPlayer.
+                  waitMs: options.scanTimeoutMs ?? AUTO_PROVIDER_SCAN_TIMEOUT_MS,
+                }
               )
             )
             const found =

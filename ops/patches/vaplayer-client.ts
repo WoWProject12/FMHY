@@ -12,13 +12,15 @@ export async function resolveVaplayerClient(params: {
   tmdbId: string
   season?: string
   episode?: string
-  /** Max time to wait out unlock-pending (ms). Default 60s. */
+  /** Max time to wait out unlock-pending (ms). Default 60s; Auto scan may pass ~4s. */
   waitMs?: number
 }): Promise<{ streams: string[]; error?: string; failureReason?: string; fileName?: string }> {
   const { type, tmdbId, season, episode } = params
   if (!tmdbId) return { streams: [], error: "Missing TMDB id" }
 
-  const waitMs = Math.max(8_000, Math.min(90_000, params.waitMs ?? 60_000))
+  // Floor 3s so Auto's ~4s row budget can actually win the race; manual taps
+  // still default to a long unlock poll.
+  const waitMs = Math.max(3_000, Math.min(90_000, params.waitMs ?? 60_000))
   const url = new URL("/api/playback/vaplayer-resolve", window.location.origin)
   url.searchParams.set("type", type)
   url.searchParams.set("tmdbId", tmdbId)
