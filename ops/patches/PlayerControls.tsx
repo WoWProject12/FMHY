@@ -111,8 +111,6 @@ interface PlayerControlsProps {
     parentHostedEmbed?: boolean
     /** Cross-origin iframe source — don't cover pause/seek; let the embed handle it. */
     iframeEmbed?: boolean
-    /** Hide play / ±10s while Auto Sources loading sits in the center. */
-    hideTransportControls?: boolean
     mediaTitle?: string
     mediaId?: string | number
     mediaType?: string
@@ -188,7 +186,6 @@ export function PlayerControls({
     skipSegment = null,
     parentHostedEmbed = false,
     iframeEmbed = false,
-    hideTransportControls = false,
     mediaTitle,
     mediaId,
     mediaType,
@@ -409,7 +406,7 @@ export function PlayerControls({
                 </Button>
             </div>
 
-            {!watchPartyGuest && !iframeEmbed && !hideTransportControls ? (
+            {!watchPartyGuest && !iframeEmbed ? (
                 <div
                     className="pointer-events-none absolute inset-0 flex items-center justify-center md:hidden"
                     onClick={(e) => e.stopPropagation()}
@@ -425,7 +422,7 @@ export function PlayerControls({
                             {isLoading && !isPlaying ? (
                                 <span
                                     aria-hidden
-                                    className="pointer-events-none absolute inset-0 animate-spin rounded-full border-2 border-[#e6c98a]/30 border-t-[#e6c98a]"
+                                    className="pointer-events-none absolute inset-0 animate-spin rounded-full border-2 border-white/25 border-t-white"
                                 />
                             ) : null}
                             <Button
@@ -494,7 +491,7 @@ export function PlayerControls({
 
                     <div className="flex items-center justify-between gap-4">
                         <div className="flex min-w-0 items-center gap-2">
-                            {!watchPartyGuest && !hideTransportControls ? (
+                            {!watchPartyGuest ? (
                                 <>
                                     <Button variant="ghost" size="icon" className="text-white hover:bg-[#e6c98a]/12 hover:text-[#e6c98a]" onClick={() => onSeek([Math.max(0, currentTime - 10)])} title={t("player.back10s")}>
                                         <RotateCcw width={20} height={20} />
@@ -504,7 +501,7 @@ export function PlayerControls({
                                         {isLoading && !isPlaying ? (
                                             <span
                                                 aria-hidden
-                                                className="pointer-events-none absolute inset-0 animate-spin rounded-full border-2 border-[#e6c98a]/30 border-t-[#e6c98a]"
+                                                className="pointer-events-none absolute inset-0 animate-spin rounded-full border-2 border-white/25 border-t-white"
                                             />
                                         ) : null}
                                         <Button

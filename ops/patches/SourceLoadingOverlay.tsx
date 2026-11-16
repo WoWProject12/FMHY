@@ -164,46 +164,7 @@ export function SourceLoadingOverlay({
         >
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.05),transparent_55%)]" />
 
-            <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center px-4 pb-24 pt-10">
-                {soapyOnlyFailure ? (
-                    <div className="max-w-sm text-center">
-                        <p className="text-sm font-medium text-[#f6f1e8]">
-                            {t("player.soapyNoStream")}
-                        </p>
-                        <p className="mt-2 text-xs text-[#e6c98a]/55">{soapyOnlyFailure.message}</p>
-                    </div>
-                ) : showProbeFlow ? (
-                    <SourceProbeFlow
-                        rows={rows}
-                        currentTestingProvider={currentTestingProvider}
-                        sourcesLoadingMore={sourcesLoadingMore || sourcesFetching}
-                    />
-                ) : showRetryPanel ? (
-                    <div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 text-center">
-                        <PlaybackSourceRetryPanel
-                            message={infrastructureMessage}
-                            onRetry={onRefetchSources}
-                            messageClassName="text-[#e6c98a]/70"
-                            showRetryButton
-                        />
-                        <p className="text-[11px] text-[#e6c98a]/45">
-                            {t("player.status.couldNotLoad")}
-                        </p>
-                    </div>
-                ) : isTransientPlaybackStatusMessage(infrastructureMessage) ? (
-                    <div className="max-w-sm text-center">
-                        <p className="text-sm font-medium text-[#f6f1e8]">{infrastructureMessage}</p>
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center gap-2">
-                        <div className="relative flex size-6 items-center justify-center">
-                            <div className="absolute inset-0 animate-spin rounded-full border border-[#e6c98a]/20 border-t-[#e6c98a]" />
-                        </div>
-                        <p className="text-[11px] text-[#e6c98a]/60">{t("player.loading.findingFastest")}</p>
-                    </div>
-                )}
-            </div>
-
+            {/* Same player chrome as playback — probe sits above transport, not a different loading shell. */}
             <PlayerControls
                 isPlaying={false}
                 isLoading
@@ -242,7 +203,6 @@ export function SourceLoadingOverlay({
                 hiddenProviderIds={hiddenProviderIds}
                 enabledProviderIds={orderedEnabledProviderIds}
                 parentHostedEmbed={parentHostedEmbed}
-                hideTransportControls
                 mediaTitle={mediaTitle}
                 mediaId={mediaId}
                 mediaType={mediaType}
@@ -250,6 +210,46 @@ export function SourceLoadingOverlay({
                     if (open) setControlsVisible(true)
                 }}
             />
+
+            <div className="pointer-events-none absolute inset-0 z-[60] flex flex-col items-center justify-center px-4 pb-24 pt-10">
+                {soapyOnlyFailure ? (
+                    <div className="max-w-sm text-center">
+                        <p className="text-sm font-medium text-white">
+                            {t("player.soapyNoStream")}
+                        </p>
+                        <p className="mt-2 text-xs text-white/55">{soapyOnlyFailure.message}</p>
+                    </div>
+                ) : showProbeFlow ? (
+                    <SourceProbeFlow
+                        rows={rows}
+                        currentTestingProvider={currentTestingProvider}
+                        sourcesLoadingMore={sourcesLoadingMore || sourcesFetching}
+                    />
+                ) : showRetryPanel ? (
+                    <div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 text-center">
+                        <PlaybackSourceRetryPanel
+                            message={infrastructureMessage}
+                            onRetry={onRefetchSources}
+                            messageClassName="text-white/70"
+                            showRetryButton
+                        />
+                        <p className="text-[11px] text-white/45">
+                            {t("player.status.couldNotLoad")}
+                        </p>
+                    </div>
+                ) : isTransientPlaybackStatusMessage(infrastructureMessage) ? (
+                    <div className="max-w-sm text-center">
+                        <p className="text-sm font-medium text-white">{infrastructureMessage}</p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center gap-2">
+                        <div className="relative flex size-6 items-center justify-center">
+                            <div className="absolute inset-0 animate-spin rounded-full border border-white/15 border-t-white/70" />
+                        </div>
+                        <p className="text-[11px] text-white/55">{t("player.loading.findingFastest")}</p>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

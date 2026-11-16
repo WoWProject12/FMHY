@@ -5074,13 +5074,6 @@ export function MediaPlayer({
           watchPartyGuest ? Boolean(syncPlayback?.isPlaying) : isPlaying
         }
         isLoading={isLoading}
-        hideTransportControls={
-          Boolean(sources?.length) &&
-          !(duration > 0.05 || currentTime > 0.5) &&
-          (Boolean(sourcesLoadingMore) ||
-            Boolean(activeTestingProviderId) ||
-            isLoading)
-        }
         watchPartyGuest={watchPartyGuest}
         onDoubleClick={toggleFullscreen}
         onWheel={(e: React.WheelEvent<HTMLDivElement>) => {

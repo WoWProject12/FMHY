@@ -2310,9 +2310,8 @@ const quietStallAttemptRef = useRef(0)
             unavailableProviders={unavailableProviders}
             hiddenProviderIds={hiddenProviderIds}
             enabledProviderIds={orderedEnabledProviderIds}
-            // Always Chillflix PlayerControls/Settings during scan — parent-hosted
-            // Movy skin is the wrong menu on .lol ?play=true.
-            parentHostedEmbed={false}
+            // Same chrome as playback (Movy on parent-hosted .lol cinema).
+            parentHostedEmbed={embedMode && hostedOnParent}
             mediaTitle={mediaTitle}
             mediaId={mediaId}
             mediaType={mediaType}
