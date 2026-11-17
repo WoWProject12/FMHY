@@ -431,6 +431,11 @@ def _unlock_uncached(media_type: str, tmdb: str, season: int, episode: int, key:
         "referer": f"{IFRAME_ORIGIN}/",
         "via": "unlock",
         "matchedAs": f"tmdb:{media_type}:{tmdb}",
+        # Rotator uses these to remint before CDN JWT expiry.
+        "mediaType": media_type,
+        "tmdbId": str(tmdb),
+        "season": int(season) if media_type == "tv" else None,
+        "episode": int(episode) if media_type == "tv" else None,
     }
     write_cache(key, out)
     return out

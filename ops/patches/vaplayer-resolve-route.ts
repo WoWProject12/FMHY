@@ -8,11 +8,76 @@ import {
 } from "@/lib/copyright-takedowns"
 import { createHash } from "node:crypto"
 import { spawn } from "node:child_process"
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+const UNLOCK_QUEUE_DIR = path.join(process.cwd(), "data", "vaplayer-unlock-queue")
+
+/** Disk queue so unlock-busy titles are reminted by vaplayer-unlock-rotator. */
+function enqueueUnlockJob(job: {
+  type: string
+  tmdbId: string
+  season?: number
+  episode?: number
+  force?: boolean
+  reason?: string
+}) {
+  try {
+    const tmdbId = String(job.tmdbId || "").trim()
+    if (!/^\d+$/.test(tmdbId)) return null
+    const type = job.type === "tv" ? "tv" : "movie"
+    const payload = {
+      type,
+      tmdbId,
+      season: type === "tv" ? Math.max(1, Number(job.season) || 1) : undefined,
+      episode: type === "tv" ? Math.max(1, Number(job.episode) || 1) : undefined,
+      force: Boolean(job.force),
+      reason: String(job.reason || "resolve").slice(0, 80),
+      enqueuedAt: Date.now(),
+    }
+    const raw =
+      type === "tv"
+        ? `tv:${tmdbId}:${payload.season}:${payload.episode}`
+        : `movie:${tmdbId}`
+    const id = createHash("sha1").update(raw).digest("hex")
+    mkdirSync(UNLOCK_QUEUE_DIR, { recursive: true })
+    const file = path.join(UNLOCK_QUEUE_DIR, `${id}.json`)
+    // Keep FIFO position if already queued (rewrites would send demand to the back).
+    if (existsSync(file)) {
+      if (payload.force) {
+        try {
+          const existing = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>
+          if (!existing.force) {
+            const st = statSync(file)
+            writeFileSync(
+              file,
+              JSON.stringify({ ...existing, force: true, reason: payload.reason })
+            )
+            utimesSync(file, st.atime, st.mtime)
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      return id
+    }
+    writeFileSync(file, JSON.stringify(payload))
+    return id
+  } catch {
+    return null
+  }
+}
 
 const IFRAME_ORIGIN = "https://nextgencloudfabric.com"
 const UNLOCK_PY = path.join(process.cwd(), "scripts", "vaplayer-unlock.py")
@@ -122,10 +187,10 @@ const UNLOCK_MAX_INFLIGHT = Math.max(
   1,
   Number(process.env.VAPLAYER_UNLOCK_MAX_INFLIGHT || 2)
 )
-/** How long a title may wait for a free unlock slot before failing open. */
+/** How long a title may wait for a free unlock slot before deferring to the rotator. */
 const UNLOCK_SLOT_WAIT_MS = Math.max(
   2_000,
-  Number(process.env.VAPLAYER_UNLOCK_SLOT_WAIT_MS || 12_000)
+  Number(process.env.VAPLAYER_UNLOCK_SLOT_WAIT_MS || 45_000)
 )
 const UNLOCK_WAITERS_MAX = Math.max(
   4,
@@ -403,23 +468,25 @@ export async function GET(request: Request) {
       })
     }
 
-    // Still unlocking in background — tell client to retry soon instead of 55s hang.
-    // If this title has not even spawned Python yet, the unlock queue is saturated:
-    // fail open (no retryAfterMs) so Auto can leave VAPlayer instead of polling.
+    // Still unlocking / queued — keep client polling. Also enqueue on disk so the
+    // rotator remints even if this request's slot wait expires.
     if (raced.kind === "soft-timeout") {
       const flightKey = `${key}${force ? ":force" : ""}`
       if (!unlockSpawned.has(flightKey)) {
-        return playbackJsonResponse({
-          ok: false,
-          error: "VAPlayer unlock busy (queued behind captcha)",
-          streams: [],
-          via: "unlock-busy",
-          tried: [`unlock:tmdb:${type}:${tmdbId}`],
+        enqueueUnlockJob({
+          type,
+          tmdbId,
+          season: seasonN,
+          episode: episodeN,
+          force,
+          reason: "soft-timeout-queued",
         })
       }
       return playbackJsonResponse({
         ok: false,
-        error: "VAPlayer unlock still running — retry",
+        error: unlockSpawned.has(flightKey)
+          ? "VAPlayer unlock still running — retry"
+          : "VAPlayer unlock queued — retry",
         retryAfterMs: 4000,
         streams: [],
         via: "unlock-pending",
@@ -427,22 +494,41 @@ export async function GET(request: Request) {
       })
     }
 
-    // Slot/mutex saturation — fail open so Auto can leave VAPlayer instead of
-    // polling unlock-pending until the Sources budget dies.
+    // Slot/mutex saturation — hand off to rotator and keep client retrying.
     if (unlocked?.via === "unlock-busy" || /unlock busy/i.test(unlocked?.error || "")) {
+      enqueueUnlockJob({
+        type,
+        tmdbId,
+        season: seasonN,
+        episode: episodeN,
+        force,
+        reason: "unlock-busy",
+      })
       return playbackJsonResponse({
         ok: false,
-        error: unlocked?.error || "VAPlayer unlock busy",
+        error: unlocked?.error || "VAPlayer unlock busy — queued",
+        retryAfterMs: 5000,
         streams: [],
-        via: "unlock-busy",
+        via: "unlock-pending",
         tried: [`unlock:tmdb:${type}:${tmdbId}`],
       })
     }
 
+    // Hard empty (unlock finished, no streams) — still queue a force remint once.
+    enqueueUnlockJob({
+      type,
+      tmdbId,
+      season: seasonN,
+      episode: episodeN,
+      force: true,
+      reason: "empty-result",
+    })
     return playbackJsonResponse({
       ok: false,
       error: unlocked?.error || "no streams for this title/episode",
+      retryAfterMs: 6000,
       streams: [],
+      via: "unlock-pending",
       tried: [`unlock:tmdb:${type}:${tmdbId}`],
     })
   } catch (error) {
