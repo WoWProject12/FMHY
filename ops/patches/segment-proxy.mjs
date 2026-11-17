@@ -297,6 +297,19 @@ function parseStreamPath(pathname) {
     return { px, pt, file, media: false }
 }
 
+/** Keep VAPlayer CDN JWT query keys when swapping sibling paths under /s/. */
+const UPSTREAM_AUTH_QUERY_KEYS = ["token", "cast_token"]
+
+function keepUpstreamAuthQuery(url) {
+    const kept = new URLSearchParams()
+    for (const key of UPSTREAM_AUTH_QUERY_KEYS) {
+        const value = url.searchParams.get(key)
+        if (value) kept.set(key, value)
+    }
+    url.search = kept.toString()
+    url.hash = ""
+}
+
 function applyStreamFile(payload, file, media) {
     let signed
     try {
@@ -310,8 +323,7 @@ function applyStreamFile(payload, file, media) {
         if (!SAFE_MEDIA_FILE.test(file)) return null
         const slash = signed.pathname.lastIndexOf("/")
         signed.pathname = `${signed.pathname.slice(0, slash + 1)}${file}`
-        signed.search = ""
-        signed.hash = ""
+        keepUpstreamAuthQuery(signed)
         return { url: signed.toString(), headers: payload.headers }
     }
     if (!isSafeMediaPath(file)) return null
@@ -325,8 +337,7 @@ function applyStreamFile(payload, file, media) {
     } else {
         return null
     }
-    signed.search = ""
-    signed.hash = ""
+    keepUpstreamAuthQuery(signed)
     return { url: signed.toString(), headers: payload.headers }
 }
 
