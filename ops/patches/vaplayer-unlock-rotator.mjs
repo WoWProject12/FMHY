@@ -220,8 +220,10 @@ async function tick() {
     if (result?.ok && streams > 0) {
       completeUnlockJob(job._file)
     } else if (/busy|lock timeout|slot wait/i.test(err)) {
-      // Keep original file (FIFO); do not rewrite.
+      // Keep original file (FIFO); do not rewrite. Back off so we don't
+      // hot-loop against the captcha flock held by the player unlock.
       log("drain-busy-keep", job.tmdbId)
+      await new Promise((r) => setTimeout(r, 8_000))
     } else {
       completeUnlockJob(job._file)
     }
