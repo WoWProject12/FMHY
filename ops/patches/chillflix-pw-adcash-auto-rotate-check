@@ -1,0 +1,31 @@
+#!/bin/bash
+# Every 5 minutes: refresh lib content; rotate filename when due (default 60m).
+set -euo pipefail
+ROTATE="/usr/local/sbin/chillflix-pw-adcash-rotate"
+STATE="/var/lib/chillflix/adcash-rotate-state.json"
+mkdir -p /var/lib/chillflix
+
+"$ROTATE" refresh >/dev/null || true
+
+python3 - "$STATE" <<'PY'
+import json, time, subprocess, sys
+from pathlib import Path
+state_path = Path(sys.argv[1])
+state = {}
+if state_path.exists():
+    try:
+        state = json.loads(state_path.read_text())
+    except Exception:
+        state = {}
+minutes = max(10, min(10080, int(state.get("autoRotateMinutes") or 60)))
+last = int(state.get("rotatedAt") or 0)
+now = int(time.time())
+if last and now < last + minutes * 60:
+    raise SystemExit(0)
+out = subprocess.check_output(["/usr/local/sbin/chillflix-pw-adcash-rotate", "rotate"], text=True)
+state["rotatedAt"] = now
+state["autoRotateMinutes"] = minutes
+state["last"] = out.strip()
+state_path.write_text(json.dumps(state, indent=2) + "\n")
+print(out.strip())
+PY

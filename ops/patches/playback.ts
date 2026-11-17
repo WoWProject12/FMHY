@@ -1,0 +1,1820 @@
+import { isClientResolveProvider } from "@/lib/client-resolve-providers"
+import {
+    AUTOMATIC_PROBE_PROVIDER_ORDER,
+    DEFAULT_PROVIDER_LABELS,
+    DEFAULT_PROVIDER_ORDER,
+    MANUAL_ONLY_PROVIDER_IDS,
+    normalizeProviderName,
+} from "@/lib/stream-sources-defaults"
+import { PRIMARY_PROVIDER_HEAD_START_MS, FOUR_K_HLS_STARTUP_TIMEOUT_MS, FOUR_K_HLS_TRANSCODE_STARTUP_TIMEOUT_MS } from "@/lib/source-probe-constants"
+import { resolveProviderUserLabel } from "@/lib/provider-display"
+
+interface SortableSource {
+    url: string
+    type: string
+    quality: string
+    provider: {
+        name: string
+    }
+}
+
+export const PROVIDER_ORDER = DEFAULT_PROVIDER_ORDER
+
+export type ProviderOrder = readonly string[]
+
+export const AUTOMATIC_PROVIDER_IDS = new Set<string>(AUTOMATIC_PROBE_PROVIDER_ORDER)
+
+export { normalizeProviderName }
+
+export function buildStableSourceId(
+    providerId: string,
+    quality: string,
+    type: string
+) {
+    return `source-${normalizeProviderName(providerId)}-${quality}-${type}`
+}
+
+export function parseStableSourceId(sourceId: string): {
+    providerId: string
+    quality: string
+    type: string
+} | null {
+    if (!sourceId.startsWith("source-")) return null
+
+    const parts = sourceId.slice("source-".length).split("-")
+    if (parts.length < 3) return null
+
+    if (/^\d+$/.test(parts[parts.length - 1] ?? "") && parts.length >= 4) {
+        parts.pop()
+    }
+
+    const type = parts.pop()
+    const quality = parts.pop()
+    const providerId = parts.join("-")
+
+    if (!type || !quality || !providerId) return null
+
+    return { providerId, quality, type }
+}
+
+export function playbackUrlWithoutToken(url: string) {
+    try {
+        const isAbsolute = /^https?:\/\//i.test(url)
+        const parsed = new URL(url, isAbsolute ? undefined : "http://playback.local")
+        parsed.searchParams.delete("pt")
+        const serialized = isAbsolute
+            ? parsed.toString()
+            : `${parsed.pathname}${parsed.search}`
+        return serialized.replace(/[?&]$/, "")
+    } catch {
+        return url.replace(/([?&])pt=[^&]*&?/g, "$1").replace(/[?&]$/, "")
+    }
+}
+
+type RawMediaSource = SortableSource & {
+    provider: { id: string; name: string }
+    audioTracks?: Array<{ id: string; label: string; url?: string }>
+    url: string
+    cinemacityPageUrl?: string
+    directClientPlayback?: boolean
+    clientPlaybackHeaders?: Record<string, string>
+    clientResolved?: boolean
+    /** Epoch ms when browser client-resolve finished (for fast provider switch reuse). */
+    clientResolvedAt?: number
+    iframeEmbed?: boolean
+    videasyPlayerSurface?: boolean
+}
+
+type MapPlaybackOptionsConfig = {
+    providerOrder?: ProviderOrder
+    showRealProviderNames?: boolean
+}
+
+export function mapSourcesToPlaybackOptions<
+    T extends RawMediaSource & { url: string }
+>(sources: T[], config?: ProviderOrder | MapPlaybackOptionsConfig) {
+    const providerOrder =
+        typeof config === "object" && config !== null && !Array.isArray(config)
+            ? config.providerOrder
+            : config
+    const showRealProviderNames =
+        typeof config === "object" && config !== null && !Array.isArray(config)
+            ? Boolean(config.showRealProviderNames)
+            : false
+    const order = providerOrder ?? PROVIDER_ORDER
+    const collapsed = collapseSourcesByProvider(sources)
+
+    return sortSourcesByPreference(collapsed, order).map((source) => {
+        const providerKey = normalizeProviderName(source.provider.id || source.provider.name)
+
+        const displayName = resolveProviderUserLabel(
+            providerKey,
+            source.provider.name,
+            order,
+            showRealProviderNames
+        )
+        const sourceType = resolvePlaybackSourceType(source)
+        const variants = source.qualityVariants
+        // Language-tagged sources (Huhu) need a stable per-language id so
+        // selecting Languages switches the actual stream URL.
+        const qualityKey = isLanguageQualityLabel(source.quality || "")
+            ? (source.quality || "auto").trim().toLowerCase().replace(/[^a-z0-9]+/g, "") || "auto"
+            : "auto"
+        const id = buildStableSourceId(providerKey, qualityKey, sourceType)
+
+        return {
+            id,
+            label: displayName,
+            src: normalizeCinemacityCdnPlaybackUrl(source.url),
+            sourceType,
+            provider: displayName,
+            providerId: providerKey,
+            quality: source.quality,
+            qualities: variants?.map((variant, index) => ({
+                index,
+                label: variant.quality,
+                height: qualityHeight(variant.quality),
+                url: normalizeCinemacityCdnPlaybackUrl(variant.url),
+                sourceType:
+                    variant.type.toLowerCase() === "hls" ||
+                    variant.type.toLowerCase() === "m3u8" ||
+                    variant.url.includes(".m3u8")
+                        ? ("hls" as const)
+                        : ("file" as const),
+            })),
+            audioTracks: (source.audioTracks ?? []).map((track) => ({
+                id: track.id,
+                label: track.label,
+                ...(track.url
+                    ? { url: normalizeCinemacityCdnPlaybackUrl(track.url) }
+                    : {}),
+            })),
+            cinemacityPageUrl: source.cinemacityPageUrl,
+            directClientPlayback: source.directClientPlayback,
+            clientPlaybackHeaders: source.clientPlaybackHeaders,
+            clientResolved: source.clientResolved === true,
+            clientResolvedAt:
+                typeof source.clientResolvedAt === "number"
+                    ? source.clientResolvedAt
+                    : undefined,
+            iframeEmbed: Boolean(source.iframeEmbed) || sourceType === "embed",
+            videasyPlayerSurface: Boolean((source as { videasyPlayerSurface?: boolean }).videasyPlayerSurface),
+        }
+    })
+}
+
+export const TERMINAL_SOURCE_DIAGNOSTIC_CODES = new Set([
+    "NO_ENABLED_PROVIDER_STREAMS",
+    "ENABLED_PROVIDER_UNAVAILABLE",
+    // Soft "extra providers timed out" must NOT terminate discovery UI —
+    // a late VidLink/VAPlayer batch often arrives right after.
+    "CINEPRO_OFFLINE",
+])
+
+/** Soft timeout for extra CinePro providers — keep holding the empty-state UI. */
+export const SOFT_DISCOVERY_HOLD_CODES = new Set(["CINEPRO_UNAVAILABLE"])
+
+export function isBackgroundSourcesPending(
+    diagnostics: Array<{ code?: string }> = []
+) {
+    if (diagnostics.some((item) => TERMINAL_SOURCE_DIAGNOSTIC_CODES.has(item.code ?? ""))) {
+        return false
+    }
+
+    return diagnostics.some((item) => item.code === "CINEPRO_BACKGROUND")
+}
+
+/** True while we should still show loading instead of “title isn’t available”. */
+export function shouldHoldEmptyStateForDiscovery(
+    diagnostics: Array<{ code?: string }> = [],
+    sourceCount = 0
+) {
+    if (sourceCount > 0) return false
+    if (diagnostics.some((item) => TERMINAL_SOURCE_DIAGNOSTIC_CODES.has(item.code ?? ""))) {
+        return false
+    }
+    return (
+        isBackgroundSourcesPending(diagnostics) ||
+        diagnostics.some((item) => SOFT_DISCOVERY_HOLD_CODES.has(item.code ?? ""))
+    )
+}
+
+export function getProviderDisplayName(provider: string, providerOrder?: ProviderOrder) {
+    const key = normalizeProviderName(provider) as (typeof PROVIDER_ORDER)[number]
+    return DEFAULT_PROVIDER_LABELS[key] ?? provider
+}
+
+export function getAllKnownProviders(providerOrder?: ProviderOrder) {
+    const order = providerOrder ?? PROVIDER_ORDER
+    return order.map((id) => ({
+        id,
+        name: DEFAULT_PROVIDER_LABELS[id as (typeof PROVIDER_ORDER)[number]] ?? id,
+    }))
+}
+
+export function getConfiguredProviders(
+    entries: Array<{ id: string; name: string; enabled: boolean }>
+) {
+    return entries
+        .filter((entry) => entry.enabled)
+        .map((entry) => ({
+            id: normalizeProviderName(entry.id),
+            name: entry.name,
+        }))
+}
+
+/** Admin drag order intersected with enabled providers (disabled are omitted). */
+export function getOrderedEnabledProviderIds(
+    order: readonly string[] | undefined,
+    enabledIds: readonly string[]
+): string[] {
+    const enabledSet = new Set(enabledIds.map((id) => normalizeProviderName(id)))
+    const seen = new Set<string>()
+    const result: string[] = []
+
+    if (order?.length) {
+        for (const id of order) {
+            const key = normalizeProviderName(id)
+            if (!enabledSet.has(key) || seen.has(key)) continue
+            seen.add(key)
+            result.push(key)
+        }
+    }
+
+    for (const id of enabledIds) {
+        const key = normalizeProviderName(id)
+        if (seen.has(key)) continue
+        seen.add(key)
+        result.push(key)
+    }
+
+    return result
+}
+
+export function compareProvidersForDisplay(
+    a: string,
+    b: string,
+    providerOrder?: ProviderOrder
+) {
+    const rankA = providerDisplayRank(a, providerOrder)
+    const rankB = providerDisplayRank(b, providerOrder)
+    if (rankA !== rankB) return rankA - rankB
+    return a.localeCompare(b)
+}
+
+export function providerDisplayRank(name: string, providerOrder?: ProviderOrder) {
+    const key = normalizeProviderName(name)
+    const order = providerOrder ?? PROVIDER_ORDER
+    const index = order.indexOf(key)
+    return index === -1 ? order.length : index
+}
+
+function providerKey(source: SortableSource) {
+    return normalizeProviderName(source.provider.name)
+}
+
+function isVidLinkSource(source: SortableSource) {
+    return providerKey(source) === "vidlink" || source.url.includes("/api/vidlink/")
+}
+
+function isCineSuSource(source: SortableSource) {
+    return providerKey(source) === "cinesu"
+}
+
+function preferredStartRank(source: SortableSource, providerOrder?: ProviderOrder): number {
+    return providerDisplayRank(source.provider.name, providerOrder)
+}
+
+function providerScore(source: SortableSource, providerOrder?: ProviderOrder): number {
+    const order = providerOrder ?? PROVIDER_ORDER
+    const rank = providerDisplayRank(source.provider.name, providerOrder)
+    return rank === order.length ? 50 : order.length - rank
+}
+
+function decodeProxyTarget(url: string): string {
+    try {
+        const parsed = new URL(url)
+        const data = parsed.searchParams.get("data")
+        if (!data) return url
+
+        const payload = JSON.parse(data) as { url?: unknown }
+        return typeof payload.url === "string" ? payload.url : url
+    } catch {
+        return url
+    }
+}
+
+function mediaScore(source: SortableSource): number {
+    const target = decodeProxyTarget(source.url).toLowerCase()
+    const declaredType = source.type.toLowerCase()
+
+    if (declaredType === "mp4" || declaredType === "webm") {
+        return 120
+    }
+
+    if (declaredType === "hls" || declaredType === "m3u8") {
+        return 90
+    }
+
+    if (target.includes(".m3u8") || target.includes(".mp4") || target.includes(".webm")) {
+        return 100
+    }
+
+    if (target.includes(".html")) {
+        return -100
+    }
+
+    return 0
+}
+
+export type ProviderQualityVariant = {
+    quality: string
+    url: string
+    type: string
+}
+
+/** True for real ladder labels (1080p / 4K). False for Auto / Mirror N. */
+function isDiscreteResolutionQualityLabel(quality: string): boolean {
+    const q = (quality || "").trim()
+    if (!q) return false
+    if (/^(auto|abr|default)$/i.test(q)) return false
+    if (/^(mirror|stream|server|source)\s*\d+$/i.test(q)) return false
+    return qualityHeight(q) > 0
+}
+
+/** Parse a quality label into a height bucket (0 = unknown). */
+export function qualityHeight(quality: string): number {
+    const q = quality.toLowerCase()
+    if (q.includes("2160") || q.includes("4k") || q.includes("uhd")) return 2160
+    if (q.includes("1440") || q.includes("2k")) return 1440
+    if (q.includes("1080") || q.includes("fhd")) return 1080
+    if (q.includes("720") || q.includes("hd")) return 720
+    if (q.includes("480") || q.includes("sd")) return 480
+    if (q.includes("360")) return 360
+    if (q.includes("240")) return 240
+    const n = parseInt(quality, 10)
+    return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+/**
+ * Default play quality: start on whatever stream is already available.
+ * Prefer an adaptive playlist so the player can use any rendition.
+ * An explicit 4K file still starts at 4K. Otherwise use the best file at
+ * or below 720p instead of hunting a 1080p label that later drops.
+ * A single file, including a lone 1080p, still plays as-is.
+ */
+export function pickPreferredQualitySource<
+    T extends { quality: string; url?: string; type?: string }
+>(items: T[]): T {
+    if (items.length === 0) {
+        throw new Error("pickPreferredQualitySource requires at least one item")
+    }
+    if (items.length === 1) return items[0]!
+
+    const isHevcLabel = (quality: string) =>
+        /\bhevc\b|\bh265\b|\bhvc1\b/i.test(quality || "")
+
+    const isMp4Like = (item: T) => {
+        const declared = String(item.type || "").toLowerCase()
+        if (declared === "mp4" || declared === "webm" || declared === "file") return true
+        const url = String(item.url || "").toLowerCase()
+        return /\.mp4(\?|$)/i.test(url) || /\.webm(\?|$)/i.test(url)
+    }
+
+    // Mobile Chrome MSE strips HEVC-only ladders — never auto-start those when a
+    // progressive MP4 / non-HEVC sibling exists for the same provider.
+    const nonHevc = items.filter((item) => !isHevcLabel(item.quality || ""))
+    const pool = nonHevc.length > 0 ? nonHevc : items
+    const mp4Pool = pool.filter(isMp4Like)
+    const pickPool = mp4Pool.length > 0 ? mp4Pool : pool
+
+    // Prefer a real labeled height over empty/Auto. When a discrete ladder
+    // includes 4K plus lower rungs (Videasy), start on 1080p so the Quality
+    // sheet keeps 4K/1080/720/480 — starting on a lone 2160p media playlist
+    // made the menu look 4K-only on mobile.
+    const ranked = pickPool
+        .map((item) => ({ item, height: qualityHeight(item.quality) }))
+        .filter((row) => row.height > 0)
+        .sort((a, b) => b.height - a.height)
+    if (ranked[0]) {
+        const hasFourK = ranked.some((row) => row.height >= 2160)
+        const hasLower = ranked.some((row) => row.height > 0 && row.height < 2160)
+        if (hasFourK && hasLower) {
+            return (
+                ranked.find((row) => row.height === 1080)?.item ??
+                ranked.find((row) => row.height <= 1080)?.item ??
+                ranked[0]!.item
+            )
+        }
+        return ranked[0].item
+    }
+
+    return pickPool[0]!
+}
+
+const KNOWN_LANGUAGE_QUALITY_LABELS = new Set([
+    "english",
+    "spanish",
+    "ukrainian",
+    "russian",
+    "portuguese",
+    "french",
+    "german",
+    "italian",
+    "hindi",
+    "japanese",
+    "korean",
+    "chinese",
+    "arabic",
+    "turkish",
+    "polish",
+    "dutch",
+    "thai",
+    "vietnamese",
+    "indonesian",
+    "malay",
+    "swedish",
+    "norwegian",
+    "danish",
+    "finnish",
+    "greek",
+    "hebrew",
+    "czech",
+    "romanian",
+    "hungarian",
+    "bulgarian",
+    "croatian",
+    "serbian",
+    "slovak",
+    "slovenian",
+    "persian",
+    "urdu",
+    "bengali",
+    "tamil",
+    "telugu",
+    "malayalam",
+    "kannada",
+    "marathi",
+    "latin american spanish",
+    "brazilian portuguese",
+    "filipino",
+    "unknown",
+])
+
+function isLanguageQualityLabel(quality: string) {
+    const value = (quality || "").trim().toLowerCase()
+    if (!value || value === "auto") return false
+    if (qualityHeight(quality) > 0) return false
+    if (value.startsWith("server ")) return false
+    return KNOWN_LANGUAGE_QUALITY_LABELS.has(value)
+}
+
+function isEnglishQualityLabel(quality: string) {
+    return (quality || "").trim().toLowerCase().includes("english")
+}
+
+function pickPreferredLanguageSource<T extends { quality: string; type?: string }>(items: T[]) {
+    const isMp4Like = (item: T) => {
+        const kind = String(item.type || "").toLowerCase()
+        return kind === "mp4" || kind === "file" || kind === "webm"
+    }
+    // Default to English whenever present (show all languages; play English).
+    // If both English MP4 and English HLS exist, prefer the progressive file.
+    const englishItems = items.filter((item) => isEnglishQualityLabel(item.quality))
+    if (englishItems.length) {
+        return englishItems.find(isMp4Like) ?? englishItems[0]!
+    }
+    return items[0]!
+}
+
+type CollapsedMediaSource<T extends RawMediaSource> = T & {
+    qualityVariants?: ProviderQualityVariant[]
+}
+
+/**
+ * Collapse same-provider multi-quality streams into one Source entry.
+ * Resolution ladders move to Quality; language-named Flixhqz streams become Audio tracks.
+ */
+export function collapseSourcesByProvider<T extends RawMediaSource>(
+    sources: T[]
+): Array<CollapsedMediaSource<T>> {
+    const groups = new Map<string, T[]>()
+
+    for (const source of sources) {
+        const key = normalizeProviderName(source.provider.id || source.provider.name)
+        if (!key) continue
+        const list = groups.get(key)
+        if (list) list.push(source)
+        else groups.set(key, [source])
+    }
+
+    const collapsed: Array<CollapsedMediaSource<T>> = []
+
+    for (const group of groups.values()) {
+        const byQuality = new Map<string, T>()
+        for (const source of group) {
+            const qKey = (source.quality || "Auto").trim() || "Auto"
+            const previous = byQuality.get(qKey)
+            if (!previous || mediaScore(source) >= mediaScore(previous)) {
+                byQuality.set(qKey, source)
+            }
+        }
+
+        const variants = Array.from(byQuality.values())
+        const languageVariants = variants.filter((item) =>
+            isLanguageQualityLabel(item.quality || "")
+        )
+        const resolutionOnly = variants.filter((item) =>
+            isDiscreteResolutionQualityLabel(item.quality || "")
+        )
+        // 7Movies (and similar): English may arrive as 1080p/720p/480p while dubs
+        // stay language-tagged. Keep both — ladder for Quality, dubs for Languages.
+        if (
+            resolutionOnly.length >= 2 &&
+            languageVariants.length >= 1 &&
+            resolutionOnly.length + languageVariants.length === variants.length
+        ) {
+            const qualityVariants = resolutionOnly
+                .slice()
+                .sort((a, b) => qualityHeight(b.quality) - qualityHeight(a.quality))
+                .map((item) => ({
+                    quality: item.quality || "Auto",
+                    url: item.url,
+                    type: item.type,
+                }))
+            const preferredResolution = pickPreferredQualitySource(resolutionOnly)
+            collapsed.push({
+                ...preferredResolution,
+                quality: "English",
+                qualityVariants,
+                audioTracks: [
+                    {
+                        id: `${normalizeProviderName(preferredResolution.provider.id || preferredResolution.provider.name)}-lang-english`,
+                        label: "English",
+                        url: preferredResolution.url,
+                    },
+                ],
+            })
+            for (const [index, item] of languageVariants.entries()) {
+                const label = (item.quality || "Unknown").trim() || "Unknown"
+                const providerKey = normalizeProviderName(item.provider.id || item.provider.name)
+                collapsed.push({
+                    ...item,
+                    quality: label,
+                    audioTracks: [
+                        {
+                            id: `${providerKey}-lang-${index}-${label.toLowerCase()}`,
+                            label,
+                            url: item.url,
+                        },
+                    ],
+                })
+            }
+            continue
+        }
+
+        const treatAsLanguages =
+            languageVariants.length >= 1 &&
+            languageVariants.length === variants.length
+
+        if (treatAsLanguages) {
+            // Keep each verified language as its own playable source so the
+            // Languages sheet can always list them and clicking one selects playback.
+            const preferred = pickPreferredLanguageSource(languageVariants)
+            const ordered = [
+                preferred,
+                ...languageVariants.filter((item) => item !== preferred),
+            ]
+            for (const [index, item] of ordered.entries()) {
+                const label = (item.quality || "Unknown").trim() || "Unknown"
+                const providerKey = normalizeProviderName(item.provider.id || item.provider.name)
+                collapsed.push({
+                    ...item,
+                    quality: label,
+                    // Do not invent a fake 360p/480p rung — that made Quality look
+                    // broken on 7Movies. Real ladders come from Orion rungs / HLS.
+                    audioTracks: [
+                        {
+                            id: `${providerKey}-lang-${index}-${label.toLowerCase()}`,
+                            label,
+                            url: item.url,
+                        },
+                    ],
+                })
+            }
+            continue
+        }
+
+        const preferred = pickPreferredQualitySource(variants)
+
+        // Only collapse true resolution ladders (Videasy 2160p/1080p/…).
+        // VAPlayer returns multiple mirror URLs labeled Auto/Mirror 2/Mirror 3 —
+        // those are NOT quality rungs. Treating them as qualities blocked the
+        // real HLS ladder and left Brand New Day stuck on a fake "360p" row.
+        const resolutionVariants = variants.filter((item) =>
+            isDiscreteResolutionQualityLabel(item.quality || "")
+        )
+
+        if (resolutionVariants.length <= 1) {
+            collapsed.push(preferred)
+            continue
+        }
+
+        const qualityVariants = resolutionVariants
+            .slice()
+            .sort(
+                (a, b) => qualityHeight(b.quality) - qualityHeight(a.quality)
+            )
+            .map((item) => ({
+                quality: item.quality || "Auto",
+                url: item.url,
+                type: item.type,
+            }))
+
+        const preferredResolution = pickPreferredQualitySource(resolutionVariants)
+        collapsed.push({
+            ...preferredResolution,
+            qualityVariants,
+        })
+    }
+
+    return collapsed
+}
+
+function sourceComparator(
+    a: SortableSource,
+    b: SortableSource,
+    providerOrder?: ProviderOrder
+): number {
+    const preferredDelta = preferredStartRank(a, providerOrder) - preferredStartRank(b, providerOrder)
+    if (preferredDelta !== 0) return preferredDelta
+
+    // 7Movies dubs are MP4 and the original/English track is HLS. Score would
+    // start a dub. English is the track that should open.
+    if (
+        normalizeProviderName(a.provider.name) === "7movies" &&
+        normalizeProviderName(b.provider.name) === "7movies"
+    ) {
+        const aEn = isEnglishQualityLabel(a.quality) ? 1 : 0
+        const bEn = isEnglishQualityLabel(b.quality) ? 1 : 0
+        if (aEn !== bEn) return bEn - aEn
+    }
+
+    const mediaDelta = mediaScore(b) - mediaScore(a)
+    if (mediaDelta !== 0) return mediaDelta
+
+    const providerDelta = providerScore(b, providerOrder) - providerScore(a, providerOrder)
+    if (providerDelta !== 0) return providerDelta
+
+    if (a.type === "hls" && b.type !== "hls") return -1
+    if (a.type !== "hls" && b.type === "hls") return 1
+
+    const qA = parseInt(a.quality, 10) || 0
+    const qB = parseInt(b.quality, 10) || 0
+    return qB - qA
+}
+
+export function sortSourcesByPreference<T extends SortableSource>(
+    sources: T[],
+    providerOrder?: ProviderOrder
+): T[] {
+    return [...sources].sort((a, b) => sourceComparator(a, b, providerOrder))
+}
+
+export function isDirectCinemacityCdnUrl(url: string) {
+    return /^https?:\/\/[^/]*cccdn\.net/i.test(url)
+}
+
+/** Repair malformed Cinemacity CDN URLs (comma-separated playlist leaks, missing dot before urlset). */
+export function normalizeCinemacityCdnPlaybackUrl(url: string) {
+    if (!isDirectCinemacityCdnUrl(url)) return url
+
+    const commaCount = (url.match(/,/g) ?? []).length
+    if (commaCount >= 2) {
+        const parts = url.split(",").map((part) => part.trim()).filter(Boolean)
+        const base = parts[0]
+        const hlsPart = parts.find((part) => /urlset\/master\.m3u8$/i.test(part))
+        if (base && hlsPart && isDirectCinemacityCdnUrl(base)) {
+            const relative = hlsPart.startsWith(".") ? hlsPart : `.${hlsPart}`
+            return `${base.replace(/\/$/, "")}/${relative.replace(/^\//, "")}`
+        }
+    }
+
+    return url
+        .replace(/,urlset/gi, ".urlset")
+        .replace(/public_files\/\/+\.urlset/gi, "public_files/.urlset")
+        .replace(/public_files\/\.urlset\/\.urlset/gi, "public_files/.urlset")
+}
+
+export function isTrustedPlaybackSourceUrl(url: string) {
+    // Huhu resolver endpoints are intentionally NOT trusted — they must be
+    // health-probed (hosts/tokens often 404) before auto-start.
+    return (
+        url.includes("/api/cinepro/proxy") ||
+        url.includes("/api/vidlink/stream") ||
+        url.includes("/api/vidlink/proxy") ||
+        url.includes("/api/4k/hls/") ||
+        isDirectCinemacityCdnUrl(url)
+    )
+}
+
+export function isFourKHlsTranscodeUrl(url: string) {
+    if (!url.includes("/api/4k/hls/")) return false
+    try {
+        return new URL(url, "https://chillflix.lol").searchParams.get("mode") === "transcode"
+    } catch {
+        return url.includes("mode=transcode")
+    }
+}
+
+export function isFourKHlsPlaybackUrl(url: string) {
+    return url.includes("/api/4k/hls/")
+}
+
+export function canImmediatelyStartProviderOption<
+    T extends { id: string; providerId?: string; src?: string }
+>(
+    option: T,
+    sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+): boolean {
+    if (normalizeProviderName(option.providerId ?? "") === "4khdhub") {
+        return isFourKHlsPlaybackUrl(option.src ?? "")
+    }
+
+    return sourceHealth?.[option.id] === "ready"
+}
+
+export function fourKHlsStartupTimeoutMs(url: string) {
+    return isFourKHlsTranscodeUrl(url)
+        ? FOUR_K_HLS_TRANSCODE_STARTUP_TIMEOUT_MS
+        : FOUR_K_HLS_STARTUP_TIMEOUT_MS
+}
+
+/** Native Huhu stream URLs are resolver endpoints — must be probed before playback. */
+export function isNativeHuhuResolverUrl(url: string) {
+    return url.includes("/api/huhu/stream") || url.includes("/api/huhu/proxy")
+}
+
+/** Native FlixHQ stream URLs are resolver endpoints — must be probed before playback. */
+export function isNativeFlixhqResolverUrl(url: string) {
+    return url.includes("/api/flixhq/stream") || url.includes("/api/flixhq/proxy")
+}
+
+/** Resolvers that often return dead hosts — never trust without a health probe. */
+export function isProviderRequiringHealthProbe(providerId?: string, url?: string) {
+    const key = normalizeProviderName(providerId ?? "")
+    if (key === "flixhq" || key === "flixhqz" || key === "huhu") {
+        return true
+    }
+
+    return Boolean(
+        url && (isNativeFlixhqResolverUrl(url) || isNativeHuhuResolverUrl(url))
+    )
+}
+
+/** Bulk/shared VAPlayer rows without a browser resolve never play — wait. */
+export function isClientResolveAutoStartReady<
+    T extends { providerId?: string; clientResolved?: boolean }
+>(option: T): boolean {
+    if (!isClientResolveProvider(option.providerId ?? "")) {
+        return true
+    }
+    return option.clientResolved === true
+}
+
+export function isSourceAutoStartEligible<
+    T extends { id: string; providerId?: string; src?: string; clientResolved?: boolean }
+>(
+    option: T,
+    sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+): boolean {
+    // A CinePro master / shared cache can list VAPlayer qualities that never
+    // start until the browser resolver runs (Sources tap). Keep them out of
+    // auto-start so we do not mount a black player on a stub URL.
+    if (!isClientResolveAutoStartReady(option)) {
+        return false
+    }
+
+    if (!sourceHealth) {
+        // Without health state, only skip hard probe-required resolvers.
+        return !isProviderRequiringHealthProbe(option.providerId, option.src)
+    }
+
+    const status = sourceHealth[option.id]
+    if (status === "ready") {
+        return true
+    }
+    if (status === "failed") {
+        // Hard-fail only resolvers that often return dead hosts. Direct/proxy
+        // HLS (VSEmbed, etc.) can false-fail the probe while still playing on
+        // click — keep them eligible for optimistic auto-start.
+        return !isProviderRequiringHealthProbe(option.providerId, option.src)
+    }
+
+    // idle/checking/missing: keep in the pool so pickPreferred can WAIT on
+    // higher-ranked providers instead of jumping to a lower-ranked ready one.
+    if (isProviderRequiringHealthProbe(option.providerId, option.src)) {
+        return true
+    }
+
+    // Non-required sources stay eligible so sequential probing can mark them.
+    return true
+}
+
+export function isSourceProbePending(
+    option: { id: string; providerId?: string; src?: string },
+    sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+): boolean {
+    if (!isProviderRequiringHealthProbe(option.providerId, option.src)) {
+        return false
+    }
+
+    const status = sourceHealth?.[option.id]
+    return !status || status === "idle" || status === "checking"
+}
+
+export function filterAutoStartEligibleOptions<
+    T extends { id: string; providerId?: string; src?: string; clientResolved?: boolean }
+>(
+    options: T[],
+    args: {
+        skipHealthProbe: boolean
+        sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+    }
+): T[] {
+    // Always drop unresolved client-resolve stubs, even on embed fast-start.
+    const resolved = options.filter((option) => isClientResolveAutoStartReady(option))
+    if (args.skipHealthProbe || !args.sourceHealth) {
+        return resolved
+    }
+
+    return resolved.filter((option) => isSourceAutoStartEligible(option, args.sourceHealth))
+}
+
+export function shouldMarkAutoPickSourceReady(
+    option: { id: string; providerId?: string; src?: string },
+    sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+): boolean {
+    if (isProviderRequiringHealthProbe(option.providerId, option.src)) {
+        return false
+    }
+
+    // VAPlayer/Videasy/Movy proxy URLs look "trusted" but CDN links die quickly.
+    // Marking them ready without playback made auto-select sit dead until a
+    // manual re-click re-scraped — never treat client-resolve as probe-ready.
+    if (isClientResolveProvider(option.providerId ?? "")) {
+        return false
+    }
+
+    return sourceHealth?.[option.id] !== "ready"
+}
+
+export type ProviderScanGate = {
+    isScanningProviders?: boolean
+    scanningProviderId?: string
+    scanFailedProviderIds?: readonly string[]
+    /** When set, lower-ranked providers unlock after this many ms (admin Head-start). */
+    scanStartedAt?: number
+    /** Admin-configured #1 exclusive window; falls back to PRIMARY_PROVIDER_HEAD_START_MS. */
+    headStartMs?: number
+    /**
+     * #1 provider returned at least one URL. Used for preference only — never a
+     * hard lock: a resolve hit is not proof the stream will play.
+     */
+    primaryProviderResolved?: boolean
+}
+
+export function filterPlaybackOptionsByScanGate<
+    T extends { providerId?: string }
+>(
+    options: T[],
+    providerOrder: readonly string[] | undefined,
+    gate: ProviderScanGate
+): T[] {
+    const isScanning = Boolean(gate.isScanningProviders || gate.scanningProviderId)
+    if (!isScanning || !providerOrder?.length) {
+        return options
+    }
+
+    const order = providerOrder
+        .map((id) => normalizeProviderName(id))
+        .filter((id) => id && id !== "vidlink")
+    const failed = new Set(
+        (gate.scanFailedProviderIds ?? []).map((id) => normalizeProviderName(id))
+    )
+    const activeId = gate.scanningProviderId
+        ? normalizeProviderName(gate.scanningProviderId)
+        : ""
+    const headStartMs =
+        typeof gate.headStartMs === "number" && gate.headStartMs > 0
+            ? gate.headStartMs
+            : PRIMARY_PROVIDER_HEAD_START_MS
+    const headStartExpired =
+        typeof gate.scanStartedAt === "number" &&
+        Date.now() - gate.scanStartedAt >= headStartMs
+    const primaryId = order[0] ?? ""
+
+    return options.filter((option) => {
+        const providerId = normalizeProviderName(option.providerId ?? "")
+        if (!providerId) return false
+
+        const rank = order.indexOf(providerId)
+        if (rank === -1) {
+            return false
+        }
+
+        if (activeId && providerId === activeId) {
+            return true
+        }
+
+        for (let index = 0; index < rank; index += 1) {
+            const higherId = order[index] ?? ""
+            if (failed.has(higherId)) {
+                continue
+            }
+            // After head-start, non-client primaries may yield. Client-resolve
+            // #1 (VAPlayer) must stay gated until it fails — otherwise RiveStream
+            // unlocks in the gate at 2s and auto ignores Sources order.
+            if (
+                headStartExpired &&
+                higherId === primaryId &&
+                !isClientResolveProvider(primaryId)
+            ) {
+                continue
+            }
+            return false
+        }
+
+        return true
+    })
+}
+
+export function shouldSkipPlaybackHealthProbe(args: {
+    diagnostics?: Array<{ code?: string }>
+    sources: Array<{
+        url: string
+        provider?: { id?: string; name?: string }
+        directClientPlayback?: boolean
+    }>
+    sourcesLoadingMore?: boolean
+    /** Embed iframe: trust first resolved batch and start playback immediately. */
+    embedFastStart?: boolean
+    /** While walking enabled providers in admin order, keep probing. */
+    isScanningProviders?: boolean
+    scanningProviderId?: string
+}) {
+    if (!args.embedFastStart || args.sources.length === 0) {
+        return false
+    }
+
+    const needsProbe = args.sources.some((source) =>
+        isProviderRequiringHealthProbe(
+            source.provider?.id ?? source.provider?.name,
+            source.url
+        )
+    )
+
+    return !needsProbe
+}
+
+/** After the startup watchdog fires: prefer probed-ready streams, never retry health-failed ones. */
+export function pickForceStartPlaybackSource<
+    T extends { id: string; providerId?: string; src?: string }
+>(
+    options: T[],
+    args: {
+        sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+        firstReadySourceId?: string
+        providerOrder?: ProviderOrder
+        pickGate?: PlaybackPickGate
+    }
+): T | undefined {
+    if (options.length === 0) return undefined
+
+    const order = args.providerOrder ?? [...PROVIDER_ORDER]
+    const health = args.sourceHealth ?? {}
+    const withoutFailed = options.filter((option) => health[option.id] !== "failed")
+    const pool = withoutFailed.length > 0 ? withoutFailed : options
+
+    const eligible = filterAutoStartEligibleOptions(pool, {
+        skipHealthProbe: false,
+        sourceHealth: health,
+    })
+
+    // Honor the same pick gate as normal auto-start so a fast low-ranked
+    // server scrape (FileSuN) cannot force-start while VAPlayer/Videasy/Movy
+    // are still resolving — especially common on TV episodes.
+    const gated = pickAutoStartPlaybackSource(eligible.length > 0 ? eligible : pool, {
+        skipHealthProbe: false,
+        sourceHealth: health,
+        firstReadySourceId: args.firstReadySourceId,
+        providerOrder: order,
+        pickGate: args.pickGate,
+    })
+    if (gated) return gated
+
+    // Still scanning / waiting on a higher provider — do not force a demotion.
+    if (args.pickGate?.sourcesLoadingMore) {
+        return undefined
+    }
+
+    // Never force-start FileSuN/Huhu/RiveStream while any higher-ranked
+    // client-resolve provider has not explicitly failed — auto was landing
+    // on RiveStream while VAPlayer (#1 in Sources) was still unlocking.
+    const nonHold = (eligible.length > 0 ? eligible : pool).filter(
+        (option) => !shouldHoldForHigherRankedProviders(option.providerId)
+    )
+    if (nonHold.length > 0) {
+        const candidate = sortEligibleByProviderRank(nonHold, order)[0]
+        if (candidate?.providerId) {
+            const candKey = normalizeProviderName(candidate.providerId)
+            const candRank = order.findIndex(
+                (id) => normalizeProviderName(id) === candKey
+            )
+            const higherClientPending = order
+                .slice(0, Math.max(0, candRank))
+                .some((providerId) => {
+                    const key = normalizeProviderName(providerId)
+                    if (!isClientResolveProvider(key)) return false
+                    if (args.pickGate?.scanFailedProviderIds?.has(key)) return false
+                    if (args.pickGate?.unavailableProviderIds?.has(key)) return false
+                    if (args.pickGate?.healthFailedProviderIds?.has(key)) return false
+                    return !nonHold.some(
+                        (option) =>
+                            normalizeProviderName(option.providerId ?? "") === key
+                    )
+                })
+            if (higherClientPending) {
+                return undefined
+            }
+        }
+        return candidate
+    }
+
+    const higherStillOpen = order.some((providerId) => {
+        if (shouldHoldForHigherRankedProviders(providerId)) return false
+        return (
+            !args.pickGate?.scanFailedProviderIds?.has(providerId) &&
+            !args.pickGate?.unavailableProviderIds?.has(providerId) &&
+            !args.pickGate?.healthFailedProviderIds?.has(providerId)
+        )
+    })
+    if (higherStillOpen) {
+        return undefined
+    }
+
+    // All higher client-resolve failed — allow hold scrapes (RiveStream) now.
+    return eligible[0] ?? pool[0] ?? options[0]
+}
+
+/** Pick a stream for automatic playback (mirrors manual source selection). */
+
+
+export function pickAutoStartPlaybackSource<
+    T extends { id: string; providerId?: string; src?: string; clientResolved?: boolean }
+>(
+    options: T[],
+    args: {
+        skipHealthProbe: boolean
+        sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+        firstReadySourceId?: string
+        providerOrder?: ProviderOrder
+        pickGate?: PlaybackPickGate
+    }
+): T | undefined {
+    if (options.length === 0) return undefined
+
+    const order = args.providerOrder ?? [...PROVIDER_ORDER]
+
+    // Never fall back onto unresolved VAPlayer/Videasy/Movy stubs.
+    const safeOptions = options.filter((option) => isClientResolveAutoStartReady(option))
+
+    const eligibleOptions = filterAutoStartEligibleOptions(safeOptions, {
+        skipHealthProbe: args.skipHealthProbe,
+        sourceHealth: args.sourceHealth,
+    })
+
+    if (eligibleOptions.length === 0) {
+        const hasPendingProbe = options.some((option) =>
+            isSourceProbePending(option, args.sourceHealth)
+        )
+        const hasUnresolvedClientResolve = options.some(
+            (option) =>
+                isClientResolveProvider(option.providerId ?? "") &&
+                option.clientResolved !== true
+        )
+        if (
+            hasPendingProbe ||
+            hasUnresolvedClientResolve ||
+            (!args.skipHealthProbe && args.sourceHealth)
+        ) {
+            return undefined
+        }
+    }
+
+    const pickPool = eligibleOptions.length > 0 ? eligibleOptions : safeOptions
+    if (pickPool.length === 0) return undefined
+
+    // Always go through pickPreferredPlaybackSource so higher-ranked providers
+    // still probing block lower-ranked ready ones (admin order).
+    const pickGate = args.skipHealthProbe
+        ? args.pickGate
+        : { ...args.pickGate, sourceHealth: args.sourceHealth }
+
+    const preferred = pickPreferredPlaybackSource(pickPool, new Set(), order, pickGate)
+    if (preferred) return preferred
+
+    // pickPreferred returned undefined = wait on higher-ranked (or nothing
+    // eligible). Embed/toflix skipHealthProbe used to fall through here and
+    // grab the first pool URL (RiveStream) while VAPlayer #1 was still
+    // unlocking — which is exactly "Auto ignores Sources list".
+    return undefined
+}
+
+export function hasPendingSourceHealthProbe(
+    sourceIds: string[],
+    sourceHealth: Record<string, "idle" | "checking" | "ready" | "failed"> = {}
+) {
+    if (sourceIds.length === 0) return false
+
+    return sourceIds.some((id) => {
+        const status = sourceHealth[id]
+        return !status || status === "idle" || status === "checking"
+    })
+}
+
+export function buildTrustedSourceHealth(sourceIds: string[]) {
+    const health: Record<string, "ready"> = {}
+    for (const id of sourceIds) {
+        health[id] = "ready"
+    }
+    return health
+}
+
+export function isVidLinkOnlySources(
+    sources: Array<{ provider?: { id?: string; name?: string } }>
+) {
+    if (sources.length === 0) return false
+
+    return sources.every((source) => {
+        const providerId = (source.provider?.id ?? source.provider?.name ?? "").toLowerCase()
+        return providerId === "vidlink" || providerId.includes("vidlink")
+    })
+}
+
+export function findCineSuPlaybackOption<T extends { id: string; providerId?: string }>(
+    options: T[]
+) {
+    return options.find((option) => option.providerId === "cinesu")
+}
+
+export function hasCineSuPlaybackOption<T extends { providerId?: string }>(options: T[]) {
+    return options.some((option) => option.providerId === "cinesu")
+}
+
+export type PlaybackPickGate = {
+    sourcesLoadingMore?: boolean
+    unavailableProviderIds?: ReadonlySet<string>
+    healthFailedProviderIds?: ReadonlySet<string>
+    scanFailedProviderIds?: ReadonlySet<string>
+    sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+    primaryProviderId?: string
+}
+
+export function buildPlaybackPickGate(args: {
+    sourcesLoadingMore?: boolean
+    unavailableProviderIds?: ReadonlySet<string>
+    sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+    playbackOptions?: Array<{ id: string; providerId?: string }>
+    primaryProviderId?: string
+    scanFailedProviderIds?: ReadonlySet<string>
+}): PlaybackPickGate {
+    return {
+        sourcesLoadingMore: args.sourcesLoadingMore,
+        unavailableProviderIds: args.unavailableProviderIds,
+        sourceHealth: args.sourceHealth,
+        primaryProviderId: args.primaryProviderId,
+        scanFailedProviderIds: args.scanFailedProviderIds,
+        healthFailedProviderIds:
+            args.sourceHealth && args.playbackOptions
+                ? getHealthFailedProviderIds(args.playbackOptions, args.sourceHealth)
+                : undefined,
+    }
+}
+
+export function getHealthFailedProviderIds<
+    T extends { id: string; providerId?: string }
+>(
+    options: T[],
+    sourceHealth: Record<string, "idle" | "checking" | "ready" | "failed"> = {}
+): Set<string> {
+    const byProvider = new Map<string, Array<"idle" | "checking" | "ready" | "failed">>()
+
+    for (const option of options) {
+        if (!option.providerId) continue
+        const statuses = byProvider.get(option.providerId) ?? []
+        statuses.push(sourceHealth[option.id] ?? "idle")
+        byProvider.set(option.providerId, statuses)
+    }
+
+    const failed = new Set<string>()
+    for (const [providerId, statuses] of byProvider.entries()) {
+        const hasReady = statuses.some((status) => status === "ready")
+        const hasFailed = statuses.some((status) => status === "failed")
+        if (hasFailed && !hasReady) {
+            failed.add(providerId)
+        }
+    }
+
+    return failed
+}
+
+export function isProviderResolvedForPlayback(
+    providerId: string,
+    gate?: PlaybackPickGate
+): boolean {
+    if (!gate) return true
+
+    if (
+        gate.unavailableProviderIds?.has(providerId) ||
+        gate.healthFailedProviderIds?.has(providerId) ||
+        gate.scanFailedProviderIds?.has(providerId)
+    ) {
+        return true
+    }
+
+    // Client-resolve still unlocking/soft-pending — a quiet scan is NOT "done".
+    // Treating !sourcesLoadingMore as resolved let RiveStream jump #1 in the list.
+    if (isClientResolveProvider(providerId)) {
+        return false
+    }
+
+    return !gate.sourcesLoadingMore
+}
+
+/** Probe every ranked stream per provider (HLS first, then MP4 qualities). */
+export function pickProbeSourcesPerProvider<
+    T extends { id: string; providerId?: string; sourceType?: string; quality?: string }
+>(options: T[], providerOrder?: ProviderOrder, limitToOrderOnly = false) {
+    const order = providerOrder?.length ? providerOrder : [...PROVIDER_ORDER]
+    const seen = new Set<string>()
+    const picked: T[] = []
+
+    const appendProviderSources = (providerId: string) => {
+        if (seen.has(providerId)) return
+        const providerOptions = options.filter((option) => option.providerId === providerId)
+        if (providerOptions.length === 0) return
+        seen.add(providerId)
+        // Huhu-style language variants share a providerId. Probe each language
+        // (usually 2–4) so a dead English mirror does not mark the whole
+        // provider failed while Spanish/Russian are fine.
+        picked.push(...providerOptions)
+    }
+
+    for (const providerId of order) {
+        appendProviderSources(providerId)
+    }
+
+    if (!limitToOrderOnly) {
+        for (const option of options) {
+            if (!option.providerId || seen.has(option.providerId)) continue
+            appendProviderSources(option.providerId)
+        }
+    }
+
+    return picked
+}
+
+/** Automatic mode: first stream per provider in admin order (top = probed first). */
+export function pickAutomaticProbeSources<T extends { id: string; providerId?: string }>(
+    options: T[],
+    providerOrder?: ProviderOrder,
+    orderedEnabledIds?: readonly string[]
+) {
+    const order = orderedEnabledIds?.length
+        ? [...orderedEnabledIds]
+        : providerOrder?.length
+          ? getOrderedEnabledProviderIds(providerOrder, providerOrder)
+          : []
+
+    if (order.length === 0) {
+        return []
+    }
+
+    const probeOrder = order.filter(
+        (id) => !MANUAL_ONLY_PROVIDER_IDS.has(normalizeProviderName(id))
+    )
+
+    return pickProbeSourcesPerProvider(options, probeOrder, true)
+}
+
+export function isAutomaticProviderId(providerId?: string, providerOrder?: ProviderOrder) {
+    if (!providerId) return false
+
+    const key = normalizeProviderName(providerId)
+
+    if (MANUAL_ONLY_PROVIDER_IDS.has(key)) {
+        return false
+    }
+
+    if (providerOrder?.length) {
+        return providerOrder.some((id) => normalizeProviderName(id) === key)
+    }
+
+    return AUTOMATIC_PROVIDER_IDS.has(key)
+}
+
+export function shouldDeferPlaybackPick<T extends { id: string; providerId?: string }>(
+    options: T[],
+    providerOrder?: ProviderOrder,
+    gate?: PlaybackPickGate
+): boolean {
+    if (!gate?.sourcesLoadingMore || options.length === 0) {
+        return false
+    }
+
+    if (gate.sourceHealth) {
+        const hasReadyOption = options.some(
+            (option) => gate.sourceHealth![option.id] === "ready"
+        )
+        if (hasReadyOption) {
+            return false
+        }
+    }
+
+    const order = providerOrder?.length ? providerOrder : [...PROVIDER_ORDER]
+    const primaryId = gate.primaryProviderId ?? order[0]
+    if (!primaryId || primaryId === "vidlink") {
+        return false
+    }
+
+    const hasPrimarySource = options.some((option) => option.providerId === primaryId)
+    if (hasPrimarySource) {
+        return false
+    }
+
+    return isVidLinkOnlySources(
+        options.map((option) => ({
+            provider: { id: option.providerId, name: option.providerId },
+        }))
+    )
+}
+
+function sortEligibleByProviderRank<T extends { providerId?: string }>(
+    options: T[],
+    order: ProviderOrder
+) {
+    return [...options].sort(
+        (a, b) =>
+            providerDisplayRank(a.providerId ?? "", order) -
+            providerDisplayRank(b.providerId ?? "", order)
+    )
+}
+
+
+/** Fast server/bulk scrapes that must not beat client-resolve #1–N. */
+export function shouldHoldForHigherRankedProviders(providerId?: string): boolean {
+    const key = normalizeProviderName(providerId ?? "")
+    if (!key) return false
+    // Client-resolve peers (VAPlayer, Videasy, 7Movies, …) may auto-start by
+    // admin order among themselves.
+    if (isClientResolveProvider(key)) return false
+    // RiveStream/CNO/MeowTV/etc. return URLs in ~1–2s from CinePro while
+    // VAPlayer is still unlocking. Treating automatic server scrapes as
+    // "free to start" made auto always land on RiveStream even when VA was
+    // #1 in Sources and played fine on manual tap. Hold all non-client
+    // scrapes until higher-ranked client-resolve finishes or fails.
+    return true
+}
+
+export function pickPreferredPlaybackSource<T extends { id: string; providerId?: string }>(
+    options: T[],
+    skipProviderIds: ReadonlySet<string> = new Set(),
+    providerOrder?: ProviderOrder,
+    gate?: PlaybackPickGate,
+    automaticOnly = true
+) {
+    if (options.length === 0) return undefined
+
+    const order = providerOrder?.length ? providerOrder : [...PROVIDER_ORDER]
+
+    const eligible = options.filter((option) => {
+        if (!option.providerId || skipProviderIds.has(option.providerId)) {
+            return false
+        }
+
+        if (automaticOnly && !isAutomaticProviderId(option.providerId, order)) {
+            return false
+        }
+
+        return true
+    })
+
+    if (eligible.length === 0) {
+        const ranked = sortEligibleByProviderRank(
+            options.filter((option) => option.providerId),
+            order
+        )
+        return ranked[0] ?? options[0]
+    }
+
+    if (shouldDeferPlaybackPick(eligible, order, gate)) {
+        return undefined
+    }
+
+    if (gate?.sourceHealth) {
+        // Walk admin order: wait on #1 while it is still probing/loading, only
+        // then accept #2, etc. Never jump to a lower-ranked "ready" while a
+        // higher-ranked source is still pending.
+        for (const providerId of order) {
+            if (skipProviderIds.has(providerId)) continue
+
+            const providerOptions = eligible.filter(
+                (option) => option.providerId === providerId
+            )
+            if (providerOptions.length === 0) {
+                // No URLs yet for this ranked provider.
+                const stillPending =
+                    !gate.scanFailedProviderIds?.has(providerId) &&
+                    !gate.unavailableProviderIds?.has(providerId) &&
+                    !gate.healthFailedProviderIds?.has(providerId)
+                if (!stillPending) {
+                    continue
+                }
+                // Client-resolve / high providers: wait while discovery/scan is
+                // still running. Never fall through to FileSuN just because
+                // bulk CinePro finished first.
+                if (gate.sourcesLoadingMore || !shouldHoldForHigherRankedProviders(providerId)) {
+                    return undefined
+                }
+                continue
+            }
+
+            // Fast server scrapes / native bulk (FileSuN, Huhu, …): never
+            // auto-start while any higher admin-ranked provider is still
+            // pending. Client-resolve peers (Videasy/Movy/VAPlayer) may start.
+            if (shouldHoldForHigherRankedProviders(providerId)) {
+                const nativeIndex = order.indexOf(providerId)
+                const higherPending = order.slice(0, Math.max(0, nativeIndex)).some((higherId) => {
+                    if (skipProviderIds.has(higherId)) return false
+                    return (
+                        !gate.scanFailedProviderIds?.has(higherId) &&
+                        !gate.unavailableProviderIds?.has(higherId) &&
+                        !gate.healthFailedProviderIds?.has(higherId)
+                    )
+                })
+                if (higherPending) {
+                    return undefined
+                }
+            }
+
+            const readyOptions = providerOptions.filter(
+                (option) => gate.sourceHealth![option.id] === "ready"
+            )
+            if (readyOptions.length > 0) {
+                return sortEligibleByProviderRank(readyOptions, order)[0]
+            }
+
+            // Direct/proxy HLS providers (VSEmbed, MovieBox, …): as soon as we
+            // have a URL, auto-start like a manual click. Waiting on /probe is
+            // what made "shows in Sources but won't auto-play" happen — click
+            // called markSourceReady and skipped the false-negative gate.
+            const requiresProbe = providerOptions.some((option) =>
+                isProviderRequiringHealthProbe(option.providerId, option.src)
+            )
+            if (!requiresProbe) {
+                return sortEligibleByProviderRank(providerOptions, order)[0]
+            }
+
+            const stillProbing = providerOptions.some((option) => {
+                const status = gate.sourceHealth![option.id]
+                return !status || status === "idle" || status === "checking"
+            })
+            if (stillProbing) {
+                return undefined
+            }
+
+            // All variants for this probe-required provider failed — try next.
+        }
+
+        const withoutFailedProviders = eligible.filter(
+            (option) =>
+                option.providerId &&
+                !gate.healthFailedProviderIds?.has(option.providerId)
+        )
+        if (withoutFailedProviders.length > 0) {
+            return sortEligibleByProviderRank(withoutFailedProviders, order)[0]
+        }
+
+        return undefined
+    }
+
+    for (const providerId of order) {
+        if (skipProviderIds.has(providerId)) continue
+
+        const providerOptions = eligible.filter((option) => option.providerId === providerId)
+
+        if (providerOptions.length > 0) {
+            const nativeIndex = order.indexOf(providerId)
+            // Embed/skipHealth path used to return RiveStream here while VAPlayer
+            // (#1) was still unlocking and absent from the eligible pool.
+            const higherClientPending = order
+                .slice(0, Math.max(0, nativeIndex))
+                .some((higherId) => {
+                    if (skipProviderIds.has(higherId)) return false
+                    if (!isClientResolveProvider(higherId)) return false
+                    if (gate?.scanFailedProviderIds?.has(higherId)) return false
+                    if (gate?.unavailableProviderIds?.has(higherId)) return false
+                    if (gate?.healthFailedProviderIds?.has(higherId)) return false
+                    return !eligible.some(
+                        (option) =>
+                            normalizeProviderName(option.providerId ?? "") ===
+                            normalizeProviderName(higherId)
+                    )
+                })
+            if (higherClientPending) {
+                return undefined
+            }
+            if (shouldHoldForHigherRankedProviders(providerId)) {
+                const higherPending = order
+                    .slice(0, Math.max(0, nativeIndex))
+                    .some((higherId) => {
+                        if (skipProviderIds.has(higherId)) return false
+                        return (
+                            !gate?.scanFailedProviderIds?.has(higherId) &&
+                            !gate?.unavailableProviderIds?.has(higherId) &&
+                            !gate?.healthFailedProviderIds?.has(higherId)
+                        )
+                    })
+                if (higherPending) {
+                    return undefined
+                }
+            }
+            const sorted = sortEligibleByProviderRank(providerOptions, order)
+            return sorted[0]
+        }
+
+        // Client-resolve still absent from the pool — wait (don't continue to
+        // RiveStream) until it fails or sources finish without it.
+        if (isClientResolveProvider(providerId)) {
+            const failed =
+                gate?.scanFailedProviderIds?.has(providerId) ||
+                gate?.unavailableProviderIds?.has(providerId) ||
+                gate?.healthFailedProviderIds?.has(providerId)
+            if (!failed && (gate?.sourcesLoadingMore || !isProviderResolvedForPlayback(providerId, gate))) {
+                return undefined
+            }
+            continue
+        }
+
+        const hasSourceForProvider = options.some(
+            (option) => option.providerId === providerId
+        )
+        if (!hasSourceForProvider) {
+            continue
+        }
+
+        if (!isProviderResolvedForPlayback(providerId, gate)) {
+            return undefined
+        }
+    }
+
+    return sortEligibleByProviderRank(eligible, order)[0]
+}
+
+export function findNextAutoFallbackSource<T extends { id: string; providerId?: string }>(
+    options: T[],
+    attemptedIds: ReadonlySet<string>,
+    currentId?: string,
+    automaticOnly = true,
+    providerOrder?: ProviderOrder,
+    sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+) {
+    const fallbackOrder =
+        providerOrder?.length ? providerOrder : [...AUTOMATIC_PROBE_PROVIDER_ORDER]
+
+    const pool = automaticOnly
+        ? options.filter((option) => isAutomaticProviderId(option.providerId, fallbackOrder))
+        : options
+
+    const attemptedProviderIds = new Set<string>()
+
+    for (const option of pool) {
+        if (!option.providerId || !attemptedIds.has(option.id)) continue
+        attemptedProviderIds.add(option.providerId)
+    }
+
+    const current = pool.find((option) => option.id === currentId)
+    if (current?.providerId) {
+        attemptedProviderIds.add(current.providerId)
+    }
+
+    const pickFromProvider = (providerId: string) => {
+        const providerOptions = pool.filter(
+            (option) =>
+                option.providerId === providerId &&
+                option.id !== currentId &&
+                !attemptedIds.has(option.id)
+        )
+
+        if (providerOptions.length === 0) {
+            return undefined
+        }
+
+        if (sourceHealth) {
+            const ready = sortEligibleByProviderRank(providerOptions, fallbackOrder).find(
+                (option) => sourceHealth[option.id] === "ready"
+            )
+            if (ready) return ready
+
+            const allFailed = providerOptions.every(
+                (option) => sourceHealth[option.id] === "failed"
+            )
+            if (allFailed) {
+                return undefined
+            }
+
+            return sortEligibleByProviderRank(providerOptions, fallbackOrder)[0]
+        }
+
+        return sortEligibleByProviderRank(providerOptions, fallbackOrder)[0]
+    }
+
+    for (const providerId of fallbackOrder) {
+        if (attemptedProviderIds.has(providerId)) continue
+
+        const nextProvider = pickFromProvider(providerId)
+        if (nextProvider) return nextProvider
+    }
+
+    for (const option of pool) {
+        if (option.id === currentId) continue
+        if (attemptedIds.has(option.id)) continue
+        if (sourceHealth && sourceHealth[option.id] !== "ready") continue
+        return option
+    }
+
+    return undefined
+}
+
+export function shouldPreferSourceUpgrade(args: {
+    current?: Pick<SortableSource, "url" | "provider">
+    preferred?: Pick<SortableSource, "url" | "provider">
+    manualSelection: boolean
+    hasRuntimeError: boolean
+}) {
+    if (args.manualSelection || args.hasRuntimeError || !args.current || !args.preferred) {
+        return false
+    }
+
+    if (isVidLinkSource(args.current) && isCineSuSource(args.preferred)) {
+        return true
+    }
+
+    return false
+}
+
+/** Auto-switch from a lower-ranked playing source when a higher-ranked one becomes ready. */
+export function shouldUpgradeToHigherRankedSource<
+    T extends { id: string; providerId?: string }
+>(args: {
+    current?: T
+    preferred?: T
+    providerOrder?: ProviderOrder
+    sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
+    manualSelection: boolean
+    /** Seconds of real playback on the current source (live clock). */
+    currentPlaybackTime?: number
+    /** Once playback is considered stable, do not yank the user mid-watch. */
+    playbackStable?: boolean
+}): boolean {
+    if (args.manualSelection || !args.current || !args.preferred) {
+        return false
+    }
+
+    if (args.current.id === args.preferred.id) {
+        return false
+    }
+
+    // Do not interrupt a settled watch session. Cold-start demotions (e.g.
+    // FileSuN winning before VAPlayer resolved) must still be correctable.
+    if (args.playbackStable) {
+        return false
+    }
+
+    const order = args.providerOrder ?? [...PROVIDER_ORDER]
+    const currentRank = providerDisplayRank(args.current.providerId ?? "", order)
+    const preferredRank = providerDisplayRank(args.preferred.providerId ?? "", order)
+
+    if (preferredRank >= currentRank) {
+        return false
+    }
+
+    if (args.sourceHealth?.[args.preferred.id] === "failed") {
+        return false
+    }
+
+    // Prefer an explicitly probed-ready higher source. If health is still
+    // idle/checking/missing, allow the upgrade during cold start — otherwise
+    // fast server scrapes (FileSuN) stay stuck even when VAPlayer already has URLs.
+    const status = args.sourceHealth?.[args.preferred.id]
+    if (status === "ready" || !status || status === "idle" || status === "checking") {
+        return true
+    }
+
+    return false
+}
+
+
+export function parseUnavailableProviders(
+    diagnostics: Array<{ code?: string; message?: string }>,
+    activeProviderNames: string[] = []
+) {
+    const active = new Set(activeProviderNames.map((name) => name.toLowerCase()))
+    const unavailable: string[] = []
+    const seen = new Set<string>()
+
+    for (const diagnostic of diagnostics) {
+        if (diagnostic.code !== "PROVIDER_ERROR") continue
+
+        const match = diagnostic.message?.match(/^([^:]+):/)
+        if (!match) continue
+
+        const name = match[1].trim()
+        const key = name.toLowerCase()
+        if (!name || seen.has(key) || active.has(key)) continue
+        if (isClientResolveProvider(name)) continue
+
+        seen.add(key)
+        unavailable.push(name)
+    }
+
+    return unavailable.sort(compareProvidersForDisplay)
+}
+
+export function compareSourcesForHealthDisplay<
+    T extends { id: string; provider?: string; providerId?: string }
+>(
+    a: T,
+    b: T,
+    health: Record<string, "idle" | "checking" | "ready" | "failed" | undefined>,
+    providerOrder?: ProviderOrder
+) {
+    const rank = (source: T) => {
+        const status = health[source.id]
+        if (status === "ready") return 0
+        if (status === "checking") return 1
+        if (!status || status === "idle") return 2
+        if (status === "failed") return 4
+        return 3
+    }
+
+    const rankDelta = rank(a) - rank(b)
+    if (rankDelta !== 0) return rankDelta
+
+    const providerA = a.providerId ?? a.provider ?? ""
+    const providerB = b.providerId ?? b.provider ?? ""
+    return compareProvidersForDisplay(providerA, providerB, providerOrder)
+}
+
+export function resolvePlaybackSourceType(source: {
+    type: string
+    url: string
+    iframeEmbed?: boolean
+}): "hls" | "file" | "embed" {
+    const declaredType = source.type.toLowerCase()
+
+    if (
+        source.iframeEmbed ||
+        declaredType === "embed" ||
+        declaredType === "iframe" ||
+        /vaplayer\.ru\/embed\//i.test(source.url) ||
+        /vidsrc\.sh\/embed\//i.test(source.url) ||
+        /vidsrc\.to\/embed\//i.test(source.url) ||
+        /vsembed\.ru\/embed\//i.test(source.url) ||
+        /streambetter\.lol\/(filme|serie)\//i.test(source.url) ||
+        /\/api\/pobreflix\/embed/i.test(source.url)
+    ) {
+        return "embed"
+    }
+
+    if (declaredType === "hls" || declaredType === "m3u8") {
+        return "hls"
+    }
+
+    const target = decodeProxyTarget(source.url).toLowerCase()
+
+    if (
+        target.includes(".m3u8") ||
+        source.url.includes("/api/vidlink/") ||
+        source.url.includes("/api/4k/hls/") ||
+        // YTS/VAPlayer masters are often extensionless /pl/... playlists
+        /\/pl\/[A-Za-z0-9._-]+/i.test(target) ||
+        /onlinecoachingacademy\.site\//i.test(target) ||
+        /remoteconsultinggroup\.site\//i.test(target)
+    ) {
+        return "hls"
+    }
+
+    return "file"
+}

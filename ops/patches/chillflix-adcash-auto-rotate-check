@@ -1,0 +1,47 @@
+#!/bin/bash
+# Cron helper for chillflix.lol admin Adcash auto-rotate (player /cdn/ on pw).
+set -euo pipefail
+JSON="/var/www/chillflix-lol-toflix/data/chillflix-ads.json"
+LOG="/var/log/adcash-auto-rotate.log"
+ROTATE="/usr/local/sbin/chillflix-adcash-rotate"
+
+decision="$(python3 - "$JSON" <<'PY'
+import json, time, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+d = {}
+if p.exists():
+    try:
+        d = json.loads(p.read_text())
+    except Exception:
+        d = {}
+if not d.get("adcashAutoRotate", True):
+    print("skip-off")
+    raise SystemExit(0)
+minutes = int(d.get("adcashAutoRotateMinutes") or 60)
+minutes = max(10, min(10080, minutes))
+last = int(d.get("adcashRotatedAt") or 0)
+now = int(time.time())
+if last and now < last + minutes * 60:
+    print(f"skip-wait:{last + minutes * 60 - now}:{minutes}")
+    raise SystemExit(0)
+print(f"rotate:{minutes}:{now - last if last else 0}")
+PY
+)"
+
+case "$decision" in
+  rotate:*)
+    {
+      echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) auto-rotate start ($decision)"
+      "$ROTATE"
+      echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) auto-rotate done"
+    } >>"$LOG" 2>&1
+    ;;
+  skip-off|skip-wait:*)
+    exit 0
+    ;;
+  *)
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) unexpected decision: $decision" >>"$LOG"
+    exit 1
+    ;;
+esac

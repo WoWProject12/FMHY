@@ -1,0 +1,4 @@
+# Replace the /api/tv id-only location with:
+#   location ~ ^/api/tv/[0-9]+(?:/season/[0-9]+)?$ {
+# Same proxy/cache headers as the show route.
+# Without /season/N, episode fetches fall through to `location /` → 301 /player-api HTML → "No episodes".
