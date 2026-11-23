@@ -1,7 +1,7 @@
 # Notify toast + account notifications panel
 
 ## Live (chillflix.lol)
-- Bell tip: “Hey — new notification(s)” / “Open Account to view” (full text, no clip)
-- Account **home** dropdown: natural height, **no scrollbar**
-- Height lock only while on Notifications view (same size as home)
-- `MOVY_BUILD=20261123notif20noscrollopen1`
+- Tip ~222px wide, bell + “Hey — new notification(s)” / “Open Account to view”
+- Account home and Notifications share one locked panel height (no resize jump)
+- Home: no scrollbar; Notifications list scrolls inside if needed
+- `MOVY_BUILD=20261123notif21samesize1`
