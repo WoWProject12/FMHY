@@ -222,10 +222,12 @@ export async function fetchHuhuIptvChannels(args: {
   search?: string
   country?: string
   maxPages?: number
+  sort?: "trending" | "name"
 }) {
   const search = args.search?.trim() ?? ""
   const country = args.country?.trim() ?? ""
   const maxPages = args.maxPages ?? DEFAULT_MAX_PAGES
+  const sort = args.sort === "name" ? "name" : "trending"
 
   if (catalogCache && catalogCache.expiresAt > Date.now()) {
     return {
@@ -259,7 +261,7 @@ export async function fetchHuhuIptvChannels(args: {
       search: search || undefined,
       country: country || undefined,
       cursor,
-      sort: "trending",
+      sort,
     })
 
     if (!groups.length) {

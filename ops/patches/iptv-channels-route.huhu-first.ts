@@ -55,7 +55,13 @@ function livePayload(
   }
 }
 
-async function tryHuhu(args: { search?: string; country?: string; limit?: number; offset?: number }) {
+async function tryHuhu(args: {
+  search?: string
+  country?: string
+  limit?: number
+  offset?: number
+  sort?: "trending" | "name"
+}) {
   const offset = Math.max(0, args.offset ?? 0)
   const limit = Math.max(1, Math.min(args.limit ?? 300, 1000))
   // Pull just enough upstream pages for this window (300/page) — avoid 10k DOM cold starts.
@@ -65,6 +71,7 @@ async function tryHuhu(args: { search?: string; country?: string; limit?: number
     search: args.search,
     country: args.country,
     maxPages,
+    sort: args.sort,
   })
 
   if (!channels.length) return null
@@ -104,6 +111,8 @@ export async function GET(request: Request) {
   const source = searchParams.get("source") ?? "live"
   const limit = Number(searchParams.get("limit") || 300)
   const offset = Number(searchParams.get("offset") || 0)
+  const sortParam = searchParams.get("sort")
+  const sort = sortParam === "name" ? "name" as const : "trending" as const
 
   try {
     if (source === "free-tv") {
@@ -127,7 +136,7 @@ export async function GET(request: Request) {
     // Prefer huhu.to Live TV (mHub v2) — same catalog as https://huhu.to/#/channels
     if (source === "huhu" || source === "live" || source === "all") {
       try {
-        const payload = await tryHuhu({ search, country, limit, offset })
+        const payload = await tryHuhu({ search, country, limit, offset, sort })
         if (payload) return NextResponse.json(payload)
       } catch {
         // Fall through.
