@@ -140,3 +140,36 @@
     if (panel) panel.hidden = !want;
     if (!want) notifyOpenId = 0;
   };
+
+  const openAccountMenu = () => {
+    if (!accountMenu) return;
+    if (acctAnimTimer) { clearTimeout(acctAnimTimer); acctAnimTimer = 0; }
+    try { hideNotifyToast(); } catch (_) {}
+    paintAccountMenu();
+    accountMenu.hidden = false;
+    accountMenu.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('is-acct-open');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        accountMenu.classList.add('is-open');
+        try {
+          if (!accountMenu.classList.contains('is-notify-view')) {
+            const shell = accountMenu.querySelector('.acct-menu-panel');
+            if (shell) {
+              // Measure natural height, then lock so home <-> notify stay identical.
+              shell.style.removeProperty('--acct-panel-h');
+              shell.removeAttribute('data-acct-panel-h');
+              void shell.offsetHeight;
+              const h = Math.ceil(shell.getBoundingClientRect().height || 0);
+              if (h > 0) {
+                accountMenu.__acctHomeH = h;
+                shell.style.setProperty('--acct-panel-h', h + 'px');
+                shell.setAttribute('data-acct-panel-h', String(h));
+              }
+            }
+          }
+        } catch (_) { /* ignore */ }
+      });
+    });
+  };
+

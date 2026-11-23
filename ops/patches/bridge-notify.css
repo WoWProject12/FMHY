@@ -29,6 +29,10 @@
   pointer-events: auto;
   z-index: 2147483646;
 }
+body.is-acct-open .notify-sheet,
+body.is-acct-open #notifyToast {
+  z-index: 70 !important;
+}
 .notify-sheet-panel {
   position: relative;
   width: 100%;
@@ -134,21 +138,19 @@
   transform: rotate(225deg);
 }
 
-.acct-menu-panel[data-acct-panel-h] {
-  height: var(--acct-panel-h) !important;
-  max-height: var(--acct-panel-h) !important;
-  min-height: var(--acct-panel-h) !important;
-  overflow: hidden !important;
-  scrollbar-width: none;
+body.is-acct-open .notify-sheet,
+body.is-acct-open #notifyToast {
+  z-index: 70 !important;
 }
-.acct-menu-panel[data-acct-panel-h]::-webkit-scrollbar {
-  display: none; width: 0; height: 0;
-}
-.acct-menu:not(.is-notify-view) .acct-menu-notify,
-.acct-menu.is-notify-view .acct-menu-home {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: auto;
-  opacity: 0;
-  visi
+.notify-sheet-panel {
+  position: relative;
+  width: 100%;
+  displ
+
+.acct-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: flex-end;
+  justify-c
