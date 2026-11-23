@@ -5,14 +5,17 @@
   right: 12px;
   left: auto;
   bottom: 92px;
-  width: min(210px, calc(100vw - 28px));
+  width: min(220px, calc(100vw - 28px));
   display: flex;
   justify-content: flex-end;
   pointer-events: none;
   opacity: 0;
   transform: translateY(6px) scale(0.98);
   transition: opacity .2s ease, transform .2s cubic-bezier(.22,1,.36,1);
+  overflow: visible !important;
+  scrollbar-width: none;
 }
+.notify-sheet::-webkit-scrollbar { display: none; width: 0; height: 0; }
 @media (min-width: 768px) {
   .notify-sheet {
     top: 64px;
@@ -42,40 +45,27 @@
   backdrop-filter: blur(14px) saturate(1.1);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   cursor: pointer;
-  overflow: visible;
+  overflow: visible !important;
+  scrollbar-width: none;
 }
+.notify-sheet-panel::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .notify-sheet-panel::before { display: none !important; }
-.notify-sheet-cloud {
+.notify-sheet-bell {
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 40%, rgba(232,220,200,0.95) 0 35%, transparent 36%),
-    radial-gradient(circle at 62% 38%, rgba(232,220,200,0.85) 0 42%, transparent 43%),
-    radial-gradient(circle at 48% 62%, rgba(232,220,200,0.75) 0 40%, transparent 41%),
-    linear-gradient(180deg, rgba(232,220,200,0.22), rgba(232,220,200,0.08));
-  box-shadow: 0 0 0 1px rgba(232,220,200,0.18);
-  position: relative;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: rgba(232, 220, 200, 0.92);
+  display: block;
 }
-.notify-sheet-cloud::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  margin: -2px 0 0 -2px;
-  border-radius: 999px;
-  background: rgba(18,18,22,0.92);
-}
+.notify-sheet-cloud { display: none !important; }
 .notify-sheet-copy {
   flex: 1 1 auto;
   min-width: 0;
   display: grid;
   gap: 2px;
   padding-top: 0;
+  overflow: hidden;
 }
 .notify-sheet-copy strong,
 .notify-sheet-copy [data-notify-toast-headline] {
@@ -85,6 +75,9 @@
   font-weight: 650;
   color: rgba(255,255,255,0.96);
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .notify-sheet-copy span,
 .notify-sheet-copy [data-notify-toast-ask] {
@@ -93,6 +86,9 @@
   line-height: 1.25;
   font-weight: 500;
   color: rgba(232, 220, 200, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .notify-sheet-row,
 .notify-sheet-top,
@@ -101,8 +97,7 @@
 .notify-sheet-rule,
 .notify-sheet-kind,
 .notify-sheet-cta,
-.notify-sheet-title,
-.notify-sheet-ask:not([data-notify-toast-ask]) {
+.notify-sheet-title {
   display: none !important;
 }
 .notify-sheet-x {
@@ -139,6 +134,4 @@
   top: -5px;
   bottom: auto;
   transform: rotate(225deg);
-  border-right-color: rgba(232, 220, 200, 0.28);
-  border-bottom-color: rgba(232, 220, 200, 0.28);
 }

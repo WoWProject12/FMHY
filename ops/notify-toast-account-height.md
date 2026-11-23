@@ -1,12 +1,12 @@
 # Notify toast + account notifications panel
 
-## Live behavior (chillflix.lol)
-- Compact **cloud tip** near Account: “Hey — new message” / “Tap Account…” with a caret pointing at the account control (gold Chillflix styling).
-- Toast sits above the mobile dock / under desktop account — not under the header.
-- Account → Notifications panel height locked to the account dropdown.
-- `MOVY_BUILD=20261123notif18cloudtip1`
+## Live (chillflix.lol)
+- Compact gold tip with **bell icon**: “Hey — new notification(s)” / “Tap Account…”
+- Caret points at Account; no bogus scrollbar on the tip
+- Account dropdown height locked; home view does not show a useless scrollbar
+- `MOVY_BUILD=20261123notif19bellnoscroll1`
 
-## Patch mirrors
+## Mirrors
 - `ops/patches/movy-notify.js`
 - `ops/patches/bridge-notify.css`
 - `ops/patches/notify-toast.html`

@@ -72,11 +72,15 @@
     const headline = notifyToast.querySelector('[data-notify-toast-headline]');
     const ask = notifyToast.querySelector('[data-notify-toast-ask]');
     const mobile = window.innerWidth < 768;
-    if (headline) headline.textContent = 'Hey — new message';
+    const unreadN = Array.isArray(notifyItems) ? notifyItems.filter((n) => !n.read).length : 0;
+    const n = Math.max(1, unreadN || 1);
+    if (headline) {
+      headline.textContent = n === 1 ? 'Hey — new notification' : 'Hey — new notifications';
+    }
     if (ask) {
       ask.textContent = mobile
-        ? 'Tap Account below to open it'
-        : 'Open Account to read it';
+        ? 'Tap Account below to open them'
+        : 'Open Account to see them';
     }
     notifyToast.style.zIndex = '2147483646';
     try { placeNotifyToast(); } catch (_) {}
