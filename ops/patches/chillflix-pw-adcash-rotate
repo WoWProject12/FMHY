@@ -1,0 +1,151 @@
+#!/bin/bash
+# Rotate Adcash anti-adblock lib filename under /cdn/ and update embed_ads_config.
+set -euo pipefail
+APP="/var/www/chillflix.pw"
+CDN="$APP/public/cdn"
+ENV_FILE="$APP/.env.local"
+LOG="/var/log/chillflix-adcash-rotate.log"
+MODE="${1:-rotate}" # rotate | refresh
+BOOT_KEEP="3mbzf6w7.js"
+ALPH='abcdefghjkmnpqrstuvwxyz23456789'
+mkdir -p "$CDN"
+
+ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+log() { echo "$(ts) $*" | tee -a "$LOG"; }
+
+fetch_lib() {
+  local tmp="$1"
+  local url="https://adbpage.com/adblock?v=3&format=js&lnxv=2"
+  if ! curl -fsSL --connect-timeout 8 --max-time 25 -A "ChillflixAdcashRotate/1.0" "$url" -o "$tmp"; then
+    return 1
+  fi
+  local sz
+  sz=$(stat -c%s "$tmp" 2>/dev/null || echo 0)
+  [[ "$sz" -ge 1000 ]]
+}
+
+current_lib_src() {
+  ENV_FILE="$ENV_FILE" node <<'NODE'
+const fs = require("fs");
+const mysql = require("/var/www/chillflix.pw/node_modules/mysql2/promise");
+const env = Object.fromEntries(
+  fs.readFileSync(process.env.ENV_FILE, "utf8").split(/\n/).filter(Boolean).map((l) => {
+    const i = l.indexOf("=");
+    return [l.slice(0, i), l.slice(i + 1).replace(/^["']|["']$/g, "")];
+  })
+);
+(async () => {
+  const c = await mysql.createConnection({
+    host: env.MYSQL_HOST || env.DB_HOST || "127.0.0.1",
+    port: Number(env.MYSQL_PORT || env.DB_PORT || 3306),
+    user: env.MYSQL_USER || env.DB_USER,
+    password: env.MYSQL_PASSWORD || env.DB_PASSWORD || "",
+    database: env.MYSQL_DATABASE || env.DB_NAME || "chillflix",
+  });
+  const [rows] = await c.query(
+    "SELECT setting_value FROM site_settings WHERE setting_key=?",
+    ["embed_ads_config"]
+  );
+  const cfg = JSON.parse(rows[0].setting_value);
+  process.stdout.write(String(cfg.adcashLibSrc || "/cdn/5367ztx5.js"));
+  await c.end();
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+NODE
+}
+
+update_lib_src() {
+  local newsrc="$1"
+  ENV_FILE="$ENV_FILE" NEW_SRC="$newsrc" node <<'NODE'
+const fs = require("fs");
+const mysql = require("/var/www/chillflix.pw/node_modules/mysql2/promise");
+const env = Object.fromEntries(
+  fs.readFileSync(process.env.ENV_FILE, "utf8").split(/\n/).filter(Boolean).map((l) => {
+    const i = l.indexOf("=");
+    return [l.slice(0, i), l.slice(i + 1).replace(/^["']|["']$/g, "")];
+  })
+);
+const newSrc = process.env.NEW_SRC;
+(async () => {
+  const c = await mysql.createConnection({
+    host: env.MYSQL_HOST || env.DB_HOST || "127.0.0.1",
+    port: Number(env.MYSQL_PORT || env.DB_PORT || 3306),
+    user: env.MYSQL_USER || env.DB_USER,
+    password: env.MYSQL_PASSWORD || env.DB_PASSWORD || "",
+    database: env.MYSQL_DATABASE || env.DB_NAME || "chillflix",
+  });
+  const [rows] = await c.query(
+    "SELECT setting_value FROM site_settings WHERE setting_key=?",
+    ["embed_ads_config"]
+  );
+  const cfg = JSON.parse(rows[0].setting_value);
+  cfg.adcashLibSrc = newSrc;
+  cfg.adcashAntiAdblock = true;
+  const now = Date.now();
+  await c.query(
+    "UPDATE site_settings SET setting_value=?, updated_at=? WHERE setting_key=?",
+    [JSON.stringify(cfg), now, "embed_ads_config"]
+  );
+  console.log(JSON.stringify({ ok: true, adcashLibSrc: newSrc, updatedAt: now }));
+  await c.end();
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+NODE
+}
+
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
+if ! fetch_lib "$TMP"; then
+  log "fetch failed"
+  echo '{"ok":false,"error":"fetch"}'
+  exit 1
+fi
+
+if [[ "$MODE" == "refresh" ]]; then
+  CUR=$(current_lib_src)
+  BASE=$(basename "$CUR")
+  if [[ "$BASE" != *.js ]] || [[ "$BASE" == "$BOOT_KEEP" ]]; then
+    BASE="5367ztx5.js"
+    CUR="/cdn/$BASE"
+  fi
+  install -m 644 -o www-data -g www-data "$TMP" "$CDN/$BASE"
+  log "refreshed $CUR ($(stat -c%s "$CDN/$BASE") bytes)"
+  echo "{\"ok\":true,\"mode\":\"refresh\",\"adcashLibSrc\":\"$CUR\"}"
+  exit 0
+fi
+
+NAME=""
+for i in 1 2 3 4 5 6 7 8; do
+  NAME+=${ALPH:RANDOM%${#ALPH}:1}
+done
+NAME="${NAME}.js"
+NEWSRC="/cdn/$NAME"
+install -m 644 -o www-data -g www-data "$TMP" "$CDN/$NAME"
+
+OLD=$(current_lib_src || true)
+update_lib_src "$NEWSRC"
+
+python3 - "$CDN" "$BOOT_KEEP" "$NAME" "$OLD" <<'PY'
+import sys
+from pathlib import Path
+cdn, boot, keep, old = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+old_base = Path(old).name if old else ""
+keep_names = {boot, keep, old_base}
+for p in cdn.glob("*.js"):
+    if p.name in keep_names:
+        continue
+    if ".bak" in p.name:
+        continue
+    if p.stat().st_size > 100_000:
+        try:
+            p.unlink()
+        except Exception:
+            pass
+PY
+
+log "rotated -> $NEWSRC (old=$OLD)"
+echo "{\"ok\":true,\"mode\":\"rotate\",\"adcashLibSrc\":\"$NEWSRC\",\"previous\":\"$OLD\"}"

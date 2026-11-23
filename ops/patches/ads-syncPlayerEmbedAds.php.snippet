@@ -1,0 +1,35 @@
+private static function syncPlayerEmbedAds(array $cfg): array
+    {
+        try {
+            if (!class_exists('MovyStreamSources')) {
+                return ['ok' => false, 'error' => 'stream-sources unavailable'];
+            }
+            $pdo = MovyStreamSources::chillflixPdo(true);
+            $key = 'embed_ads_config';
+            $stmt = $pdo->prepare('SELECT setting_value FROM site_settings WHERE setting_key = ? LIMIT 1');
+            $stmt->execute([$key]);
+            $raw = (string) ($stmt->fetchColumn() ?: '');
+            $cur = $raw !== '' ? json_decode($raw, true) : null;
+            if (!is_array($cur)) {
+                $cur = [];
+            }
+            $pages = is_array($cfg['pages'] ?? null) ? $cfg['pages'] : [];
+            $playerPageOn = !array_key_exists('player', $pages) || !empty($pages['player']);
+            $adcashOn = !empty($cfg['adcashEnabled']) && $playerPageOn;
+            $cur['adcashEnabled'] = $adcashOn;
+            // Keep site-player surface in lockstep so disabling Adcash in lol admin
+            // actually stops iframe showAds (and the empty first-click popup path).
+            $cur['sitePlayerEnabled'] = $adcashOn;
+            if (array_key_exists('adcashAntiAdblock', $cfg)) {
+                $cur['adcashAntiAdblock'] = (bool) $cfg['adcashAntiAdblock'];
+            }
+            $zone = preg_replace('/\D+/', '', (string) ($cfg['adcashZone'] ?? '')) ?? '';
+            if ($zone !== '' && $zone !== '12296418') {
+                $cur['adcashZone'] = $zone;
+            }
+            if (empty($cur['adcashZone'])) {
+                $cur['adcashZone'] = '12342562';
+            }
+            // Prefer the rotated pw /cdn/ path when present in player config already;
+            // rotate helper updates this on the player host.
+     

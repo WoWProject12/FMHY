@@ -1,0 +1,405 @@
+{
+  "success": true,
+  "sources": [
+    {
+      "id": "vaplayer",
+      "name": "VAPlayer",
+      "enabled": true,
+      "builtin": true
+    },
+    {
+      "id": "7movies",
+      "name": "7Movies",
+      "enabled": true,
+      "builtin": true
+    },
+    {
+      "id": "rivestream",
+      "name": "Rive",
+      "enabled": true,
+      "builtin": true,
+      "timeoutSeconds": 55
+    },
+    {
+      "id": "videasy",
+      "name": "Videasy",
+      "enabled": true,
+      "builtin": true
+    },
+    {
+      "id": "vidmoly",
+      "name": "Vidmoly",
+      "enabled": true,
+      "builtin": true,
+      "timeoutSeconds": 25
+    },
+    {
+      "id": "novahd",
+      "name": "NovaHD",
+      "enabled": true,
+      "builtin": true,
+      "timeoutSeconds": 25
+    },
+    {
+      "id": "cine4k",
+      "name": "Cine4K",
+      "enabled": true,
+      "builtin": true,
+      "timeoutSeconds": 45
+    },
+    {
+      "id": "meowtv",
+      "name": "MeowTV",
+      "enabled": false,
+      "builtin": true,
+      "timeoutSeconds": 55
+    },
+    {
+      "id": "cineverse",
+      "name": "Cineverse",
+      "enabled": true,
+      "builtin": true,
+      "timeoutSeconds": 45
+    },
+    {
+      "id": "cno",
+      "name": "CNO",
+      "enabled": true,
+      "builtin": true,
+      "timeoutSeconds": 35
+    },
+    {
+      "id": "cinecat",
+      "name": "CineCat",
+      "enabled": false,
+      "builtin": true,
+      "timeoutSeconds": 45
+    },
+    {
+      "id": "filesun",
+      "name": "FileSuN",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "athena",
+      "name": "Athena",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "notorrent",
+      "name": "NoTorrent",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "cinesu",
+      "name": "Koddo",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "onlyflix",
+      "name": "OnlyFlix",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "soapy",
+      "name": "SoaPy",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "cinemacity",
+      "name": "Cinemacity",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "movies123",
+      "name": "123Movies",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "movy",
+      "name": "Movy",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "gaiaflix",
+      "name": "GaiaFlix",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "hollymoviehd",
+      "name": "HollyMovieHD",
+      "enabled": false
+    },
+    {
+      "id": "bingr",
+      "name": "Bingr",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidsrcsh",
+      "name": "VidSrc.sh",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "cinejoy",
+      "name": "4K",
+      "enabled": false,
+      "builtin": true,
+      "timeoutSeconds": 20
+    },
+    {
+      "id": "moviebox",
+      "name": "MovieBox",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "moviesonlinehd",
+      "name": "MoviesOnlineHD",
+      "enabled": false
+    },
+    {
+      "id": "flixhqz",
+      "name": "Flixhqz",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "fsharetv",
+      "name": "FshareTV",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "huhu",
+      "name": "Huhu",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidapiru",
+      "name": "vidapi.ru",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "cineplay",
+      "name": "Cineplay",
+      "enabled": false
+    },
+    {
+      "id": "vsembed",
+      "name": "VSEmbed",
+      "enabled": false,
+      "builtin": true,
+      "timeoutSeconds": 25
+    },
+    {
+      "id": "flixhq",
+      "name": "FlixHQ",
+      "enabled": false,
+      "builtin": true,
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "vixsrc",
+      "name": "VixSrc",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "upcloud",
+      "name": "UpCloud",
+      "enabled": false
+    },
+    {
+      "id": "vidnest",
+      "name": "VidNest",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "peachify",
+      "name": "Peachify",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "telennovelas",
+      "name": "Telennovelas",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidrock",
+      "name": "VidRock",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "4khdhub",
+      "name": "4K",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "icefy",
+      "name": "Icefy",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidapi",
+      "name": "VidAPI",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidlink",
+      "name": "VidLink",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidsrc",
+      "name": "Vidsrc.to",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "mafiaembed",
+      "name": "MafiaEmbed",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "streammafia",
+      "name": "StreamMafia",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidzee",
+      "name": "VidZee",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "popr",
+      "name": "Popr",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "02moviedownloader",
+      "name": "02MovieDownloader",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidify",
+      "name": "Vidify",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "vidvault",
+      "name": "VidVault",
+      "enabled": false,
+      "builtin": true,
+      "timeoutSeconds": 45
+    },
+    {
+      "id": "anyembed",
+      "name": "AnyEmbed",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "fmovies4u",
+      "name": "Fmovies4U",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "ridomovies",
+      "name": "RidoMovies",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "tulnex",
+      "name": "Tulnex",
+      "enabled": false,
+      "builtin": true
+    },
+    {
+      "id": "pobreflix",
+      "name": "PobreFlix",
+      "enabled": false,
+      "builtin": true
+    }
+  ],
+  "players": [
+    {
+      "id": "vidfast",
+      "name": "VidFast",
+      "enabled": false,
+      "kind": "embed",
+      "movieTemplate": "https://vidfast.vc/movie/{tmdbId}?autoPlay=true",
+      "tvTemplate": "https://vidfast.vc/tv/{tmdbId}/{season}/{episode}?autoPlay=true",
+      "builtin": true
+    },
+    {
+      "id": "vidlinkpro",
+      "name": "VidLink.pro",
+      "enabled": false,
+      "kind": "embed",
+      "movieTemplate": "https://vidlink.pro/movie/{tmdbId}?autoplay=true",
+      "tvTemplate": "https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?autoplay=true&nextbutton=true",
+      "builtin": true
+    }
+  ],
+  "order": [
+    "vaplayer",
+    "7movies",
+    "rivestream",
+    "videasy",
+    "vidmoly",
+    "novahd",
+    "cine4k",
+    "meowtv",
+    "cineverse",
+    "cno"
+  ],
+  "enabledIds": [
+    "vaplayer",
+    "7movies",
+    "rivestream",
+    "videasy",
+    "vidmoly",
+    "novahd",
+    "cine4k",
+    "cineverse",
+    "cno"
+  ],
+  "timings": {
+    "headStartSeconds": 2,
+    "linkFetchSeconds": 25,
+    "firstPlaySeconds": 12,
+    "metadataSeconds": 12,
+    "rotation": "priority"
+  }
+}

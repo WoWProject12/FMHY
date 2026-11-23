@@ -1,0 +1,112 @@
+<?php
+declare(strict_types=1);
+$bodyClass = $bodyClass ?? '';
+$metaDescription = $metaDescription ?? 'Watch free movies and TV shows online.';
+$nav = $nav ?? '';
+$pageTitle = $pageTitle ?? (string) movy_config('site_name', 'Chillflix');
+$isAppPreview = (string) ($_GET['preview'] ?? '') !== '';
+
+// Resolve staff BEFORE any HTML so Set-Cookie and head hard-block both work.
+$__movyAuthUser = '';
+$__movyAuthRole = '';
+$__movyAuthNoAds = '';
+if (class_exists('MovyAuth')) {
+  try {
+    $__uEarly = MovyAuth::currentUser();
+    if ($__uEarly) {
+      $__movyAuthUser = (string) ($__uEarly['username'] ?? '');
+      $__movyAuthRole = MovyAuth::roleOf($__uEarly);
+      $__movyAuthNoAds = MovyAuth::isAdmin($__uEarly) ? '1' : '';
+    }
+  } catch (Throwable $e) { /* ignore */ }
+}
+if ($__movyAuthNoAds === '1' && !headers_sent()) {
+  $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+  setcookie('movy_staff', '1', [
+    'expires' => time() + 60 * 60 * 24 * 400,
+    'path' => '/',
+    'secure' => $secure,
+    'httponly' => false,
+    'samesite' => 'Lax',
+  ]);
+}
+$__movyServerNoAds = ($__movyAuthNoAds === '1');
+// Also honor site-wide Adcash/player off from admin Ads panel.
+if (!$__movyServerNoAds && class_exists('MovyAds')) {
+  try {
+    $__acfg = MovyAds::get();
+    $__pages = is_array($__acfg['pages'] ?? null) ? $__acfg['pages'] : [];
+    $__playerOn = !array_key_exists('player', $__pages) || !empty($__pages['player']);
+    if (empty($__acfg['adcashEnabled']) || !$__playerOn) {
+      $__movyServerNoAds = true;
+    }
+  } catch (Throwable $e) { /* ignore */ }
+}
+?>
+<!DOCTYPE html>
+<html lang="en"<?= $isAppPreview ? ' class="toflix-preview"' : '' ?>>
+<head>
+<script>
+/* Staff/no-ads hard block — must run before any deferred Adcash/Monetag. */
+(function(){
+  try {
+    var serverNoAds = <?= $__movyServerNoAds ? '1' : '0' ?>;
+    function staff(){
+      if (serverNoAds) return true;
+      try {
+        var r = String(localStorage.getItem('movy_new_role')||'').toLowerCase();
+        if (r === 'owner' || r === 'admin') return true;
+      } catch(e){}
+      try {
+        if (/(?:^|;\s*)movy_staff=1(?:;|$)/.test(document.cookie||'')) return true;
+      } catch(e2){}
+      try {
+        var b = document.body;
+        if (b && (b.getAttribute('data-auth-no-ads')==='1'
+          || /^(owner|admin)$/i.test(String(b.getAttribute('data-auth-role')||'')))) return true;
+      } catch(e3){}
+      return false;
+    }
+    function adsOff(){
+      if (staff()) return true;
+      try { if (localStorage.getItem('movy_show_ads')==='0') return true; } catch(e){}
+      try {
+        var m=(document.cookie||'').match(/(?:^|;\s*)movy_show_ads=(1|0)(?:;|$)/);
+        if (m && m[1]==='0') return true;
+      } catch(e4){}
+      return false;
+    }
+    window.__movyForceNoAds = adsOff() ? 1 : 0;
+    window.__cfNoAds = window.__movyForceNoAds ? 1 : 0;
+    if (!window.__movyForceNoAds) return;
+    window.__movyAdcashRun = 1;
+    window.__movyAdcashGestureArmed = 1;
+    window.__movyAdsPopLoaded = 1;
+    window.__movyAdcashCooldown = 1;
+    try {
+      var nativeOpen = window.open;
+      var blockedOpen = function(url, name, specs){
+        try {
+          var href = String(url||'');
+          if (!href || href==='about:blank') return null;
+          if (href.indexOf(location.origin)===0 || href.charAt(0)==='/' || href.charAt(0)==='#') {
+            return nativeOpen.call(window, url, name, specs);
+          }
+          return null;
+        } catch(e){ return null; }
+      };
+      try {
+        Object.defineProperty(window, 'open', {
+          configurable: true,
+          enumerable: true,
+          get: function(){ return blockedOpen; },
+          set: function(){ /* ignore Adcash reassignment while staff/no-ads */ }
+        });
+      } catch(eDef) {
+        window.open = blockedOpen;
+      }
+    } catch(e5){}
+  } catch(e6){}
+})();
+</script>

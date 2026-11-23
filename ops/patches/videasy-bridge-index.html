@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>bridge</title></head>
+<body>
+<script>
+(function () {
+  var SOURCE = "chillflix-videasy-bridge";
+  var API = "https://api.wecollege.net";
+  var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
+
+  function reply(target, origin, requestId, payload) {
+    try {
+      target.postMessage(Object.assign({
+        source: SOURCE,
+        requestId: requestId
+      }, payload), origin && origin !== "null" ? origin : "*");
+    } catch (e) {}
+  }
+
+  function replyRunner(target, origin, payload) {
+    try {
+      target.postMessage(payload, origin && origin !== "null" ? origin : "*");
+    } catch (e) {}
+  }
+
+  async function doFetch(url) {
+    var res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "*/*",
+        "User-Agent": UA
+      },
+      credentials: "omit",
+      cache: "no-store",
+      mode: "cors"
+    });
+    var text = await res.text();
+    return { ok: res.ok, status: res.status, text: text, origin: location.origin };
+  }
+
+  async function runnerResolve(data) {
+    var tmdbId = String(data.tmdbId || "").trim();
+    if (!/^\d+$/.test(tmdbId)) throw new Error("bad tmdbId");
+    var city = String(data.city || "miami").trim() || "miami";
+    var kind = data.kind === "tv" ? "tv" : "movie";
+    var season = Math.max(1, Number(data.season) || 1);
+    var episode = Math.max(1, Number(data.episode) || 1);
+    var seedOut = await doFetch(API + "/seed?mediaId=" + encodeURIComponent(tmdbId));
+    if (!seedOut.ok) throw new Error("seed HTTP " + seedOut.status);
+    var seedJson = JSON.parse(seedOut.text || "{}");
+    var seed = String(seedJson.seed || "").trim();
+    if (!seed) throw new Error(seedJson.error || "seed missing");
+    var qs = new URLSearchParams();
+    qs.set("mediaType", kind);
+    qs.set("tmdbId", tmdbId);
+    qs.set("enc", "2");
+    qs.set("seed", seed);
+    if (kind === "tv") {
+      qs.set("seasonId", String(season));
+      qs.set("episodeId", String(episode));
+    }
+    // title/year optional — miami often accepts tmdbId+seed alone
+    var cityOut = await doFetch(API + "/" + encodeURIComponent(city) + "/sources?" + qs.toString());
+    if (!cityOut.ok) throw new Error("city HTTP " + cityOut.status);
+    if (!cityOut.text || cityOut.text.length < 10) throw new Error("empty city body");
+    return { seed: seed, body: cityOut.text };
+  }
+
+  window.addEventListener("message", function (ev) {
+    var data = ev.data || {};
+    if (!data) return;
+    var target = ev.source;
+    var origin = ev.origin || "*";
+
+    // Atlantic/Helios runner protocol (parent resolveViaMovyRunner)
+    if (data.type === "resolve" && data.id != null) {
+      (async function () {
+        try {
+          var out = await runnerResolve(data);
+          replyRunner(target, origin, {
+            type: "result",
+            id: data.id,
+            seed: out.seed,
+            body: out.body
+          });
+        } catch (err) {
+          replyRunner(target, origin, {
+            type: "error",
+            id: data.id,
+            error: String(err && err.message ? err.message : err)
+          });
+        }
+      })();
+      return;
+    }
+
+    // Chillflix bridge protocol
+    if (data.source !== SOURCE || !data.requestId) return;
+    var op = data.op;
+    var requestId = data.requestId;
+
+    (async function () {
+      try {
+        if (op === "ping") {
+          reply(target, origin, requestId, { ok: true, status: 200, text: "pong", type: "ready" });
+          return;
+        }
+        if (op === "seed") {
+          var tmdbId = String(data.tmdbId || "").trim();
+          if (!/^\d+$/.test(tmdbId)) {
+            reply(target, origin, requestId, { ok: false, status: 400, text: "", error: "bad tmdbId" });
+            return;
+          }
+          var seedUrl = API + "/seed?mediaId=" + encodeURIComponent(tmdbId);
+          if (data.fresh) seedUrl += "&fresh=1";
+          var out = await doFetch(seedUrl);
+          reply(target, origin, requestId, out);
+          return;
+        }
+        if (op === "city" || op === "fetch") {
+          var url = String(data.url || "").trim();
+          if (!/^https?:\/\//i.test(url)) {
+            reply(target, origin, requestId, { ok: false, status: 400, text: "", error: "bad url" });
+            return;
+          }
+          var out2 = await doFetch(url);
+          reply(target, origin, requestId, out2);
+          return;
+        }
+        reply(target, origin, requestId, { ok: false, status: 400, text: "", error: "unknown op" });
+      } catch (err) {
+        reply(target, origin, requestId, {
+          ok: false,
+          status: 0,
+          text: "",
+          error: String(err && err.message ? err.message : err)
+        });
+      }
+    })();
+  });
+
+  // Announce ready to parent
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ source: SOURCE, type: "ready", ok: true }, "*");
+    }
+  } catch (e) {}
+})();
+</script>
+</body></html>

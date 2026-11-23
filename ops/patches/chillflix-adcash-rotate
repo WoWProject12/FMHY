@@ -1,0 +1,48 @@
+#!/bin/bash
+# Admin "Rotate" button + cron: rotate player anti-adblock lib on chillflix.pw /cdn/.
+set -euo pipefail
+PW_KEY="/root/.ssh/chillflix_pw"
+PW_HOST="82.41.181.83"
+ADS_JSON="/var/www/chillflix-lol-toflix/data/chillflix-ads.json"
+
+pw() {
+  ssh -i "$PW_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -o ConnectTimeout=12 -o IdentitiesOnly=yes -o LogLevel=ERROR \
+    "root@${PW_HOST}" "$@"
+}
+
+OUT=$(pw /usr/local/sbin/chillflix-pw-adcash-rotate rotate)
+echo "$OUT"
+
+python3 - "$ADS_JSON" "$OUT" <<'PY'
+import json, sys, time, re
+from pathlib import Path
+path = Path(sys.argv[1])
+raw = sys.argv[2]
+src = ""
+rotated_at = int(time.time())
+for line in raw.splitlines():
+    line = line.strip()
+    if not line.startswith("{"):
+        continue
+    try:
+        decoded = json.loads(line)
+    except Exception:
+        continue
+    if decoded.get("adcashLibSrc"):
+        src = str(decoded["adcashLibSrc"])
+data = {}
+if path.exists():
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        data = {}
+if src:
+    data["adcashLibSrc"] = src
+    data["adcashRotatedAt"] = rotated_at
+    data["updated"] = rotated_at
+    tmp = str(path) + ".tmp"
+    Path(tmp).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    Path(tmp).replace(path)
+print(json.dumps({"ok": bool(src), "adcashLibSrc": src or data.get("adcashLibSrc", ""), "adcashRotatedAt": rotated_at}))
+PY
