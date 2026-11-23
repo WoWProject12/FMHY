@@ -38,7 +38,7 @@
       return;
     }
     const box = hit.r;
-    const bubbleW = Math.min(210, Math.max(168, window.innerWidth - 28));
+    const bubbleW = Math.min(248, Math.max(200, window.innerWidth - 24));
     notifyToast.style.width = `${bubbleW}px`;
     // Prefer pointing at Account: sit above dock on mobile, under header account on desktop.
     const pointUp = mobile && box.top > window.innerHeight * 0.45;
@@ -78,9 +78,7 @@
       headline.textContent = n === 1 ? 'Hey — new notification' : 'Hey — new notifications';
     }
     if (ask) {
-      ask.textContent = mobile
-        ? 'Tap Account below to open them'
-        : 'Open Account to see them';
+      ask.textContent = mobile ? 'Open Account to view' : 'Open Account to view';
     }
     notifyToast.style.zIndex = '2147483646';
     try { placeNotifyToast(); } catch (_) {}
@@ -94,4 +92,56 @@
         window.__movyNotifyPendingToastId = 0;
       } catch (_) { /* ignore */ }
     });
+  };
+
+  const showAcctNotifyView = (on) => {
+    if (!accountMenu) return;
+    const want = !!on;
+    const shell = accountMenu.querySelector('.acct-menu-panel');
+    const home = accountMenu.querySelector('[data-acct-home]');
+    const panel = accountMenu.querySelector('[data-acct-notify-panel]');
+    const clearPanelLock = () => {
+      if (!shell) return;
+      shell.style.removeProperty('--acct-panel-h');
+      shell.style.removeProperty('height');
+      shell.style.removeProperty('max-height');
+      shell.style.removeProperty('min-height');
+      shell.removeAttribute('data-acct-panel-h');
+    };
+    const measureHomeHeight = () => {
+      if (!shell || !home) return 0;
+      const prevHomeHidden = home.hidden;
+      const prevPanelHidden = panel ? panel.hidden : true;
+      const prevNotify = accountMenu.classList.contains('is-notify-view');
+      accountMenu.classList.remove('is-notify-view');
+      clearPanelLock();
+      home.hidden = false;
+      if (panel) panel.hidden = true;
+      void shell.offsetHeight;
+      const panelH = Math.ceil(shell.getBoundingClientRect().height || 0);
+      if (panelH > 0) accountMenu.__acctHomeH = panelH;
+      if (prevNotify) accountMenu.classList.add('is-notify-view');
+      home.hidden = prevHomeHidden;
+      if (panel) panel.hidden = prevPanelHidden;
+      return panelH;
+    };
+    const applyPanelLock = (h) => {
+      if (!shell || !(h > 0)) return;
+      shell.style.setProperty('--acct-panel-h', h + 'px');
+      shell.setAttribute('data-acct-panel-h', String(h));
+    };
+    if (want) {
+      let h = Number(accountMenu.__acctHomeH || 0) || 0;
+      if (!(h > 0)) {
+        try { h = measureHomeHeight(); } catch (_) { h = 0; }
+      }
+      applyPanelLock(h);
+    } else {
+      // Home view: natural height, no lock, no scrollbar.
+      clearPanelLock();
+      notifyOpenId = 0;
+    }
+    accountMenu.classList.toggle('is-notify-view', want);
+    if (home) home.hidden = want;
+    if (panel) panel.hidden = !want;
   };
