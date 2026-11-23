@@ -37,3 +37,14 @@ Legacy `POST /mediaurl-catalog.json` now returns `500` — do not use it.
 - `ops/patches/iptv-channels-route.huhu-first.ts`
 - `ops/patches/chillflix.lol-iptv.conf`
 - `ops/patches/patch-header-livetv-nav.py`
+
+## Fix pass (site integration + play)
+
+Root causes:
+1. `/iptv` was the separate Next.js app (not Chillflix PHP chrome).
+2. Next player required an IPTV service worker and failed with proxy error; sources also pointed at kool.to.
+
+Fixes live now:
+- PHP Live TV page in Chillflix shell: `/iptv` (header + dock links)
+- Playback via `/api/iptv/live/{id}/index.m3u8` + hls.js (no SW)
+- Next player SW gate disabled; prefers local live API
