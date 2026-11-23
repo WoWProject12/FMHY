@@ -55,22 +55,29 @@ function livePayload(
   }
 }
 
-async function tryHuhu(args: { search?: string; country?: string }) {
+async function tryHuhu(args: { search?: string; country?: string; limit?: number; offset?: number }) {
+  const offset = Math.max(0, args.offset ?? 0)
+  const limit = Math.max(1, Math.min(args.limit ?? 300, 1000))
+  // Pull just enough upstream pages for this window (300/page) — avoid 10k DOM cold starts.
+  const maxPages = Math.max(1, Math.ceil((offset + limit) / 300) + (offset > 0 ? 1 : 0))
+
   const { channels, groups } = await fetchHuhuIptvChannels({
     search: args.search,
     country: args.country,
+    maxPages,
   })
 
   if (!channels.length) return null
 
-  const all =
-    args.search || args.country
-      ? (await fetchHuhuIptvChannels({})).channels.length
-      : channels.length
+  const page = channels.slice(offset, offset + limit)
+  const totalAll =
+    channels.length > offset + page.length
+      ? channels.length
+      : Math.max(channels.length, offset + page.length + (page.length === limit ? limit : 0))
 
-  return livePayload(channels, groups, {
+  return livePayload(page, groups, {
     search: args.search,
-    totalAll: all,
+    totalAll,
     source: "https://huhu.to/live/catalog/live/channels.json",
   })
 }
@@ -95,6 +102,8 @@ export async function GET(request: Request) {
   const search = searchParams.get("search") ?? undefined
   const country = searchParams.get("country") ?? undefined
   const source = searchParams.get("source") ?? "live"
+  const limit = Number(searchParams.get("limit") || 300)
+  const offset = Number(searchParams.get("offset") || 0)
 
   try {
     if (source === "free-tv") {
@@ -118,7 +127,7 @@ export async function GET(request: Request) {
     // Prefer huhu.to Live TV (mHub v2) — same catalog as https://huhu.to/#/channels
     if (source === "huhu" || source === "live" || source === "all") {
       try {
-        const payload = await tryHuhu({ search, country })
+        const payload = await tryHuhu({ search, country, limit, offset })
         if (payload) return NextResponse.json(payload)
       } catch {
         // Fall through.

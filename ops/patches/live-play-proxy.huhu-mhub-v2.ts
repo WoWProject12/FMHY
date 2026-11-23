@@ -4,6 +4,7 @@ import {
   isHttpUrl,
   type ProxyFetchResult,
 } from "@/lib/iptv/proxy"
+import { liveFetchProxyPath } from "@/lib/iptv/live-fetch-token"
 import { rewriteHlsManifestUrls } from "@/lib/iptv/manifest-rewrite"
 import {
   buildMediahubPlayPageUrl,
@@ -63,7 +64,7 @@ export function rewriteLiveFetchManifest(manifest: string, masterUrl: string, re
   }
 
   return rewriteHlsManifestUrls(manifest, masterUrl, (absolute) =>
-    `${origin}/api/iptv/live-fetch?u=${encodeURIComponent(absolute)}`
+    liveFetchProxyPath(origin, absolute)
   )
 }
 

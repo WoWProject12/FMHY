@@ -162,13 +162,36 @@ function mapCatalogItem(item: HuhuCatalogItem): IptvChannel | null {
     item.group ||
     "Unknown"
 
+  const logoRaw =
+    item.images?.logo ||
+    item.images?.poster ||
+    item.images?.landscape ||
+    item.logo ||
+    undefined
+  const logo = logoRaw
+    ? logoRaw.startsWith("http")
+      ? logoRaw
+      : `${HUHU_ORIGIN}${logoRaw.startsWith("/") ? "" : "/"}${logoRaw}`
+    : undefined
+
+  const epg = (item.epg ?? [])
+    .map((entry) => {
+      const title = String(entry.title || "").trim()
+      const start = String(entry.start || "").trim()
+      const end = String(entry.end || "").trim()
+      if (!title || !start || !end) return null
+      return { title, start, end }
+    })
+    .filter(Boolean) as Array<{ title: string; start: string; end: string }>
+
   return {
     id,
     name: item.name || id,
     country,
     p: 0,
     playPageUrl: item.url || buildHuhuIptvPlayPageUrl(id),
-    logo: item.logo || item.images?.landscape || item.images?.poster || undefined,
+    logo,
+    epg: epg.length ? epg : undefined,
   }
 }
 
@@ -228,9 +251,9 @@ export async function fetchHuhuIptvChannels(args: {
   const channels: IptvChannel[] = []
   let groups: string[] = []
   let cursor: string | number | null = null
+  let complete = false
 
   // When searching/filtering, query upstream directly (paginated).
-  // Otherwise pull the full trending catalog into cache.
   for (let page = 0; page < maxPages; page += 1) {
     const payload = await getHuhuCatalog({
       search: search || undefined,
@@ -256,6 +279,7 @@ export async function fetchHuhuIptvChannels(args: {
     }
 
     if (payload.nextCursor == null || items.length < CATALOG_PAGE_SIZE) {
+      complete = true
       break
     }
 
@@ -270,8 +294,8 @@ export async function fetchHuhuIptvChannels(args: {
     groups = [...new Set(channels.map((channel) => channel.country))].sort()
   }
 
-  // Only cache unfiltered full pulls so search/country stay accurate.
-  if (!search && !country) {
+  // Only cache complete unfiltered pulls.
+  if (!search && !country && complete) {
     catalogCache = {
       expiresAt: Date.now() + CACHE_TTL_MS,
       channels,
