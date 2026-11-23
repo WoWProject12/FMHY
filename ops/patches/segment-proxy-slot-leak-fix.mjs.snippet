@@ -96,3 +96,63 @@ function snapshotSlotStats() {
     }
     return {
         globalActive,
+        globalWaiters: globalWaiters.length,
+        hostActive,
+        hostWaiters,
+        hosts: hosts.sort((a, b) => b.active - a.active).slice(0, 20),
+        limits: { host: HOST_CONCURRENCY, global: GLOBAL_CONCURRENCY },
+    }
+}
+
+function reclaimLeakedSlots(reason = "watchdog") {
+    let fixed = false
+    // Global counter impossible / drifted high — clamp then wake waiters.
+    if (globalActive > GLOBAL_CONCURRENCY || globalActive < 0) {
+        console.warn(`[segproxy] reclaim globalActive ${globalActive} (${reason})`)
+        globalActive = Math.min(Math.max(globalActive, 0), GLOBAL_CONCURRENCY)
+        fixed = true
+    }
+    // Global waiter backlog with a full active set = leaked releases. Force room.
+    if (globalActive >= GLOBAL_CONCURRENCY && globalWaiters.length >= 16) {
+        console.warn(
+            `[segproxy] force-drain global active=${globalActive} waiters=${globalWaiters.length} (${reason})`
+        )
+        globalActive = Math.floor(GLOBAL_CONCURRENCY / 2)
+        fixed = true
+    }
+    while (globalActive < GLOBAL_CONCURRENCY && globalWaiters.length) {
+        const next = globalWaiters.shift()
+        if (next) next()
+        fixed = true
+    }
+    for (const [key, state] of hostInflight) {
+        if (state.active > HOST_CONCURRENCY || state.active < 0) {
+            console.warn(
+                `[segproxy] reclaim host ${key} active=${state.active} (${reason})`
+            )
+            state.active = Math.min(Math.max(state.active, 0), HOST_CONCURRENCY)
+            fixed = true
+        }
+        // Stuck at cap with a waiter backlog = leaked releases. Force-drain.
+        if (state.active >= HOST_CONCURRENCY && state.waiters.length >= 8) {
+            console.warn(
+                `[segproxy] force-drain host ${key} active=${state.active} waiters=${state.waiters.length} (${reason})`
+            )
+            state.active = Math.floor(HOST_CONCURRENCY / 2)
+            fixed = true
+        }
+        while (state.active < HOST_CONCURRENCY && state.waiters.length) {
+            const next = state.waiters.shift()
+            if (next) next()
+            fixed = true
+        }
+        if (state.active === 0 && state.waiters.length === 0) hostInflight.delete(key)
+    }
+    return fixed
+}
+
+setInterval(() => {
+    reclaimLeakedSlots("interval")
+}, 5_000).unref?.()
+
+

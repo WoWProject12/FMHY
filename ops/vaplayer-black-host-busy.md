@@ -1,30 +1,22 @@
-# VAPlayer black at 00:00 (pause UI, 1080p, duration) — segproxy slot leak
+# VAPlayer black at 00:00 — prevent recurrence
 
-## Symptom (e.g. `chillflix.lol/tv/276161?play=true&s=1&e=1`)
-Player looks ready: pause icon, Quality **1080P**, duration filled, scrubber at 0 —
-but video stays black and clock never advances.
+## Symptom
+Pause UI + 1080p + duration, but video stuck at `00:00:00` (e.g. `tv/276161`).
 
-## Why it looked “ready”
-1. VA resolve returned tokenized `/pl/…?token=` masters (`playbackMode: server-proxy`).
-2. Master + child playlists load through Next rewrite → HLS.js builds the ladder and
-   duration → UI shows 1080p / `00:52:42`.
-3. **Segments** go through `segment-proxy` (`:3003`). When that lane is wedged they
-   502 with `{"error":"Upstream did not answer.","detail":"host busy"}` → no frames.
+## Cause
+Playlists loaded; **segments** hit `segment-proxy` (`chillflix-segproxy` / `:3003`).
+A `Promise.all([global, host])` acquire leaked slots when host wait timed out →
+proxy wedged (`host busy` / global full) → black frame.
 
-## Root cause
-`acquireHostSlot` used `Promise.all([acquireGlobalSlot(), hostReady])`.
-If the host waiter timed out (`host busy`) after the global slot was already taken,
-the global release never ran → **permanent global/host counter leak**.
+## Prevention (live)
 
-Observed before restart: `globalActive: 64`, `globalWaiters: 324`, `hostActive: 3947`.
+1. **Fix leak** — sequential acquire + rollback on reject.
+2. **Reclaim every 5s** — force-drain global/host when waiters pile up at cap.
+3. **Watchdog cron** (`/usr/local/sbin/segproxy-watchdog.sh`, every minute via
+   `/etc/cron.d/chillflix-segproxy-watchdog`) — if health/stats look wedged for
+   2 consecutive checks, `pm2 restart chillflix-segproxy`.
+4. Process owned by **PM2** `chillflix-segproxy` (not a competing systemd unit).
 
-CDN JWTs are fine (`ip_cidr` = VPS `/24`); Next can fetch segments. Only the
-wedged proxy made phones sit black.
-
-## Fix
-1. Restarted `segment-proxy` (immediate unblock).
-2. Sequential acquire + rollback on reject; reclaim force-drains hosts stuck at cap
-   with waiter backlog.
-3. Snippet: `ops/patches/segment-proxy-slot-leak-fix.mjs.snippet`
-
-Hard-refresh the watch page and tap VAPlayer again.
+## Patches
+- `ops/patches/segment-proxy-slot-leak-fix.mjs.snippet`
+- `ops/patches/segproxy-watchdog.sh`
