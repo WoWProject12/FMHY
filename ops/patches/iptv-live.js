@@ -348,15 +348,21 @@
     return mins + " min left";
   }
 
-  function epgLine(channel) {
+  function epgLineHtml(channel) {
     var cur = currentEpg(channel);
-    if (!cur || !cur.entry) return "Live now";
+    if (!cur || !cur.entry) {
+      return '<span class="huhu-epg-show">Live now</span>';
+    }
+    var when =
+      formatTime(cur.entry.start) + " – " + formatTime(cur.entry.end);
+    var title = cur.entry.title || "";
     return (
-      formatTime(cur.entry.start) +
-      " – " +
-      formatTime(cur.entry.end) +
-      " " +
-      (cur.entry.title || "")
+      '<span class="huhu-epg-when">' +
+      escapeHtml(when) +
+      "</span>" +
+      (title
+        ? ' <span class="huhu-epg-show">' + escapeHtml(title) + "</span>"
+        : "")
     );
   }
 
@@ -478,7 +484,7 @@
           escapeHtml(ch.name || id) +
           "</span>" +
           '<span class="huhu-epg-line">' +
-          escapeHtml(epgLine(ch)) +
+          epgLineHtml(ch) +
           "</span>" +
           '<span class="huhu-mini-progress"><i style="width:' +
           pct.toFixed(1) +
@@ -527,13 +533,19 @@
     }
 
     if (nextEl) {
-      nextEl.textContent = next
-        ? formatTime(next.start) +
-          " – " +
-          formatTime(next.end) +
-          " " +
-          (next.title || "")
-        : "";
+      if (!next) {
+        nextEl.textContent = "";
+      } else {
+        nextEl.innerHTML =
+          '<span class="huhu-epg-when">' +
+          escapeHtml(formatTime(next.start) + " – " + formatTime(next.end)) +
+          "</span>" +
+          (next.title
+            ? ' <span class="huhu-epg-show">' +
+              escapeHtml(next.title) +
+              "</span>"
+            : "");
+      }
     }
   }
 
