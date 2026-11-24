@@ -1,0 +1,40 @@
+    if ($path === '/api/search' && $method === 'GET') {
+        header('Content-Type: application/json; charset=utf-8');
+        $q = trim((string) ($_GET['q'] ?? ''));
+        $type = strtolower(trim((string) ($_GET['type'] ?? 'all')));
+        if (!in_array($type, ['all', 'movie', 'tv', 'anime', 'live'], true)) {
+            $type = 'all';
+        }
+        if ($q === '') {
+            echo json_encode(['results' => []]);
+            exit;
+        }
+        $out = [];
+        if ($type === 'live' || $type === 'all') {
+            $liveLimit = $type === 'live' ? 24 : 6;
+            foreach (movy_search_live_channels($q, $liveLimit) as $liveCard) {
+                $out[] = $liveCard;
+            }
+        }
+        if ($type !== 'live') {
+            $tmdbType = $type === 'all' ? 'all' : $type;
+            $raw = $movyTmdb->search($q, max(1, (int) ($_GET['page'] ?? 1)), $tmdbType);
+            foreach ($raw['results'] ?? [] as $item) {
+                $mt = (string) ($item['media_type'] ?? '');
+                if ($mt !== 'movie' && $mt !== 'tv') {
+                    continue;
+                }
+                if (!empty($item['adult']) || !empty($item['softcore'])) {
+                    continue;
+                }
+                $card = movy_normalize_card($item, $mt);
+                if ((int) ($card['id'] ?? 0) <= 0) {
+                    continue;
+                }
+                unset($card['raw']);
+                $out[] = $card;
+            }
+        }
+        echo json_encode(['results' => $out, 'query' => $q, 'type' => $type]);
+        exit;
+    }

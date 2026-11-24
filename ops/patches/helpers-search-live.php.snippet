@@ -1,0 +1,71 @@
+
+function movy_search_live_channels(string $q, int $limit = 8): array
+{
+    $q = trim($q);
+    $limit = max(1, min(24, $limit));
+    if ($q === '' || mb_strlen($q) < 2) {
+        return [];
+    }
+
+    $url = 'http://127.0.0.1:3000/api/iptv/channels?source=huhu&limit=' . $limit
+        . '&offset=0&search=' . rawurlencode($q);
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 2.5,
+            'ignore_errors' => true,
+            'header' => "Accept: application/json\r\nConnection: close\r\n",
+        ],
+    ]);
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!is_string($raw) || $raw === '') {
+        return [];
+    }
+    $data = json_decode($raw, true);
+    if (!is_array($data) || empty($data['channels']) || !is_array($data['channels'])) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($data['channels'] as $ch) {
+        if (!is_array($ch)) {
+            continue;
+        }
+        $id = trim((string) ($ch['id'] ?? ''));
+        $name = trim((string) ($ch['name'] ?? ''));
+        if ($id === '' || $name === '') {
+            continue;
+        }
+        $country = trim((string) ($ch['country'] ?? ''));
+        $logo = trim((string) ($ch['logo'] ?? ''));
+        $epgTitle = '';
+        if (!empty($ch['epg']) && is_array($ch['epg']) && is_array($ch['epg'][0] ?? null)) {
+            $epgTitle = trim((string) ($ch['epg'][0]['title'] ?? ''));
+        }
+        $href = movy_url('/iptv?play=' . rawurlencode($id));
+        $out[] = [
+            'id' => $id,
+            'title' => $name,
+            'type' => 'live',
+            'poster' => $logo !== '' ? $logo : movy_asset('img/poster-fallback.svg'),
+            'backdrop' => $logo,
+            'backdrop_full' => $logo,
+            'overview' => $epgTitle !== '' ? ('Now: ' . $epgTitle) : 'Live TV channel',
+            'rating' => '',
+            'year' => '',
+            'date' => '',
+            'anime' => false,
+            'genre' => $country !== '' ? $country : 'Live TV',
+            'href' => $href,
+            'play' => $href,
+            'live' => true,
+            'country' => $country,
+            'genre_ids' => [],
+        ];
+        if (count($out) >= $limit) {
+            break;
+        }
+    }
+    return $out;
+}
+
