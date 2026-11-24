@@ -572,32 +572,41 @@
 
   // List interactions — fav heart must not open the player
   if (listEl) {
-    function onFavPointer(ev) {
-      var favBtn = ev.target && ev.target.closest ? ev.target.closest(".huhu-heart, [data-fav]") : null;
-      if (!favBtn || !listEl.contains(favBtn)) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-      var id = favBtn.getAttribute("data-fav");
-      if (!id) return;
-      toggleFav(id);
-      renderList();
-    }
-    listEl.addEventListener("click", onFavPointer, true);
-    listEl.addEventListener("pointerdown", onFavPointer, true);
+    listEl.addEventListener(
+      "click",
+      function (ev) {
+        var favBtn =
+          ev.target && ev.target.closest
+            ? ev.target.closest(".huhu-heart, [data-fav]")
+            : null;
+        if (favBtn && listEl.contains(favBtn)) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          var favId = favBtn.getAttribute("data-fav");
+          if (!favId) return;
+          var on = toggleFav(favId);
+          // Update just this heart without full re-render (avoids click races)
+          favBtn.classList.toggle("is-on", on);
+          favBtn.innerHTML = on
+            ? '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="currentColor"/></svg>'
+            : '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+          if (statusEl && tab === "favs") renderList();
+          return;
+        }
 
-    listEl.addEventListener("click", function (ev) {
-      if (ev.target && ev.target.closest && ev.target.closest(".huhu-heart, [data-fav]")) {
-        return;
-      }
-      var row = ev.target.closest(".huhu-row[data-id], [data-id]");
-      if (!row || !listEl.contains(row)) return;
-      var id = row.getAttribute("data-id");
-      var rows = visibleChannels();
-      var idx = rows.findIndex(function (c) { return String(c.id) === id; });
-      if (idx < 0) return;
-      showPlayer(rows[idx], idx);
-    });
+        var row = ev.target.closest(".huhu-row[data-id], [data-id]");
+        if (!row || !listEl.contains(row)) return;
+        var id = row.getAttribute("data-id");
+        var rows = visibleChannels();
+        var idx = rows.findIndex(function (c) {
+          return String(c.id) === id;
+        });
+        if (idx < 0) return;
+        showPlayer(rows[idx], idx);
+      },
+      true
+    );
   }
 
   if (searchEl) {

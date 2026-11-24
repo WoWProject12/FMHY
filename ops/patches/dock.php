@@ -30,19 +30,20 @@ $items = [
   }
   .dock-new-badge {
     position: absolute;
-    top: -2px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 0;
+    right: 2px;
+    left: auto;
+    transform: none;
     z-index: 3;
-    padding: 1px 5px;
-    border-radius: 999px;
-    font-size: 8px;
+    padding: 0 3px;
+    border-radius: 4px;
+    font-size: 7px;
     font-weight: 800;
-    letter-spacing: 0.06em;
-    line-height: 1.2;
+    letter-spacing: 0.04em;
+    line-height: 1.35;
     color: #0c0b09;
     background: #e4c27a;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
     pointer-events: none;
     white-space: nowrap;
   }
