@@ -158,6 +158,43 @@ function cfp_upsert_video(PDO $pdo, array $row, array $cats = [], array $tags = 
     return $id;
 }
 
+/**
+ * Normalize list/filter query params from $_GET.
+ * @return array{sort:string,duration:string,period:string,density:string,per:int,page:int,category:string,q:string}
+ */
+function cfp_filters_from_request(array $get = null): array
+{
+    $get = $get ?? $_GET;
+    $sort = (string) ($get['sort'] ?? 'new');
+    if (!in_array($sort, ['new', 'views', 'az', 'long', 'short'], true)) {
+        $sort = 'new';
+    }
+    $duration = (string) ($get['duration'] ?? 'any');
+    if (!in_array($duration, ['any', 'short', 'medium', 'long'], true)) {
+        $duration = 'any';
+    }
+    $period = (string) ($get['period'] ?? 'any');
+    if (!in_array($period, ['any', 'day', 'week', 'month', 'year'], true)) {
+        $period = 'any';
+    }
+    $density = (string) ($get['density'] ?? 'cozy');
+    if (!in_array($density, ['cozy', 'compact'], true)) {
+        $density = 'cozy';
+    }
+    $perDefault = $density === 'compact' ? 36 : 24;
+    $per = max(12, min(48, (int) ($get['per'] ?? $perDefault)));
+    return [
+        'sort' => $sort,
+        'duration' => $duration,
+        'period' => $period,
+        'density' => $density,
+        'per' => $per,
+        'page' => max(1, (int) ($get['page'] ?? 1)),
+        'category' => trim((string) ($get['category'] ?? '')),
+        'q' => trim((string) ($get['q'] ?? '')),
+    ];
+}
+
 function cfp_list_videos(PDO $pdo, array $opts = []): array
 {
     $page = max(1, (int) ($opts['page'] ?? 1));
@@ -166,6 +203,8 @@ function cfp_list_videos(PDO $pdo, array $opts = []): array
     $q = trim((string) ($opts['q'] ?? ''));
     $cat = trim((string) ($opts['category'] ?? ''));
     $sort = (string) ($opts['sort'] ?? 'new');
+    $duration = (string) ($opts['duration'] ?? 'any');
+    $period = (string) ($opts['period'] ?? 'any');
 
     $where = ['1=1'];
     $args = [];
@@ -181,9 +220,29 @@ function cfp_list_videos(PDO $pdo, array $opts = []): array
         $args[] = $cat;
     }
 
+    if ($duration === 'short') {
+        $where[] = 'v.duration_sec > 0 AND v.duration_sec < 600';
+    } elseif ($duration === 'medium') {
+        $where[] = 'v.duration_sec >= 600 AND v.duration_sec < 1200';
+    } elseif ($duration === 'long') {
+        $where[] = 'v.duration_sec >= 1200';
+    }
+
+    $periodMap = [
+        'day' => '1 DAY',
+        'week' => '7 DAY',
+        'month' => '30 DAY',
+        'year' => '365 DAY',
+    ];
+    if (isset($periodMap[$period])) {
+        $where[] = 'v.created_at >= (NOW() - INTERVAL ' . $periodMap[$period] . ')';
+    }
+
     $order = match ($sort) {
         'views' => 'v.views DESC, v.created_at DESC',
         'az' => 'v.title ASC',
+        'long' => 'v.duration_sec DESC, v.created_at DESC',
+        'short' => 'CASE WHEN v.duration_sec = 0 THEN 1 ELSE 0 END ASC, v.duration_sec ASC, v.created_at DESC',
         default => 'v.created_at DESC',
     };
 

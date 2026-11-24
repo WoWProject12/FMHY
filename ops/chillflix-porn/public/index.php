@@ -16,7 +16,6 @@ if ($path !== '/') {
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $pdo = cfp_pdo();
 
-// Age confirm
 if ($path === '/age-confirm' && $method === 'POST') {
     cfp_set_age_ok();
     $next = (string) ($_POST['next'] ?? cfp_url('/'));
@@ -27,7 +26,6 @@ if ($path === '/age-confirm' && $method === 'POST') {
     exit;
 }
 
-// Stream API for player
 if ($path === '/api/stream' && $method === 'GET') {
     $vid = preg_replace('/[^0-9]/', '', (string) ($_GET['id'] ?? '')) ?? '';
     if ($vid === '') {
@@ -49,39 +47,55 @@ $pageDescription = 'Watch free adult videos on Chillflix.';
 $bodyClass = 'page-porn';
 $view = 'home';
 $viewData = [];
+$filters = cfp_filters_from_request();
 
 try {
     if ($path === '/' || $path === '/index.php') {
-        $page = max(1, (int) ($_GET['page'] ?? 1));
-        $sort = (string) ($_GET['sort'] ?? 'new');
-        $latest = cfp_list_videos($pdo, ['page' => $page, 'per' => 24, 'sort' => $sort]);
-        $popular = cfp_list_videos($pdo, ['page' => 1, 'per' => 12, 'sort' => 'views']);
-        $cats = cfp_top_categories($pdo, 18);
+        $listOpts = [
+            'page' => $filters['page'],
+            'per' => $filters['per'],
+            'sort' => $filters['sort'],
+            'duration' => $filters['duration'],
+            'period' => $filters['period'],
+            'category' => $filters['category'],
+        ];
+        $latest = cfp_list_videos($pdo, $listOpts);
+        $popular = cfp_list_videos($pdo, ['page' => 1, 'per' => 14, 'sort' => 'views']);
+        $cats = cfp_top_categories($pdo, 60);
         $view = 'home';
-        $viewData = compact('latest', 'popular', 'cats', 'sort');
+        $viewData = compact('latest', 'popular', 'cats', 'filters');
         $pageTitle = CFP_SITE_NAME . ' — Free Adult Videos';
-    } elseif ($path === '/search') {
-        $q = trim((string) ($_GET['q'] ?? ''));
-        $page = max(1, (int) ($_GET['page'] ?? 1));
-        $results = cfp_list_videos($pdo, ['q' => $q, 'page' => $page, 'per' => 24, 'sort' => 'new']);
-        $view = 'search';
-        $viewData = compact('q', 'results');
-        $pageTitle = ($q !== '' ? $q . ' — ' : '') . 'Search · ' . CFP_SITE_NAME;
-    } elseif (preg_match('#^/category/([a-z0-9\-]+)$#', $path, $m)) {
-        $slug = $m[1];
-        $page = max(1, (int) ($_GET['page'] ?? 1));
-        $st = $pdo->prepare('SELECT * FROM categories WHERE slug = ?');
-        $st->execute([$slug]);
-        $cat = $st->fetch();
-        if (!$cat) {
-            http_response_code(404);
-            $view = '404';
-        } else {
-            $results = cfp_list_videos($pdo, ['category' => $slug, 'page' => $page, 'per' => 24]);
-            $view = 'category';
-            $viewData = compact('cat', 'results');
-            $pageTitle = $cat['name'] . ' — ' . CFP_SITE_NAME;
+        if ($filters['density'] === 'compact') {
+            $bodyClass .= ' is-compact';
         }
+    } elseif ($path === '/search') {
+        $filters['q'] = trim((string) ($_GET['q'] ?? ''));
+        $results = cfp_list_videos($pdo, [
+            'q' => $filters['q'],
+            'page' => $filters['page'],
+            'per' => $filters['per'],
+            'sort' => $filters['sort'],
+            'duration' => $filters['duration'],
+            'period' => $filters['period'],
+            'category' => $filters['category'],
+        ]);
+        $cats = cfp_top_categories($pdo, 60);
+        $q = $filters['q'];
+        $view = 'search';
+        $viewData = compact('q', 'results', 'cats', 'filters');
+        $pageTitle = ($q !== '' ? $q . ' — ' : '') . 'Search · ' . CFP_SITE_NAME;
+        if ($filters['density'] === 'compact') {
+            $bodyClass .= ' is-compact';
+        }
+    } elseif (preg_match('#^/category/([a-z0-9\-]+)$#', $path, $m)) {
+        // Canonicalize into home filters for one consistent UI
+        $slug = $m[1];
+        $qs = $_GET;
+        $qs['category'] = $slug;
+        unset($qs['page']);
+        $query = http_build_query($qs);
+        header('Location: ' . cfp_url('/' . ($query !== '' ? '?' . $query : '')), true, 302);
+        exit;
     } elseif (preg_match('#^/video/([a-z0-9\-]+)$#', $path, $m)) {
         $video = cfp_get_video_by_slug($pdo, $m[1]);
         if (!$video) {
@@ -98,7 +112,7 @@ try {
             $pageDescription = $video['title'];
         }
     } elseif ($path === '/categories') {
-        $cats = cfp_top_categories($pdo, 80);
+        $cats = cfp_top_categories($pdo, 120);
         $view = 'categories';
         $viewData = compact('cats');
         $pageTitle = 'Categories — ' . CFP_SITE_NAME;

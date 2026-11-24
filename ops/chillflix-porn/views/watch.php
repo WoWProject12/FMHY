@@ -22,7 +22,7 @@ $vid = (string) $video['video_id'];
     <?php if (!empty($meta['categories']) || !empty($meta['tags'])): ?>
       <div class="cfp-chips">
         <?php foreach ($meta['categories'] as $c): ?>
-          <a class="cfp-chip" href="<?= cfp_e(cfp_url('/category/' . $c['slug'])) ?>"><?= cfp_e($c['name']) ?></a>
+          <a class="cfp-chip" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>"><?= cfp_e($c['name']) ?></a>
         <?php endforeach; ?>
         <?php foreach ($meta['tags'] as $t): ?>
           <a class="cfp-chip cfp-chip-soft" href="<?= cfp_e(cfp_url('/search?q=' . rawurlencode($t['name']))) ?>"><?= cfp_e($t['name']) ?></a>

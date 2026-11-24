@@ -17,7 +17,7 @@ declare(strict_types=1);
   <meta name="rating" content="adult">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/cinema.css?v=97fxovertoast1')) ?>">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/bridge.css?v=20261123notif22acctontop1phoneplayer5noshrink2nospa1fxuser5nocardfx1maylike1settingsback1')) ?>">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=1')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=2ui')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
 </head>
 <body class="<?= cfp_e($bodyClass) ?>">
@@ -55,12 +55,12 @@ declare(strict_types=1);
       <span class="cfp-brand-text">Chillflix <em>Porn</em></span>
     </a>
     <form class="cfp-search" action="<?= cfp_e(cfp_url('/search')) ?>" method="get" role="search">
-      <input type="search" name="q" placeholder="Search videos…" value="<?= cfp_e((string) ($q ?? '')) ?>" autocomplete="off">
-      <button type="submit" aria-label="Search">Search</button>
+      <input type="search" name="q" placeholder="Search…" value="<?= cfp_e((string) ($q ?? ($filters['q'] ?? ''))) ?>" autocomplete="off">
+      <button type="submit" aria-label="Search">Go</button>
     </form>
     <nav class="cfp-nav" aria-label="Primary">
-      <a href="<?= cfp_e(cfp_url('/')) ?>">Home</a>
-      <a href="<?= cfp_e(cfp_url('/categories')) ?>">Categories</a>
+      <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
+      <a href="<?= cfp_e(cfp_url('/categories')) ?>" class="<?= ($view ?? '') === 'categories' ? 'is-on' : '' ?>">Categories</a>
       <a class="cfp-nav-main" href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
     </nav>
   </div>
@@ -82,12 +82,11 @@ declare(strict_types=1);
 </nav>
 
 <footer class="cfp-footer">
-  <p>18+ only. <?= cfp_e(CFP_SITE_NAME) ?> — same Chillflix look, own catalog.</p>
-  <p><a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Back to Chillflix</a></p>
+  <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
 <script src="<?= cfp_e(cfp_main_asset('js/leaves.js?v=29fxuser')) ?>" defer></script>
 <script src="<?= cfp_e(cfp_main_asset('js/snow.js?v=5fxuser')) ?>" defer></script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=1')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=2ui')) ?>" defer></script>
 </body>
 </html>

@@ -3,63 +3,80 @@ declare(strict_types=1);
 /** @var array $latest */
 /** @var array $popular */
 /** @var array $cats */
-/** @var string $sort */
-$hero = $latest['items'][0] ?? null;
+/** @var array $filters */
+$filters = $filters ?? cfp_filters_from_request();
+$hero = $latest['items'][0] ?? ($popular['items'][0] ?? null);
+$density = $filters['density'] ?? 'cozy';
+$resultsTotal = (int) ($latest['total'] ?? 0);
+$actionPath = '/';
+$activeCatName = null;
+if (!empty($filters['category'])) {
+    foreach ($cats as $c) {
+        if ($c['slug'] === $filters['category']) {
+            $activeCatName = $c['name'];
+            break;
+        }
+    }
+}
 ?>
-<section class="cfp-hero">
-  <div class="cfp-hero-copy">
-    <p class="cfp-kicker">Chillflix · Adult</p>
-    <h1>Free adult videos</h1>
-    <p class="cfp-lede">Same Chillflix cinema look — our own catalog, xvideos-powered streams.</p>
-    <div class="cfp-hero-actions">
-      <a class="cfp-btn cfp-btn-primary" href="<?= cfp_e(cfp_url('/categories')) ?>">Browse categories</a>
-      <?php if ($hero): ?>
-        <a class="cfp-btn cfp-btn-ghost" href="<?= cfp_e(cfp_url('/video/' . $hero['slug'])) ?>">Watch latest</a>
-      <?php endif; ?>
-    </div>
-  </div>
-  <?php if ($hero && !empty($hero['thumb'])): ?>
-    <a class="cfp-hero-visual" href="<?= cfp_e(cfp_url('/video/' . $hero['slug'])) ?>" aria-label="<?= cfp_e($hero['title']) ?>">
+<?php if ($hero && empty($filters['category']) && ($filters['page'] ?? 1) <= 1 && ($filters['q'] ?? '') === ''): ?>
+<section class="cfp-strip" aria-label="Featured">
+  <a class="cfp-strip-media" href="<?= cfp_e(cfp_url('/video/' . $hero['slug'])) ?>">
+    <?php if (!empty($hero['thumb'])): ?>
       <img src="<?= cfp_e($hero['thumb']) ?>" alt="" decoding="async" referrerpolicy="no-referrer">
-    </a>
-  <?php endif; ?>
-</section>
-
-<?php if (!empty($cats)): ?>
-<section class="cfp-section">
-  <div class="cfp-section-head">
-    <h2>Categories</h2>
-    <a href="<?= cfp_e(cfp_url('/categories')) ?>">See all</a>
-  </div>
-  <div class="cfp-chips">
-    <?php foreach ($cats as $c): ?>
-      <a class="cfp-chip" href="<?= cfp_e(cfp_url('/category/' . $c['slug'])) ?>"><?= cfp_e($c['name']) ?> <span><?= (int) $c['n'] ?></span></a>
-    <?php endforeach; ?>
+    <?php endif; ?>
+  </a>
+  <div class="cfp-strip-copy">
+    <p class="cfp-kicker">Just in</p>
+    <h1 class="cfp-strip-title"><?= cfp_e((string) $hero['title']) ?></h1>
+    <p class="cfp-strip-meta">
+      <?php if (!empty($hero['duration'])): ?><span><?= cfp_e((string) $hero['duration']) ?></span><?php endif; ?>
+      <span><?= cfp_e(cfp_fmt_views((int) ($hero['views'] ?? 0))) ?> views</span>
+    </p>
+    <a class="cfp-btn cfp-btn-primary cfp-btn-sm" href="<?= cfp_e(cfp_url('/video/' . $hero['slug'])) ?>">Play</a>
   </div>
 </section>
 <?php endif; ?>
 
-<?php if (!empty($popular['items'])): ?>
-<section class="cfp-section">
-  <div class="cfp-section-head">
-    <h2>Popular</h2>
-  </div>
-  <?php $items = $popular['items']; require __DIR__ . '/_grid.php'; ?>
-</section>
-<?php endif; ?>
+<?php require __DIR__ . '/_toolbar.php'; ?>
 
-<section class="cfp-section">
+<?php if (!empty($popular['items']) && empty($filters['category']) && ($filters['sort'] ?? 'new') === 'new' && ($filters['page'] ?? 1) <= 1): ?>
+<section class="cfp-section cfp-section-tight">
   <div class="cfp-section-head">
-    <h2>Latest</h2>
-    <div class="cfp-sort">
-      <a class="<?= $sort === 'new' ? 'is-on' : '' ?>" href="<?= cfp_e(cfp_url('/?sort=new')) ?>">New</a>
-      <a class="<?= $sort === 'views' ? 'is-on' : '' ?>" href="<?= cfp_e(cfp_url('/?sort=views')) ?>">Views</a>
+    <h2>Trending</h2>
+  </div>
+  <div class="cfp-rail" data-cfp-rail>
+    <div class="cfp-rail-track">
+      <?php foreach ($popular['items'] as $item):
+        $href = cfp_url('/video/' . $item['slug']);
+      ?>
+        <a class="cfp-rail-card" href="<?= cfp_e($href) ?>">
+          <div class="cfp-card-media">
+            <?php if (!empty($item['thumb'])): ?>
+              <img src="<?= cfp_e($item['thumb']) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+            <?php else: ?>
+              <div class="cfp-card-ph" aria-hidden="true"></div>
+            <?php endif; ?>
+            <?php if (!empty($item['duration'])): ?>
+              <span class="cfp-card-dur"><?= cfp_e((string) $item['duration']) ?></span>
+            <?php endif; ?>
+          </div>
+          <h3 class="cfp-card-title"><?= cfp_e((string) $item['title']) ?></h3>
+        </a>
+      <?php endforeach; ?>
     </div>
+  </div>
+</section>
+<?php endif; ?>
+
+<section class="cfp-section cfp-section-tight">
+  <div class="cfp-section-head">
+    <h2><?= !empty($filters['category']) ? cfp_e((string) ($activeCatName ?: 'Filtered')) : 'Library' ?></h2>
   </div>
   <?php if (empty($latest['items'])): ?>
-    <p class="cfp-empty">No videos yet — scraper will fill this shortly.</p>
+    <p class="cfp-empty">No videos match these filters.</p>
   <?php else: ?>
-    <?php $items = $latest['items']; require __DIR__ . '/_grid.php'; ?>
+    <?php $items = $latest['items']; $gridClass = $density === 'compact' ? 'cfp-grid cfp-grid-compact' : 'cfp-grid'; require __DIR__ . '/_grid.php'; ?>
     <?php $pager = $latest; $basePath = '/'; require __DIR__ . '/_pager.php'; ?>
   <?php endif; ?>
 </section>
