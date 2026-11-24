@@ -1,0 +1,80 @@
+function movy_live_country_tld(string $country): string
+{
+    static $map = [
+        'croatia' => 'hr', 'bulgaria' => 'bg', 'france' => 'fr', 'germany' => 'de',
+        'italy' => 'it', 'spain' => 'es', 'portugal' => 'pt', 'poland' => 'pl',
+        'romania' => 'ro', 'netherlands' => 'nl', 'turkey' => 'tr', 'russia' => 'ru',
+        'united kingdom' => 'uk', 'uk' => 'uk', 'arabia' => 'ae', 'albania' => 'al',
+        'balkans' => 'ba', 'france sport' => 'fr',
+    ];
+    $key = strtolower(trim($country));
+    return $map[$key] ?? '';
+}
+
+function movy_live_channel_name_slug(string $name): string
+{
+    $clean = trim((string) preg_replace('/\s*[\(\[]\s*#?\d+\s*[\)\]]\s*$/u', '', $name));
+    $clean = trim((string) preg_replace('/\b(HD|FHD|HEVC|SD|4K|UHD|H265)\b/iu', '', $clean));
+    $clean = trim((string) preg_replace('/\s+/u', ' ', $clean));
+    return strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $clean));
+}
+
+/** Guess brand website domains from channel name / country (preferred) and matching tvg ids. */
+function movy_live_logo_domains(string $name, string $country = '', string $tvgId = ''): array
+{
+    $domains = [];
+    $nameSlug = movy_live_channel_name_slug($name);
+    $tld = movy_live_country_tld($country);
+
+    // Prefer short brand domain first: nova.hr before novatv.hr
+    if ($nameSlug !== '' && $tld !== '') {
+        if (str_ends_with($nameSlug, 'tv') && strlen($nameSlug) > 2) {
+            $domains[] = substr($nameSlug, 0, -2) . '.' . $tld;
+        }
+        $domains[] = $nameSlug . '.' . $tld;
+    }
+
+    $tvgId = trim($tvgId);
+    if ($tvgId !== '' && str_contains($tvgId, '.') && $nameSlug !== '') {
+        $parts = explode('.', $tvgId);
+        $tvgTld = strtolower((string) array_pop($parts));
+        $tvgSlug = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', implode('', $parts)));
+        // Only trust tvg when it looks related to the channel name (skip Dubai.ae on Nova TV).
+        $related = $tvgSlug !== '' && (
+            str_contains($tvgSlug, $nameSlug) ||
+            str_contains($nameSlug, $tvgSlug) ||
+            (strlen($nameSlug) >= 4 && str_starts_with($tvgSlug, substr($nameSlug, 0, 4)))
+        );
+        if ($related && $tvgTld !== '') {
+            if (str_ends_with($tvgSlug, 'tv') && strlen($tvgSlug) > 2) {
+                $domains[] = substr($tvgSlug, 0, -2) . '.' . $tvgTld;
+            }
+            $domains[] = $tvgSlug . '.' . $tvgTld;
+        }
+    }
+
+    $out = [];
+    foreach ($domains as $d) {
+        $d = strtolower(trim($d));
+        if ($d === '' || isset($out[$d])) continue;
+        $out[$d] = true;
+    }
+    return array_keys($out);
+}
+
+/**
+ * Brand icon URL for Live TV rows.
+ * Huhu /live2/logo/*.png currently 404 — use public brand icons from name/tvg.
+ */
+function movy_live_brand_logo_url(string $name, string $country = '', string $tvgId = '', string $huhuLogo = ''): string
+{
+    foreach (movy_live_logo_domains($name, $country, $tvgId) as $domain) {
+        return 'https://icon.horse/icon/' . rawurlencode($domain);
+    }
+    $huhuLogo = trim($huhuLogo);
+    if ($huhuLogo !== '' && preg_match('#^https?://#i', $huhuLogo)) {
+        return $huhuLogo;
+    }
+    return '';
+}
+

@@ -1,0 +1,18 @@
+{
+  "registrationEnabled": true,
+  "maintenanceMode": false,
+  "watchPartyEnabled": true,
+  "continueWatchingEnabled": true,
+  "playersEnabled": true,
+  "iptvEnabled": true,
+  "musicEnabled": true,
+  "ticketsEnabled": true,
+  "apkDownloadEnabled": true,
+  "apkCustomUrl": null,
+  "apkVersionLabel": "1.0.0",
+  "apkDownloadUrl": "/api/apk/download",
+  "sharePromptEnabled": false,
+  "communityPromptEnabled": true,
+  "discordInviteUrl": "https://discord.gg/WbP6reJ39",
+  "telegramInviteUrl": "https://t.me/chillflixlol"
+}

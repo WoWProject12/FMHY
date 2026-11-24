@@ -1,0 +1,115 @@
+function movy_live_avatar_color(string $name): string
+{
+    static $colors = [
+        '#6b4a32', '#5a4630', '#4a3f2e', '#6b5238', '#5c4834',
+        '#7a5a3a', '#4a4034', '#6b4638', '#554836', '#3f382c',
+    ];
+    $s = $name;
+    $hash = 0;
+    $len = strlen($s);
+    for ($i = 0; $i < $len; $i++) {
+        $hash = ($hash * 31 + ord($s[$i])) & 0xFFFFFFFF;
+    }
+    return $colors[$hash % count($colors)];
+}
+
+function movy_live_avatar_initial(string $name): string
+{
+    $s = trim($name);
+    if ($s === '') {
+        return '?';
+    }
+    if (function_exists('mb_substr')) {
+        return mb_strtoupper(mb_substr($s, 0, 1));
+    }
+    return strtoupper(substr($s, 0, 1));
+}
+
+/** Letter avatar poster (Huhu logo URLs often 404). */
+function movy_live_avatar_poster(string $name): string
+{
+    $bg = movy_live_avatar_color($name);
+    $initial = htmlspecialchars(movy_live_avatar_initial($name), ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    $bg = htmlspecialchars($bg, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="84" height="126" viewBox="0 0 84 126">'
+        . '<rect width="84" height="126" rx="10" fill="' . $bg . '"/>'
+        . '<text x="42" y="72" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="40" font-weight="700" fill="rgba(255,255,255,0.95)">'
+        . $initial
+        . '</text></svg>';
+    return 'data:image/svg+xml;base64,' . base64_encode($svg);
+}
+
+function movy_search_live_channels(string $q, int $limit = 8): array
+{
+    $q = trim($q);
+    $limit = max(1, min(24, $limit));
+    if ($q === '' || mb_strlen($q) < 2) {
+        return [];
+    }
+
+    $url = 'http://127.0.0.1:3000/api/iptv/channels?source=huhu&limit=' . $limit
+        . '&offset=0&search=' . rawurlencode($q);
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 2.5,
+            'ignore_errors' => true,
+            'header' => "Accept: application/json\r\nConnection: close\r\n",
+        ],
+    ]);
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!is_string($raw) || $raw === '') {
+        return [];
+    }
+    $data = json_decode($raw, true);
+    if (!is_array($data) || empty($data['channels']) || !is_array($data['channels'])) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($data['channels'] as $ch) {
+        if (!is_array($ch)) {
+            continue;
+        }
+        $id = trim((string) ($ch['id'] ?? ''));
+        $name = trim((string) ($ch['name'] ?? ''));
+        if ($id === '' || $name === '') {
+            continue;
+        }
+        $country = trim((string) ($ch['country'] ?? ''));
+        $logo = trim((string) ($ch['logo'] ?? ''));
+        $epgTitle = '';
+        if (!empty($ch['epg']) && is_array($ch['epg']) && is_array($ch['epg'][0] ?? null)) {
+            $epgTitle = trim((string) ($ch['epg'][0]['title'] ?? ''));
+        }
+        $href = movy_url('/iptv', ['play' => $id]);
+        $avatar = movy_live_avatar_poster($name);
+        $out[] = [
+            'id' => $id,
+            'title' => $name,
+            'type' => 'live',
+            // Huhu /live2/logo/*.png currently 404 — use Live TV letter avatars.
+            'poster' => $avatar,
+            'backdrop' => $avatar,
+            'backdrop_full' => $avatar,
+            'logo' => $logo,
+            'overview' => $epgTitle !== '' ? ('Now: ' . $epgTitle) : 'Live TV channel',
+            'rating' => '',
+            'year' => '',
+            'date' => '',
+            'anime' => false,
+            'genre' => $country !== '' ? $country : 'Live TV',
+            'href' => $href,
+            'play' => $href,
+            'live' => true,
+            'country' => $country,
+            'genre_ids' => [],
+        ];
+        if (count($out) >= $limit) {
+            break;
+        }
+    }
+    return $out;
+}
+
+
