@@ -130,29 +130,74 @@
   }
 
   function resumePlayIfNeeded() {
-    if (resumedPlay) return;
     var snap = readPlayPersist();
     if (!snap || !snap.id) {
       resumedPlay = true;
       return;
     }
-    resumedPlay = true;
     try {
       var found = channelFromSnap(snap);
-      if (!found || !found.channel) return;
+      if (!found || !found.channel) {
+        resumedPlay = true;
+        return;
+      }
       if (
         root.classList.contains("is-player") &&
         activeId &&
         String(activeId) === String(found.channel.id)
       ) {
+        // Optimistic shell may have opened with only an id ("Channel 123").
+        // Catalog just loaded — fill in the real TV name / EPG.
+        enrichActiveChannelFromList();
+        resumedPlay = true;
         return;
       }
+      if (resumedPlay) return;
+      resumedPlay = true;
       showPlayer(found.channel, found.index);
     } catch (eResume) {
+      resumedPlay = true;
       try {
         console.warn("iptv resume failed", eResume);
       } catch (eLog) {}
     }
+  }
+
+
+  /** Once the channel catalog loads, replace "Channel <id>" stubs with real names. */
+  function enrichActiveChannelFromList() {
+    if (!activeId || !root.classList.contains("is-player")) return;
+    var full = null;
+    var fullIndex = -1;
+    for (var i = 0; i < channels.length; i++) {
+      if (String(channels[i].id) === String(activeId)) {
+        full = channels[i];
+        fullIndex = i;
+        break;
+      }
+    }
+    if (!full) return;
+
+    var curName = activeChannel && activeChannel.name ? String(activeChannel.name) : "";
+    var needsName =
+      !curName ||
+      /^Channel\s+\d+/i.test(curName) ||
+      curName === String(activeId);
+
+    // Always refresh metadata from catalog when we have a better row.
+    activeChannel = Object.assign({}, activeChannel || {}, full);
+    activeIndex = fullIndex >= 0 ? fullIndex : activeIndex;
+    persistPlay(activeChannel);
+
+    var avatar = document.getElementById("iptvNowAvatar");
+    var nameEl = document.getElementById("iptvNowName");
+    if (avatar) {
+      avatar.textContent = initial(activeChannel.name);
+      avatar.style.background = avatarColor(activeChannel.name);
+    }
+    if (nameEl) nameEl.textContent = displayNameNoNumber(activeChannel.name);
+    updatePlayerEpg(activeChannel);
+    renderList();
   }
 
   /** Show player UI immediately on refresh — do not wait for channel list. */
@@ -1098,6 +1143,7 @@
             }
             renderCountries();
           }
+          try { enrichActiveChannelFromList(); } catch (eEn) {}
           renderList();
           if (!append) {
             try {
