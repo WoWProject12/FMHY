@@ -219,7 +219,7 @@ body.page-iptv .page-wrap {
 /* Compact rows — reference text/avatars are smaller than our old 15px/50px */
 .huhu-row {
   display: grid;
-  grid-template-columns: 20px 42px minmax(0, 1fr) 36px;
+  grid-template-columns: 20px 42px minmax(0, 1fr) 40px;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -323,15 +323,21 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-heart {
-  width: 34px;
-  height: 34px;
+  position: relative;
+  z-index: 6;
+  width: 40px;
+  height: 40px;
+  margin-right: -4px;
   border: 0;
   background: transparent;
-  color: rgba(244, 239, 230, 0.72);
+  color: rgba(244, 239, 230, 0.78);
   display: grid;
   place-items: center;
   cursor: pointer;
   border-radius: 999px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  pointer-events: auto;
 }
 
 .huhu-heart.is-on { color: var(--huhu-accent); }

@@ -570,19 +570,28 @@
     });
   });
 
-  // List interactions
+  // List interactions — fav heart must not open the player
   if (listEl) {
+    function onFavPointer(ev) {
+      var favBtn = ev.target && ev.target.closest ? ev.target.closest(".huhu-heart, [data-fav]") : null;
+      if (!favBtn || !listEl.contains(favBtn)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      var id = favBtn.getAttribute("data-fav");
+      if (!id) return;
+      toggleFav(id);
+      renderList();
+    }
+    listEl.addEventListener("click", onFavPointer, true);
+    listEl.addEventListener("pointerdown", onFavPointer, true);
+
     listEl.addEventListener("click", function (ev) {
-      var favBtn = ev.target.closest("[data-fav]");
-      if (favBtn) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        toggleFav(favBtn.getAttribute("data-fav"));
-        renderList();
+      if (ev.target && ev.target.closest && ev.target.closest(".huhu-heart, [data-fav]")) {
         return;
       }
-      var row = ev.target.closest("[data-id]");
-      if (!row) return;
+      var row = ev.target.closest(".huhu-row[data-id], [data-id]");
+      if (!row || !listEl.contains(row)) return;
       var id = row.getAttribute("data-id");
       var rows = visibleChannels();
       var idx = rows.findIndex(function (c) { return String(c.id) === id; });
