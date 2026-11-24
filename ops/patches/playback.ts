@@ -1702,6 +1702,14 @@ export function shouldUpgradeToHigherRankedSource<
         return false
     }
 
+    // Once the user is actually watching (VSEmbed often wins first), do not
+    // yank them to a higher-ranked late arriver (VAPlayer) — that remounts,
+    // flashes "Looking for the fastest source", and feels broken.
+    const playedFor = Number(args.currentPlaybackTime ?? 0)
+    if (Number.isFinite(playedFor) && playedFor >= 2) {
+        return false
+    }
+
     const order = args.providerOrder ?? [...PROVIDER_ORDER]
     const currentRank = providerDisplayRank(args.current.providerId ?? "", order)
     const preferredRank = providerDisplayRank(args.preferred.providerId ?? "", order)
