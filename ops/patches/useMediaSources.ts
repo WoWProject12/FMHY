@@ -18,6 +18,7 @@ import {
   resolveClientProviderSources,
   stripClientProviderServerDiagnostics,
 } from "@/lib/client-resolve-providers"
+import { resolveVaplayerClient } from "@/lib/providers/vaplayer-client"
 import { decodeCineproProxyPayloadFromHref } from "@/lib/cinepro/proxy"
 import { buildEmergencyVidlinkPayload } from "@/lib/emergency-vidlink-source"
 import { stripNativeFlixhqSources } from "@/lib/native-flixhq"
@@ -152,6 +153,8 @@ interface UseMediaSourcesResult {
   requestProvider: (providerId: string) => Promise<SourcesPayload>
   scanningProviderId?: string
   scanFailedProviderIds: string[]
+  /** Providers Auto already walked this title — sticky demotion even if soft-fail is cleared. */
+  scanAttemptedProviderIds: string[]
   isScanningProviders: boolean
   providerScanStartedAt?: number
   resolvedParamsKey: string
@@ -280,6 +283,19 @@ const SCAN_PASS_TIMEOUTS_MS = [4_000, 6_000, 10_000] as const
 const SCAN_PASS_COUNT = 3
 /** No extra hang on #1 — same 4s budget as the rest of the list. */
 const SCAN_PRIMARY_TIMEOUT_BONUS_MS = 0
+/** Browser client-resolves that need more than the default 4s row (unlock/boot). */
+const AUTO_SLOW_CLIENT_SCAN_TIMEOUT_MS: Record<string, number> = {
+  // Cache/unlock under load often needs ~8–9s; 4s left Auto with empty VA.
+  vaplayer: 12_000,
+  vsembed: 12_000,
+  "7movies": 14_000,
+}
+function getAutoScanTimeoutMs(providerId: string, passTimeoutMs: number) {
+  const key = normalizeProviderName(providerId)
+  const slow = AUTO_SLOW_CLIENT_SCAN_TIMEOUT_MS[key]
+  return slow != null ? Math.max(passTimeoutMs, slow) : passTimeoutMs
+}
+
 /**
  * Auto Sources walk is sequential (one provider at a time) so the Sources
  * sheet can show a single testing spinner and failed X marks in list order.
@@ -433,6 +449,7 @@ export function useMediaSources({
   const [scanningProviderId, setScanningProviderId] = useState<string | undefined>()
   const [providerScanStartedAt, setProviderScanStartedAt] = useState<number | undefined>()
   const [scanFailedProviderIds, setScanFailedProviderIds] = useState<string[]>([])
+  const [scanAttemptedProviderIds, setScanAttemptedProviderIds] = useState<string[]>([])
   const [isScanningProviders, setIsScanningProviders] = useState(false)
   const [error, setError] = useState<string>()
   const [resolvedParamsKey, setResolvedParamsKey] = useState("")
@@ -444,6 +461,12 @@ export function useMediaSources({
   const embedFastStartRef = useRef(embedFastStart)
   const diagnosticsRef = useRef(diagnostics)
   const providerScanAttemptedRef = useRef(false)
+  const isScanningProvidersRef = useRef(false)
+  const scanningProviderIdRef = useRef<string | undefined>(undefined)
+  /** Bumped when Auto abandons a row so late client-resolve results are dropped. */
+  const scanApplyGenerationRef = useRef(0)
+  const vaPromoteGenRef = useRef(0)
+  const vaPromoteKeyRef = useRef("")
 
   const altProviderWarmKeyRef = useRef<string>("")
   const providerBootstrapAttemptedRef = useRef(false)
@@ -452,6 +475,8 @@ export function useMediaSources({
   // scrape started from it used to throw the shared list away.
   const sharedLookupSettledRef = useRef(false)
   const scanFailedRef = useRef<Set<string>>(new Set())
+  /** Soft or hard miss this title — sticky across passes for Auto demotion. */
+  const scanAttemptedRef = useRef<Set<string>>(new Set())
   /** Hard-empty / completed miss — do not clear between scan passes (Auto demotion). */
   const hardFailedRef = useRef<Set<string>>(new Set())
   const fetchGenerationRef = useRef(0)
@@ -461,8 +486,10 @@ export function useMediaSources({
     if (!enabled) {
       providerScanAttemptedRef.current = false
       scanFailedRef.current = new Set()
+      scanAttemptedRef.current = new Set()
       hardFailedRef.current = new Set()
       setScanFailedProviderIds([])
+      setScanAttemptedProviderIds([])
       setScanningProviderId(undefined)
       setProviderScanStartedAt(undefined)
       setIsScanningProviders(false)
@@ -472,6 +499,15 @@ export function useMediaSources({
   useEffect(() => {
     sourcesRef.current = sources
   }, [sources])
+
+  useEffect(() => {
+    isScanningProvidersRef.current = isScanningProviders
+  }, [isScanningProviders])
+
+  useEffect(() => {
+    scanningProviderIdRef.current = scanningProviderId
+  }, [scanningProviderId])
+
 
   useEffect(() => {
     playbackTokenRef.current = playbackToken
@@ -744,6 +780,10 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
         setError(undefined)
       } else if (
         !keptPreviousSources &&
+        // Provider/Auto walks always merge — an empty VA/VS miss must not
+        // flash TITLE_NOT before Rive (etc.) has been tried. Scan-end sets
+        // the final error once the walk finishes with nothing.
+        !options?.merge &&
         !isBackgroundSourcesPending(nextDiagnostics) &&
         !shouldHoldEmptyStateForDiscovery(nextDiagnostics, 0)
       ) {
@@ -842,7 +882,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
     async (
       providerId: string,
       playbackToken?: string,
-      options?: { waitMs?: number }
+      options?: { waitMs?: number; signal?: AbortSignal; applyGeneration?: number }
     ) => {
       let token = playbackToken
 
@@ -882,7 +922,21 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
         episode: type === "tv" && episode !== undefined ? String(episode) : undefined,
         playbackToken: token,
         waitMs: options?.waitMs,
+        signal: options?.signal,
       })
+
+      // Auto moved on (4s budget / next row) — never merge stale unlock results.
+      if (
+        options?.signal?.aborted ||
+        (options?.applyGeneration != null &&
+          options.applyGeneration !== scanApplyGenerationRef.current)
+      ) {
+        return {
+          sources: [] as MediaSource[],
+          subtitles: [] as MediaSubtitle[],
+          diagnostics: [] as MediaDiagnostic[],
+        }
+      }
 
       const resolvedAt = Date.now()
       result.sources = result.sources.map((source) => ({
@@ -1183,8 +1237,10 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
 
     providerBootstrapAttemptedRef.current = false
     scanFailedRef.current = new Set()
+    scanAttemptedRef.current = new Set()
     hardFailedRef.current = new Set()
     setScanFailedProviderIds([])
+    setScanAttemptedProviderIds([])
     setScanningProviderId(undefined)
     setError(undefined)
     setBackgroundPendingCapReached(false)
@@ -1296,22 +1352,24 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
     }
 
     const run = async () => {
-      const config = await ensureStreamSourcesConfigReady()
-      if (isStale()) return
-
+      // Cap before any await — hydration remounts used to abort run() after
+      // ensureStreamSourcesConfigReady and leave isLoading true forever, or
+      // flip scanning true without a scan effect ever starting.
       loadingCapTimer = window.setTimeout(() => {
         if (!isStale()) {
           setIsLoading(false)
         }
       }, INITIAL_LOADING_CAP_MS)
 
+      const config = await ensureStreamSourcesConfigReady()
+      if (isStale()) return
+
       try {
-        // Unlock the one-by-one provider scan immediately. Waiting on the bulk
-        // /sources response before scanning made every cold open feel stuck.
-        // Mark scanning now so the player cannot flash the empty-state panel
-        // in the gap before the scan effect starts.
+        // Unlock the one-by-one provider scan immediately. Mark scanning now
+        // so the player cannot flash empty-state before the scan effect starts.
         if (!isStale()) {
           setResolvedParamsKey(cacheKey)
+          isScanningProvidersRef.current = true
           setIsScanningProviders(true)
           setIsRefreshing(true)
         }
@@ -1360,7 +1418,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
                 }
               })
               .catch(() => undefined)
-          }, Math.max(BACKGROUND_MERGE_KICK_MS, 12_000))
+          }, Math.max(BACKGROUND_MERGE_KICK_MS, 28_000))
         }
       } catch (err) {
         if (isStale()) return
@@ -1387,7 +1445,11 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
         shared &&
         shared.sources.length > 0 &&
         sourcesHavePlaybackTokens(shared.sources as MediaSource[]) &&
-        sourcesHavePreferredAutoStartProvider(shared.sources as MediaSource[])
+        sourcesHavePreferredAutoStartProvider(shared.sources as MediaSource[]) &&
+        // Same rule as localStorage warm: VA/Videasy/Movy shared hits used to
+        // skip Auto entirely, then dead CDN rows flashed TITLE_NOT instantly
+        // (Odyssey 1368337). Never short-circuit discovery for client-resolve.
+        !warmCacheHasClientResolveSources(shared.sources as MediaSource[])
       ) {
         sharedLookupSettledRef.current = true
         providerScanAttemptedRef.current = true
@@ -1407,6 +1469,19 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
         setIsRefreshing(false)
         setScanningProviderId(undefined)
         return
+      }
+      // Drop poisoned client-resolve shared rows so Auto can reach Rive/etc.
+      if (
+        shared &&
+        shared.sources.length > 0 &&
+        warmCacheHasClientResolveSources(shared.sources as MediaSource[])
+      ) {
+        forgetSharedStreamCache({
+          type,
+          tmdbId: String(id),
+          season: type === "tv" ? String(season ?? "") : undefined,
+          episode: type === "tv" ? String(episode ?? "") : undefined,
+        })
       }
       if (sharedLookupCancelled || isStale()) return
       sharedLookupSettledRef.current = true
@@ -1468,7 +1543,9 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
   useEffect(() => {
     if (!enabled) return
     if (!sharedLookupSettledRef.current) return
-    if (!isStreamSourcesConfigReady()) return
+    // Re-run when streamSourcesReady flips true — early bail used to leave Auto
+    // permanently idle after a cold-open race (Odyssey 1368337 TITLE_NOT).
+    if (!streamSourcesReady || !isStreamSourcesConfigReady()) return
     if (providerScanAttemptedRef.current) return
 
     const cacheKey = buildCacheKey({ id, type, season, episode })
@@ -1493,6 +1570,8 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
         sourcesHavePreferredAutoStartProvider(sourcesRef.current)
       ) {
         providerScanAttemptedRef.current = true
+        isScanningProvidersRef.current = false
+        isScanningProvidersRef.current = false
         setIsScanningProviders(false)
         setIsRefreshing(false)
         setScanningProviderId(undefined)
@@ -1528,6 +1607,8 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       }
 
       providerScanAttemptedRef.current = true
+      isScanningProvidersRef.current = true
+      isScanningProvidersRef.current = true
       setIsScanningProviders(true)
       setIsRefreshing(true)
       setProviderScanStartedAt(Date.now())
@@ -1536,10 +1617,17 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
         setScanFailedProviderIds([...scanFailedRef.current])
       }
 
+      const markProviderAttempted = (providerId: string) => {
+        if (scanAttemptedRef.current.has(providerId)) return
+        scanAttemptedRef.current.add(providerId)
+        setScanAttemptedProviderIds([...scanAttemptedRef.current])
+      }
+
       const markProviderFailed = (
         providerId: string,
         options?: { hard?: boolean }
       ) => {
+        markProviderAttempted(providerId)
         scanFailedRef.current.add(providerId)
         if (options?.hard) {
           hardFailedRef.current.add(providerId)
@@ -1583,7 +1671,8 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       const shouldStopDiscovering = () =>
         cancelled ||
         playbackActiveRef.current ||
-        topProviderReturnedStreams() ||
+        // Do NOT stop just because some other row has leftover URLs — that
+        // aborted the 1→2→3 walk after VA's 4s and flashed "none returned".
         (Boolean(hasReadySourceRef?.current) &&
           sourcesHavePreferredAutoStartProvider(sourcesRef.current))
 
@@ -1654,7 +1743,12 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
           return false
         }
 
+        markProviderAttempted(providerId)
         setScanningProviderId(providerId)
+
+        scanApplyGenerationRef.current += 1
+        const applyGeneration = scanApplyGenerationRef.current
+        const abortController = new AbortController()
 
         const runWithOptionalTimeout = async <T,>(
           work: () => Promise<T>
@@ -1673,6 +1767,11 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
           return Promise.race([
             work(),
             sleep(timeoutMs).then(() => {
+              abortController.abort()
+              // Invalidate any in-flight applyPayload from this row.
+              if (scanApplyGenerationRef.current === applyGeneration) {
+                scanApplyGenerationRef.current += 1
+              }
               throw new Error("Provider scan timed out")
             }),
           ])
@@ -1688,6 +1787,8 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
                   // Match the Auto row budget so unlock-pending doesn't poll
                   // for 60s while the spinner sits on VAPlayer.
                   waitMs: options.scanTimeoutMs ?? AUTO_PROVIDER_SCAN_TIMEOUT_MS,
+                  signal: abortController.signal,
+                  applyGeneration,
                 }
               )
             )
@@ -1699,11 +1800,68 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
               setDiagnostics((previous) =>
                 previous.filter((item) => item.code !== "CINEPRO_BACKGROUND")
               )
+            } else if (
+              (payload.diagnostics ?? []).some((item) =>
+                /HTTP (403|404|410|422|451)\b/i.test(String(item.message || ""))
+              )
+            ) {
+              // Explicit failcodes — leave this row immediately.
+              markProviderFailed(providerId, { hard: true })
             } else if (isSoftPendingPayload(payload)) {
               // Unlock/mint still running after this attempt's budget — soft-fail
               // so Auto walks to the next Sources row (spinner moves on). Soft
-              // marks clear between passes for another try; hard empties stick.
+              // marks stay sticky for demotion; later passes forceFresh-retry.
               markProviderFailed(providerId)
+              // VA: keep unlocking in background; promote into Sources when ready
+              // so first-open is not stuck waiting for a manual retap.
+              if (normalizeProviderName(providerId) === "vaplayer") {
+                const promoteKey = [
+                  type,
+                  String(id),
+                  type === "tv" ? String(season ?? "") : "",
+                  type === "tv" ? String(episode ?? "") : "",
+                ].join("|")
+                vaPromoteKeyRef.current = promoteKey
+                const gen = ++vaPromoteGenRef.current
+                void (async () => {
+                  try {
+                    const warmed = await resolveVaplayerClient({
+                      type,
+                      tmdbId: String(id),
+                      season:
+                        type === "tv" && season !== undefined
+                          ? String(season)
+                          : undefined,
+                      episode:
+                        type === "tv" && episode !== undefined
+                          ? String(episode)
+                          : undefined,
+                      // No Auto abort signal — survive row timeout.
+                      waitMs: 45_000,
+                    })
+                    if (
+                      gen !== vaPromoteGenRef.current ||
+                      vaPromoteKeyRef.current !== promoteKey ||
+                      !warmed.streams.length
+                    ) {
+                      return
+                    }
+                    await fetchClientProviderRef.current(
+                      "vaplayer",
+                      playbackTokenRef.current,
+                      { waitMs: 8_000 }
+                    )
+                    if (
+                      gen === vaPromoteGenRef.current &&
+                      vaPromoteKeyRef.current === promoteKey
+                    ) {
+                      clearProviderFailed("vaplayer")
+                    }
+                  } catch {
+                    /* promote best-effort */
+                  }
+                })()
+              }
             } else {
               // Hard empty (no streams for this title): demote Auto to #2 now.
               markProviderFailed(providerId, { hard: true })
@@ -1741,6 +1899,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
           }
           return found
         } catch (err) {
+          abortController.abort()
           const message = err instanceof Error ? err.message : ""
           if (message.includes("Too many source requests")) {
             setError(message)
@@ -1748,7 +1907,10 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
           }
           // Soft-fail timeouts so sequential Auto can mark X and test the next
           // Sources row instead of freezing the spinner on a hung unlock.
-          if (options.markFailedOnMiss || isClientResolveProvider(providerId)) {
+          // Hard-fail explicit HTTP failcodes from the thrown message.
+          if (/HTTP (403|404|410|422|451)\b/i.test(message)) {
+            markProviderFailed(providerId, { hard: true })
+          } else if (options.markFailedOnMiss || isClientResolveProvider(providerId)) {
             markProviderFailed(providerId)
           }
           return false
@@ -1803,11 +1965,8 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             await waitForProbeSettle(scanIds[0])
             if (shouldStopDiscovering()) break
             if (pass < SCAN_PASS_COUNT - 1) {
-              for (const providerId of scanIds) {
-                if (hardFailedRef.current.has(providerId)) continue
-                scanFailedRef.current.delete(providerId)
-              }
-              setScanFailedProviderIds([...scanFailedRef.current])
+              // Keep soft fails sticky so Auto can demote past attempted #1
+              // onto a green #2/#3 instead of waiting on a cleared "pending" primary.
               // Circle again: prefer probe-failed providers, else re-scrape the
               // top of admin order so we do not give up on a title that only
               // returned dead/stale links on the first hit.
@@ -1843,17 +2002,28 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             const providerId = pending[index]!
             const isPrimary = normalizeProviderName(providerId) ===
               normalizeProviderName(scanIds[0] ?? "")
-            const providerTimeoutMs = isPrimary
+            const baseTimeoutMs = isPrimary
               ? Math.min(
                   timeoutMs + SCAN_PRIMARY_TIMEOUT_BONUS_MS,
                   SCAN_PASS_TIMEOUTS_MS[SCAN_PASS_TIMEOUTS_MS.length - 1]
                 )
               : timeoutMs
+            const providerTimeoutMs = getAutoScanTimeoutMs(providerId, baseTimeoutMs)
 
             setScanningProviderId(providerId)
+            // Soft-failed rows stay demoted until the final pass; otherwise
+            // Auto re-burns #1/#2 budgets and never reaches Rive in time.
+            if (
+              forceFresh &&
+              pass < SCAN_PASS_COUNT - 1 &&
+              scanFailedRef.current.has(providerId) &&
+              !hardFailedRef.current.has(providerId)
+            ) {
+              continue
+            }
             const found = await tryProvider(providerId, {
               useFetchTimeout: true,
-              markFailedOnMiss: pass === SCAN_PASS_COUNT - 1,
+              markFailedOnMiss: true,
               forceFresh,
               scanTimeoutMs: providerTimeoutMs,
             })
@@ -1861,6 +2031,23 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             if (found || sourcesIncludeStartedProvider(sourcesRef.current, providerId)) {
               clearProviderFailed(providerId)
               await waitForProbeSettle(providerId)
+              if (providerProbeFailed(providerId)) {
+                // Probe got 403/404/429/etc - not playable; try next source.
+                markProviderFailed(providerId, { hard: true })
+              } else if (
+                hasReadySourceRef?.current ||
+                playbackActiveRef.current
+              ) {
+                // Probe-ready or already playing - first-win.
+                break
+              } else if (
+                sourcesIncludeStartedProvider(sourcesRef.current, providerId)
+              ) {
+                // URLs returned but never became ready in settle (dead CDN /
+                // hung HLS). Soft-demote and keep walking so #2 (7Movies)
+                // can start instead of freezing the spinner on VAPlayer.
+                markProviderFailed(providerId)
+              }
             }
 
             if (shouldStopDiscovering()) break
@@ -1873,17 +2060,10 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
             if (shouldStopDiscovering()) break
           }
 
-          // Soft retries: clear timeout/soft fails so the next circle can
-          // force-fresh. Keep hard-empty fails sticky so Auto can demote past
-          // a provider that truly has no source (VAPlayer empty → RiveStream).
+          // Soft fails stay sticky across passes so pick gates keep demoting
+          // past attempted #1 while #2/#3 are already green. Later passes still
+          // forceFresh-retry via tryProvider (failed+forceFresh is not skipped).
           if (pass < SCAN_PASS_COUNT - 1 && !shouldStopDiscovering()) {
-            for (const providerId of scanIds) {
-              if (hardFailedRef.current.has(providerId)) continue
-              if (!sourcesIncludeStartedProvider(sourcesRef.current, providerId)) {
-                scanFailedRef.current.delete(providerId)
-              }
-            }
-            setScanFailedProviderIds([...scanFailedRef.current])
             await sleep(400)
           }
         }
@@ -1927,6 +2107,14 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
               },
             ]
           })
+          // Only after the full Auto walk — never during VA/VS soft/hard misses.
+          setError(resolveTitleUnavailableMessage([
+            {
+              code: "ENABLED_PROVIDER_UNAVAILABLE",
+              message:
+                "No enabled provider returned a stream for this title.",
+            },
+          ]))
         }
       }
     }
@@ -1935,6 +2123,9 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       .catch(() => undefined)
       .finally(() => {
         scanFinished = true
+        isScanningProvidersRef.current = false
+        isScanningProvidersRef.current = false
+        scanningProviderIdRef.current = undefined
         if (!cancelled) {
           setIsScanningProviders(false)
           setIsRefreshing(false)
@@ -1953,30 +2144,33 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       setIsScanningProviders(false)
       setIsRefreshing(false)
     }
-  }, [enabled, episode, id, resolvedParamsKey, season, type])
+  }, [enabled, episode, id, resolvedParamsKey, season, streamSourcesReady, type])
 
   const bootstrapEmptySources = useCallback(async () => {
     if (sourcesRef.current.length > 0) return
+    // Soft warm only the first server scrape (usually Rive) so titles that
+    // miss on VA/VS/7Movies still get a stream without waiting the full walk.
+    // Keep concurrency at 1 — parallel greens confused the Sources spinner.
     if (providerScanAttemptedRef.current) return
 
     try {
-      const merged = await fetchSources({ merge: true, retry: true })
-      if (merged.sources.length > 0 || sourcesRef.current.length > 0) return
+      const enabledIds = withoutManualOnlyProviders(
+        getEnabledProviderIds().filter((providerId) => providerId !== "vidlink")
+      ).filter((providerId) => !isClientResolveProvider(providerId))
 
-      const enabledIds = getEnabledProviderIds().filter(
-        (providerId) => providerId !== "vidlink"
-      )
-
-      for (const providerId of enabledIds) {
-        if (sourcesRef.current.length > 0) return
-        await fetchSources({
-          provider: providerId,
-          merge: true,
-          retry: true,
-        })
-      }
+      const warmId =
+        enabledIds.find((id) => normalizeProviderName(id) === "rivestream") ||
+        enabledIds[0]
+      if (!warmId) return
+      if (sourcesRef.current.length > 0) return
+      if (providerScanAttemptedRef.current) return
+      await fetchSources({
+        provider: warmId,
+        merge: true,
+        retry: true,
+      })
     } catch {
-      // bootstrap is best-effort; manual provider pick still works
+      // bootstrap is best-effort; sequential Auto still owns discovery
     }
   }, [fetchSources])
 
@@ -2159,20 +2353,29 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       } catch {
         // ignore
       }
+      // Do not unscoped-merge:false — empty bulk responses flashed TITLE_NOT
+      // and wiped in-flight Auto rows. Sequential scan + requestProvider own
+      // discovery; config changes just allow a fresh walk.
       providerScanAttemptedRef.current = false
-      void fetchSources({ fresh: true, merge: false }).catch(() => undefined)
+      setResolvedParamsKey(buildCacheKey({ id, type, season, episode }))
     }
 
     window.addEventListener(STREAM_SOURCES_CONFIG_EVENT, refreshForConfigChange)
     return () => window.removeEventListener(STREAM_SOURCES_CONFIG_EVENT, refreshForConfigChange)
   }, [enabled, episode, fetchSources, id, season, type])
 
-  // Quietly warm Athena / 7Movies as soon as sources settle so a tap is cache-hot.
+  // Drop in-flight VA background promote when the title/episode changes.
+  useEffect(() => {
+    vaPromoteGenRef.current += 1
+    vaPromoteKeyRef.current = ""
+  }, [id, type, season, episode])
+
+  // Quietly warm Athena / 7Movies only after playback starts so Auto's
+  // sequential 1→2→3 walk is not racing parallel client-resolves.
   useEffect(() => {
     if (!enabled || !id) return
     if (!sharedLookupSettledRef.current) return
-    // Start once we have any primary source or playback has begun.
-    if (!playbackActive && sources.length === 0) return
+    if (!playbackActive) return
 
     const warmKey = buildCacheKey({ id, type, season, episode })
     if (altProviderWarmKeyRef.current === warmKey) return
@@ -2195,20 +2398,17 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
           return !sourcesIncludeStartedProvider(sourcesRef.current, providerId)
         })
 
-        // Athena first (slowest cold path), warm in parallel after kickoff.
-        await Promise.all(
-          alts.map(async (providerId) => {
-            if (cancelled) return
-            try {
-              await fetchClientProviderRef.current(
-                providerId,
-                playbackTokenRef.current
-              )
-            } catch {
-              // best-effort warm; manual tap still re-resolves if needed
-            }
-          })
-        )
+        for (const providerId of alts) {
+          if (cancelled) return
+          try {
+            await fetchClientProviderRef.current(
+              providerId,
+              playbackTokenRef.current
+            )
+          } catch {
+            // best-effort warm; manual tap still re-resolves if needed
+          }
+        }
       })()
     }, 400)
 
@@ -2216,7 +2416,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [enabled, playbackActive, sources.length, id, type, season, episode])
+  }, [enabled, playbackActive, id, type, season, episode])
 
 
   return {
@@ -2241,6 +2441,7 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
     requestProvider,
     scanningProviderId,
     scanFailedProviderIds,
+    scanAttemptedProviderIds,
     isScanningProviders,
     providerScanStartedAt,
     resolvedParamsKey,
