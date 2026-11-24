@@ -44,6 +44,7 @@ import {
 } from "@/hooks/usePlaybackSourceFallback"
 import { useExternalSubtitles } from "@/hooks/useExternalSubtitles"
 import { prefetchMediaSources, useMediaSources } from "@/hooks/useMediaSources"
+import { prewarmVaplayerUnlock } from "@/lib/providers/vaplayer-client"
 import { useSourceHealth } from "@/hooks/useSourceHealth"
 import { useClientSearchParams } from "@/hooks/useClientSearchParams"
 import { usePreferredExternalPlayer } from "@/hooks/usePreferredExternalPlayer"
@@ -273,6 +274,7 @@ export function CineProWatchPlayer({
 
     const livePlaybackTimeRef = useRef(0)
     const [upgradeResumeTime, setUpgradeResumeTime] = useState<number | undefined>()
+    const [deferredContinueAt, setDeferredContinueAt] = useState<number | undefined>()
 
     const resumeTime = useMemo(() => {
         // Explicit 0 = manual VAPlayer/Videasy/Movy remount — do not fall
@@ -292,6 +294,7 @@ export function CineProWatchPlayer({
 
     useEffect(() => {
         setUpgradeResumeTime(undefined)
+        setDeferredContinueAt(undefined)
         livePlaybackTimeRef.current = 0
     }, [mediaId, mediaType, season, episode])
 
@@ -307,6 +310,12 @@ export function CineProWatchPlayer({
         }
         if (Number.isFinite(timeSec) && timeSec >= 0) {
             livePlaybackTimeRef.current = timeSec
+            // Lock early so stall/error recovery cannot remount once video moves.
+            if (timeSec >= 0.5 && !playbackStableRef.current) {
+                playbackStableRef.current = true
+                setPlaybackStable(true)
+                setPlaybackActive(true)
+            }
         }
     }, [])
     const [playbackActive, setPlaybackActive] = useState(false)
@@ -324,6 +333,7 @@ export function CineProWatchPlayer({
         refetchSourcesAsync,
         requestProvider,
         scanningProviderId,
+        scanAttemptedProviderIds,
         scanFailedProviderIds,
         isScanningProviders,
         providerScanStartedAt,
@@ -337,6 +347,29 @@ export function CineProWatchPlayer({
         healthFailedProviderIdsRef,
         embedFastStart: true,
     })
+
+    const sourcesRefForKick = useRef(0)
+    const isScanningProvidersRefForKick = useRef(false)
+    sourcesRefForKick.current = sources.length
+    isScanningProvidersRefForKick.current = isScanningProviders
+
+    // LATE RIVE FALLBACK — only after Auto had time for a full ~4s×N walk.
+    // Early kicks (1–3s) aborted sequential VA→VS→7m testing.
+    useEffect(() => {
+        if (!mediaId) return
+        let cancelled = false
+        const timer = window.setTimeout(() => {
+            if (cancelled) return
+            if (sourcesRefForKick.current > 0) return
+            // If Auto is still walking, let it finish — do not jump the queue.
+            if (isScanningProvidersRefForKick.current) return
+            void requestProvider("rivestream").catch(() => undefined)
+        }, 22_000)
+        return () => {
+            cancelled = true
+            window.clearTimeout(timer)
+        }
+    }, [mediaId, mediaType, season, episode, requestProvider])
 
     useEffect(() => {
         let cancelled = false
@@ -372,6 +405,7 @@ export function CineProWatchPlayer({
     const providerResolveAttemptedRef = useRef(false)
     const playbackStableRef = useRef(false)
     const [playbackStable, setPlaybackStable] = useState(false)
+    const lockedPlaybackUrlRef = useRef<string | null>(null)
     const sourceLoadingWatchdogRef = useRef(false)
     const forcePickWatchdogRef = useRef(false)
     const autoClientResolveCommitRef = useRef("")
@@ -440,7 +474,9 @@ export function CineProWatchPlayer({
         () => ({
             isScanningProviders,
             scanningProviderId,
+            scanAttemptedProviderIds,
             scanFailedProviderIds,
+            scanAttemptedProviderIds,
             scanStartedAt: providerScanStartedAt,
             primaryProviderResolved,
         }),
@@ -448,6 +484,7 @@ export function CineProWatchPlayer({
             isScanningProviders,
             primaryProviderResolved,
             providerScanStartedAt,
+            scanAttemptedProviderIds,
             scanFailedProviderIds,
             scanningProviderId,
         ]
@@ -467,8 +504,14 @@ export function CineProWatchPlayer({
     const optionsForPlayback = hasPlayableBatch ? playbackOptions : gatedPlaybackOptions
 
     const probeSources = useMemo(() => {
+        // While Auto walks one provider, only health-probe gated options —
+        // probing full playbackOptions marked Rive ready during "Checking VAPlayer".
+        const probePool =
+            isScanningProviders || scanningProviderId
+                ? gatedPlaybackOptions
+                : playbackOptions
         const automatic = pickAutomaticProbeSources(
-            playbackOptions,
+            probePool,
             providerOrder,
             orderedEnabledProviderIds
         )
@@ -484,7 +527,14 @@ export function CineProWatchPlayer({
             type: option.sourceType,
             directClientPlayback: Boolean(option.directClientPlayback),
         }))
-    }, [orderedEnabledProviderIds, playbackOptions, providerOrder])
+    }, [
+        gatedPlaybackOptions,
+        isScanningProviders,
+        orderedEnabledProviderIds,
+        playbackOptions,
+        providerOrder,
+        scanningProviderId,
+    ])
 
     const primaryProbeSourceIds = useMemo(() => {
         const primaryId = orderedEnabledProviderIds[0]
@@ -616,11 +666,15 @@ export function CineProWatchPlayer({
                 scanFailedProviderIds: new Set(
                     scanFailedProviderIds.map((id) => normalizeProviderName(id))
                 ),
+                scanAttemptedProviderIds: new Set(
+                    scanAttemptedProviderIds.map((id) => normalizeProviderName(id))
+                ),
             }),
         [
             gatedPlaybackOptions,
             isScanningProviders,
             orderedEnabledProviderIds,
+            scanAttemptedProviderIds,
             scanFailedProviderIds,
             scanningProviderId,
             sourceHealth,
@@ -657,6 +711,7 @@ export function CineProWatchPlayer({
         providerResolveAttemptedRef.current = false
         playbackStableRef.current = false
         setPlaybackStable(false)
+        lockedPlaybackUrlRef.current = null
         startupSourceLockedRef.current = false
         sourceUpgradeAttemptedRef.current = false
         playbackRecoveryLimiterRef.current.reset()
@@ -682,6 +737,12 @@ export function CineProWatchPlayer({
         if (!playbackRecoveryLimiterRef.current.canSwitch()) {
             return false
         }
+        // Mid-watch remounts are the flicker + loading-list bug. Manual source
+        // taps clear progress via handleSelectSource before calling bump.
+        if (livePlaybackTimeRef.current >= 0.5 || playbackStableRef.current) {
+            return false
+        }
+        lockedPlaybackUrlRef.current = null
         setSourceSwitchNonce((nonce) => nonce + 1)
         return true
     }, [])
@@ -700,6 +761,8 @@ export function CineProWatchPlayer({
             // Last line of defense: never auto-commit a lower scrape while
             // Sources #1 client-resolve is still unlocking (manual taps use
             // markManualSelection and never hit this path).
+            // Exception: rivestream/server scrapes that already arrived while Auto
+            // never marked #1 attempted (Odyssey emergency kick).
             if (
                 !manualSelectionRef.current &&
                 primaryId &&
@@ -716,7 +779,11 @@ export function CineProWatchPlayer({
                     (id) =>
                         normalizeProviderName(id) === normalizeProviderName(primaryId)
                 )
-                if (!primaryReady && !primaryFailed) {
+                const primaryAttempted = scanAttemptedProviderIds.some(
+                    (id) =>
+                        normalizeProviderName(id) === normalizeProviderName(primaryId)
+                )
+                if (!primaryReady && !primaryFailed && !primaryAttempted) {
                     return
                 }
             }
@@ -730,6 +797,11 @@ export function CineProWatchPlayer({
             if (isClientResolve) {
                 setUpgradeResumeTime(0)
                 livePlaybackTimeRef.current = 0
+                // Remount at 0 so fresh CDN can start; seek to Continue Watching after ready.
+                const opening = openingPlaybackRef.current.startAt
+                setDeferredContinueAt(
+                    typeof opening === "number" && opening > 0.5 ? opening : undefined
+                )
             }
 
             const alreadyCommitted = autoClientResolveCommitRef.current === commitKey
@@ -755,6 +827,7 @@ export function CineProWatchPlayer({
             mediaType,
             orderedEnabledProviderIds,
             playbackOptions,
+            scanAttemptedProviderIds,
             scanFailedProviderIds,
             season,
             selectedProviderKeyRef,
@@ -775,6 +848,18 @@ export function CineProWatchPlayer({
             type: "tv",
             season,
             episode: nextEpisode,
+        })
+    }, [episode, mediaId, mediaType, season])
+
+    // Kick VA unlock immediately on open so Auto's short row is more often warm.
+    useEffect(() => {
+        if (!mediaId) return
+        if (mediaType === "tv" && (season === undefined || episode === undefined)) return
+        prewarmVaplayerUnlock({
+            type: mediaType,
+            tmdbId: String(mediaId),
+            season: mediaType === "tv" ? String(season) : undefined,
+            episode: mediaType === "tv" ? String(episode) : undefined,
         })
     }, [episode, mediaId, mediaType, season])
 
@@ -904,9 +989,13 @@ export function CineProWatchPlayer({
                     (id) =>
                         normalizeProviderName(id) === normalizeProviderName(primaryId)
                 )
+                const primaryAttempted = scanAttemptedProviderIds.some(
+                    (id) =>
+                        normalizeProviderName(id) === normalizeProviderName(primaryId)
+                )
                 // Parallel to resolvedSourceId — do not commit RiveStream/#2
                 // while Sources #1 (VAPlayer) is still unlocking.
-                if (!primaryReady && !primaryFailed) return
+                if (!primaryReady && !primaryFailed && !primaryAttempted) return
             }
 
             const preferred = pickAutoStartPlaybackSource(playbackOptions, {
@@ -1023,7 +1112,7 @@ export function CineProWatchPlayer({
                     (id) =>
                         normalizeProviderName(id) === normalizeProviderName(primaryId)
                 )
-                if (!primaryReady && !primaryFailed) return
+                if (!primaryReady && !primaryFailed && !primaryAttempted) return
             }
 
             const preferred = pickAutoStartPlaybackSource(playbackOptions, {
@@ -1053,6 +1142,7 @@ export function CineProWatchPlayer({
         prefer4k,
         providerOrder,
         requestProvider,
+        scanAttemptedProviderIds,
         scanFailedProviderIds,
         selectedProviderKeyRef,
         selectedSourceId,
@@ -1154,10 +1244,14 @@ export function CineProWatchPlayer({
             const primaryFailed = scanFailedProviderIds.some(
                 (id) => normalizeProviderName(id) === normalizeProviderName(primaryId)
             )
+                const primaryAttempted = scanAttemptedProviderIds.some(
+                    (id) =>
+                        normalizeProviderName(id) === normalizeProviderName(primaryId)
+                )
             // Respect Sources order: do not auto-resolve onto #2/#3 while #1
             // (VAPlayer) is still unlocking — even after the server scan goes
             // quiet (RiveStream already has URLs). Wait until #1 is ready or failed.
-            if (!primaryReady && !primaryFailed) {
+            if (!primaryReady && !primaryFailed && !primaryAttempted) {
                 return ""
             }
         }
@@ -1177,6 +1271,7 @@ export function CineProWatchPlayer({
         playbackOptions,
         playbackPickGate,
         orderedEnabledProviderIds,
+        scanAttemptedProviderIds,
         scanFailedProviderIds,
         scanningProviderId,
         selectedSourceId,
@@ -1214,8 +1309,12 @@ export function CineProWatchPlayer({
         const primaryFailed = scanFailedProviderIds.some(
             (id) => normalizeProviderName(id) === normalizeProviderName(primaryId || "")
         )
+                const primaryAttempted = scanAttemptedProviderIds.some(
+                    (id) =>
+                        normalizeProviderName(id) === normalizeProviderName(primaryId || "")
+                )
         const primaryStillPending =
-            primaryIsClientResolve && !primaryReady && !primaryFailed
+            primaryIsClientResolve && !primaryReady && !primaryFailed && !primaryAttempted
 
         // Client-resolve #1 still unlocking — never force-start RiveStream/etc.
         if (primaryStillPending) {
@@ -1251,6 +1350,7 @@ export function CineProWatchPlayer({
         orderedEnabledProviderIds,
         playbackOptions,
         playbackPickGate,
+        scanAttemptedProviderIds,
         scanFailedProviderIds,
         scanningProviderId,
         sourceHealth,
@@ -1291,12 +1391,14 @@ export function CineProWatchPlayer({
             preferred &&
             !shouldHoldForHigherRankedProviders(preferred.providerId)
 
-        // Must evaluate stuckOnScrape before the stable early-return — otherwise
-        // a false "stable" on a bulk scrape permanently blocks upgrade.
-        if (playbackStableRef.current && !stuckOnScrape) return
+        // Real watch progress means the stream is delivering — never remount for
+        // a late higher-ranked provider (VSEmbed mid-play black → re-search).
+        const hasRealProgress = livePlaybackTimeRef.current >= 2
+        if (playbackStableRef.current && (hasRealProgress || !stuckOnScrape)) return
+        if (hasRealProgress) return
 
         const upgradeToPrimary =
-            stuckOnScrape ||
+            (stuckOnScrape && !hasRealProgress) ||
             shouldUpgradeToHigherRankedSource({
                 current,
                 preferred,
@@ -1304,7 +1406,7 @@ export function CineProWatchPlayer({
                 sourceHealth,
                 manualSelection: manualSelectionRef.current,
                 currentPlaybackTime: livePlaybackTimeRef.current,
-                playbackStable: stuckOnScrape ? false : playbackStableRef.current,
+                playbackStable: playbackStableRef.current,
             })
 
         if (!upgradeToPrimary) return
@@ -1361,12 +1463,29 @@ export function CineProWatchPlayer({
         return 0
     }, [playbackStable, selectedPlayback, upgradeResumeTime])
 
+    // Latch the in-use VSEmbed/CDN URL once settled so background unlock
+    // refreshes cannot swap src under HLS and remount/break mid-play.
+    if (
+        playbackStable &&
+        selectedPlayback?.src &&
+        !lockedPlaybackUrlRef.current
+    ) {
+        lockedPlaybackUrlRef.current = selectedPlayback.src
+    }
+    if (!playbackStable) {
+        if (!selectedPlayback || selectedSourceIdRef.current !== selectedPlayback.id) {
+            lockedPlaybackUrlRef.current = null
+        }
+    }
+
     const playerSource = useMemo(
         () =>
             selectedPlayback
                 ? {
                       id: selectedPlayback.id,
-                      url: selectedPlayback.src,
+                      url:
+                          (playbackStable && lockedPlaybackUrlRef.current) ||
+                          selectedPlayback.src,
                       type: selectedPlayback.sourceType,
                       cinemacityPageUrl: selectedPlayback.cinemacityPageUrl,
                       directClientPlayback: selectedPlayback.directClientPlayback,
@@ -1393,6 +1512,7 @@ export function CineProWatchPlayer({
             selectedPlayback?.iframeEmbed,
             selectedPlayback?.videasyPlayerSurface,
             selectedPlayback?.qualities,
+            playbackStable,
         ]
     )
 
@@ -1443,6 +1563,43 @@ export function CineProWatchPlayer({
 
         return merged
     }, [externalSubtitles, subtitles])
+
+
+    // If a source is selected but never produces progress (stuck "Preparing playback"),
+    // force failover to the next playable option instead of sitting on dual-green forever.
+    /* PLAYBACK_START_WATCHDOG */
+    useEffect(() => {
+        if (!playerSource || playbackActive || playbackStable || manualSelectionRef.current) return
+        if (isScanningProviders) return
+
+        const timer = window.setTimeout(() => {
+            if (playbackStableRef.current || playbackActive) return
+            const recovery = attemptRecoveryFallback()
+            if (!recovery || recovery.nextSourceId === selectedSourceId) {
+                // Soft-nudge: clear selection so pickAutoStart can choose another ready row.
+                const others = playbackOptions.filter(
+                    (option) => option.id !== selectedSourceId
+                )
+                const next = others[0]
+                if (!next) return
+                setRuntimeError("Source did not start — trying another…")
+                setSelectedSourceId(next.id)
+                return
+            }
+            setRuntimeError(recovery.statusMessage)
+            setSelectedSourceId(recovery.nextSourceId)
+        }, 10_000)
+
+        return () => window.clearTimeout(timer)
+    }, [
+        attemptRecoveryFallback,
+        isScanningProviders,
+        playbackActive,
+        playbackOptions,
+        playbackStable,
+        playerSource,
+        selectedSourceId,
+    ])
 
     const isAwaitingInitialPick =
         playbackOptions.length > 0 &&
@@ -1511,8 +1668,12 @@ export function CineProWatchPlayer({
 
     const handleSelectSource = (id: string, optionOverride?: PlaybackOption) => {
         setRuntimeError(undefined)
+        const priorTime = livePlaybackTimeRef.current
         playbackStableRef.current = false
         setPlaybackStable(false)
+        lockedPlaybackUrlRef.current = null
+        // Allow recovery remounts only for intentional taps (bump refuses after progress).
+        livePlaybackTimeRef.current = 0
 
         const option =
             optionOverride ?? playbackOptions.find((item) => item.id === id)
@@ -1521,13 +1682,24 @@ export function CineProWatchPlayer({
         )
         // VAPlayer/Videasy/Movy CDN remounts that inherit mid-title seek stall
         // with empty Quality. Force start@0 for those; keep hold for others.
-        const resumeAt = playbackPositionForRecovery(livePlaybackTimeRef.current)
+        const resumeAt = playbackPositionForRecovery(priorTime)
         if (optionIsClientResolve) {
             setUpgradeResumeTime(0)
             livePlaybackTimeRef.current = 0
+            const opening = openingPlaybackRef.current.startAt
+            const deferred =
+                typeof resumeAt === "number" && resumeAt > 0.5
+                    ? resumeAt
+                    : typeof opening === "number" && opening > 0.5
+                      ? opening
+                      : undefined
+            setDeferredContinueAt(deferred)
         } else if (resumeAt !== undefined) {
             setUpgradeResumeTime(resumeAt)
             livePlaybackTimeRef.current = resumeAt
+            setDeferredContinueAt(undefined)
+        } else {
+            setDeferredContinueAt(undefined)
         }
 
         if (option) {
@@ -1591,6 +1763,16 @@ export function CineProWatchPlayer({
         } else if (isClientResolve) {
             setUpgradeResumeTime(0)
             livePlaybackTimeRef.current = 0
+            const opening = openingPlaybackRef.current.startAt
+            const deferred =
+                typeof holdAt === "number" && holdAt > 0.5
+                    ? holdAt
+                    : typeof opening === "number" && opening > 0.5
+                      ? opening
+                      : undefined
+            setDeferredContinueAt(deferred)
+        } else {
+            setDeferredContinueAt(undefined)
         }
 
         // Keep the current stream mounted while the next provider resolves.
@@ -1831,6 +2013,17 @@ export function CineProWatchPlayer({
 const quietStallAttemptRef = useRef(0)
 
     const quietBackgroundStallCheck = useCallback(async () => {
+        // Once the stream has delivered any real progress, NEVER remount/re-unlock
+        // from a buffer stall. Soft HLS reload in MediaPlayer is enough — remounting
+        // flashes black + the source probe list while audio was already playing.
+        if (
+            playbackStableRef.current ||
+            playbackActive ||
+            livePlaybackTimeRef.current >= 0.5
+        ) {
+            return false
+        }
+
         const resumeAt = playbackPositionForRecovery(livePlaybackTimeRef.current)
         if (resumeAt === undefined) return false
 
@@ -1939,8 +2132,8 @@ const quietStallAttemptRef = useRef(0)
         refetchSourcesAsync,
         requestProvider,
         showRealProviderNames,
-        syncSelectedSourceId,
-    ])
+        syncSelectedSourceId,,
+        playbackActive])
 
     const refetchAndResumeSource = useCallback(
         async (sameProviderOnly: boolean) => {
@@ -2106,6 +2299,14 @@ const quietStallAttemptRef = useRef(0)
         }
 
         if (isProxyTokenPlaybackError(message) && !sourcesLoadingMore) {
+            // Mid-play proxy blips must not remount — that reopens the source list.
+            if (
+                playbackStableRef.current ||
+                playbackActive ||
+                livePlaybackTimeRef.current >= 0.5
+            ) {
+                return
+            }
             // Manual FileSuN tap used to hop to VAPlayer on the first proxy blip.
             void refetchAndResumeSource(Boolean(manualSelectionRef.current))
             return
@@ -2170,6 +2371,8 @@ const quietStallAttemptRef = useRef(0)
         postEmbedMessage(EMBED_MESSAGE_CONTROLS_VISIBLE, { visible })
     }, [])
 
+    // Never flash TITLE_NOT while we already hold playable rows (Rive kick
+    // vs VA hold) or before discovery has had a real chance to start.
     const showHardUnavailable =
         !playerSource &&
         !showSourceLoading &&
@@ -2179,7 +2382,9 @@ const quietStallAttemptRef = useRef(0)
         !sourcesLoadingMore &&
         !isScanningProviders &&
         !holdEmptyForDiscovery &&
-        !hasStartedPlaybackAttempt
+        !hasStartedPlaybackAttempt &&
+        sources.length === 0 &&
+        playbackOptions.length === 0
 
     let builtinPlayer: ReactNode
     if (playerSource) {
@@ -2196,9 +2401,13 @@ const quietStallAttemptRef = useRef(0)
                     parsed
                         ? `${parsed.providerId}:${parsed.type}`
                         : playerSource.id
-                const urlFp = String(playerSource.url || "")
-                    .replace(/[?#].*$/, "")
-                    .slice(-48)
+                // Once settled, ignore URL fingerprint changes from VSEmbed
+                // re-unlock refreshes — those remounts black-flash a working stream.
+                const urlFp = playbackStable
+                    ? "locked"
+                    : String(playerSource.url || "")
+                        .replace(/[?#].*$/, "")
+                        .slice(-48)
                 return embedMode
                     ? `embed:${mediaType}:${mediaId}:s${season ?? ""}:e${episode ?? ""}:${stable}:u${urlFp}:n${sourceSwitchNonce}`
                     : `${stable}:u${urlFp}:n${sourceSwitchNonce}`
@@ -2228,7 +2437,9 @@ const quietStallAttemptRef = useRef(0)
             unavailableProviders={unavailableProviders}
             sourceHealth={sourceHealth}
             activeTestingProviderId={activeTestingProviderId}
+            selectedProviderId={selectedPlayback?.providerId ?? selectedProviderKeyRef.current}
             scanFailedProviderIds={scanFailedProviderIds}
+            scanAttemptedProviderIds={scanAttemptedProviderIds}
             playbackToken={playbackToken}
             watchMeta={stableWatchMeta}
             resumeTime={
@@ -2239,6 +2450,11 @@ const quietStallAttemptRef = useRef(0)
                       : autoClientResolveResumeTime === 0
                         ? 0
                         : resumeTime
+            }
+            deferredResumeTime={
+                isWatchPartyGuest || awaitingPartyRoom
+                    ? undefined
+                    : deferredContinueAt
             }
             onPlaybackSync={isWatchPartyHost ? handlePlaybackSync : undefined}
             syncPlayback={isWatchPartyGuest ? syncPlayback : null}
@@ -2295,11 +2511,13 @@ const quietStallAttemptRef = useRef(0)
             diagnostics={diagnostics}
             cineproOnly={isVidLinkOnlySources(sources)}
             activeTestingProviderId={activeTestingProviderId}
+            selectedProviderId={selectedPlayback?.providerId ?? selectedProviderKeyRef.current}
             sourceHealth={sourceHealth}
             playbackOptions={playbackOptions}
             sourcesLoadingMore={sourcesLoadingMore}
             sourcesFetching={isLoading || (isScanningProviders && sources.length === 0)}
             scanFailedProviderIds={scanFailedProviderIds}
+            scanAttemptedProviderIds={scanAttemptedProviderIds}
             playbackStarted={Boolean(playerSource)}
             showRealProviderNames={showRealProviderNames}
             onRefetchSources={refetchSources}

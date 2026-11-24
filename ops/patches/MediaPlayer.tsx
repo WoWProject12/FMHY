@@ -27,7 +27,7 @@ import {
   EMBED_MESSAGE_WAKE_CHROME,
   type EmbedFullscreenStatePayload,
 } from "@/lib/embed-ui-sync"
-import {
+import { isIosSafariLike,
   addDocumentFullscreenChangeListener,
   addIosVideoFullscreenListeners,
   exitPlayerFullscreen,
@@ -421,11 +421,13 @@ interface MediaPlayerProps {
   unavailableProviders?: string[]
   sourceHealth?: Record<string, SourceHealthStatus>
   activeTestingProviderId?: string
+  selectedProviderId?: string
   /** Provider IDs soft/hard-failed during Auto Sources walk (Sources sheet circles). */
   scanFailedProviderIds?: string[]
   watchMeta?: WatchProgressMeta
   nextTvEpisodeOnComplete?: TvEpisodeRef | null
   resumeTime?: number
+  deferredResumeTime?: number
   playbackToken?: string
   onPlaybackSync?: (state: { currentTime: number; isPlaying: boolean }) => void
   syncPlayback?: {
@@ -497,6 +499,26 @@ function effectiveHlsLevelHeight(level: {
     heightFromHlsLevelName(level.name),
     nominalHeightFromWidth(level.width)
   )
+}
+
+
+/** CNO is hard-capped at 720p for MSE (CDN WxH in path). Prefer path/tag over bitrate fakes. */
+function cnoEffectiveHeight(
+  level: { height?: number; width?: number; name?: string; bitrate?: number },
+  playbackUrl = "",
+  qualityTag = ""
+): number {
+  const fromUrl = /\/(\d+)x(\d+)\//i.exec(playbackUrl || "")
+  if (fromUrl) {
+    const h = Number(fromUrl[2]) || 0
+    if (h > 0) return Math.min(h, 720)
+  }
+  const tagH = qualityHeight(String(qualityTag || ""))
+  if (tagH > 0) return Math.min(tagH, 720)
+  const h = effectiveHlsLevelHeight(level)
+  if (h > 0 && h <= 1080) return Math.min(h, 720)
+  // Bitrate-as-height fallbacks in describeHlsQualityLevel are not real pixels.
+  return 720
 }
 
 function isHevcHlsLevel(level: { codecs?: string; attrs?: { CODECS?: string } }): boolean {
@@ -617,10 +639,12 @@ export function MediaPlayer({
   unavailableProviders = [],
   sourceHealth,
   activeTestingProviderId,
+  selectedProviderId,
   scanFailedProviderIds = [],
   watchMeta,
   nextTvEpisodeOnComplete,
   resumeTime,
+  deferredResumeTime,
   playbackToken,
   onPlaybackSync,
   syncPlayback,
@@ -1078,7 +1102,8 @@ export function MediaPlayer({
         providerKey === "rivestream" ||
         providerKey === "vaplayer" ||
         providerKey === "novahd" ||
-        providerKey === "vidmoly"
+        providerKey === "vidmoly" ||
+        providerKey === "cno"
       if (abrHls) {
         const maxH = tagH > 0 ? tagH : 1080
         const heights = [2160, 1080, 720, 480].filter((h) => h <= maxH)
@@ -1598,6 +1623,70 @@ export function MediaPlayer({
       }
     }
   }, [resumeTime])
+
+  // Continue Watching / mid-watch hold: client-resolve remounts must start@0 or the
+  // fresh CDN stalls black. Once the stream is actually delivering, seek once.
+  const deferredSeekAppliedRef = useRef(false)
+  useEffect(() => {
+    deferredSeekAppliedRef.current = false
+  }, [source.id, deferredResumeTime])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (typeof deferredResumeTime !== "number" || deferredResumeTime <= 0.5) return
+
+    const trySeek = () => {
+      if (deferredSeekAppliedRef.current) return
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return
+      // User already moved on — don't yank them back to Continue Watching.
+      if (video.currentTime > 20) {
+        deferredSeekAppliedRef.current = true
+        return
+      }
+      let buffered = 0
+      try {
+        if (video.buffered.length > 0) {
+          buffered = video.buffered.end(0) - video.buffered.start(0)
+        }
+      } catch {}
+      if (buffered < 0.35 && video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
+        return
+      }
+
+      const maxSeek = Number.isFinite(video.duration)
+        ? Math.max(0, video.duration - 1)
+        : deferredResumeTime
+      const applied = Math.min(deferredResumeTime, maxSeek)
+      if (applied <= 0.5) {
+        deferredSeekAppliedRef.current = true
+        return
+      }
+      try {
+        video.currentTime = applied
+      } catch {
+        return
+      }
+      skipPlaybackTimeRef.current = applied
+      setCurrentTime(applied)
+      deferredSeekAppliedRef.current = true
+      if (video.paused) {
+        void video.play().catch(() => undefined)
+      }
+    }
+
+    video.addEventListener("loadeddata", trySeek)
+    video.addEventListener("canplay", trySeek)
+    video.addEventListener("playing", trySeek)
+    const timer = window.setInterval(trySeek, 350)
+    trySeek()
+    return () => {
+      video.removeEventListener("loadeddata", trySeek)
+      video.removeEventListener("canplay", trySeek)
+      video.removeEventListener("playing", trySeek)
+      window.clearInterval(timer)
+    }
+  }, [deferredResumeTime, source.id])
 
   const continueSessionKey = useMemo(() => {
     if (!watchMeta?.id) return ""
@@ -2672,7 +2761,12 @@ export function MediaPlayer({
           let levels = capAthenaQualities(
             hls.levels.flatMap((level, index) => {
               const row = describeHlsQualityLevel(level, index)
-              return row ? [row] : []
+              if (!row) return []
+              if (providerKeyForLadder === "cno") {
+                const h = cnoEffectiveHeight(level, playbackUrl, String(metaForLadder?.quality || ""))
+                return [{ ...row, height: h, label: h >= 2160 ? "4K" : `${h}p` }]
+              }
+              return [row]
             }),
             providerKeyForLadder,
             playbackUrl
@@ -2792,6 +2886,16 @@ export function MediaPlayer({
           // rung, still expose a 4K row so the quality sheet matches the server.
           const sourceMetaForQuality = sources?.find((entry) => entry.id === source.id)
           const providerKeyForQuality = resolveSourceProviderKey(sourceMetaForQuality)
+          if (providerKeyForQuality === "cno") {
+            levels = levels.map((row, index) => {
+              const h = cnoEffectiveHeight(
+                hls.levels[index] || {},
+                playbackUrl,
+                String(sourceMetaForQuality?.quality || "")
+              )
+              return { ...row, height: h, label: h >= 2160 ? "4K" : `${h}p` }
+            })
+          }
           const qualityTag = String(sourceMetaForQuality?.quality || "").toLowerCase()
           // Only invent a synthetic 4K row for remux/transcode 4K HLS — not for
           // cinejoy masters where MSE dropped an HEVC 4K rung (would flicker).
@@ -3721,6 +3825,8 @@ export function MediaPlayer({
         }
         // 2) Parent remount only as a rare last resort (was ~18s → every stall).
         if (!onBufferStallRef.current) return
+        // After first paint, parent remount/re-unlock is worse than a soft stall.
+        if (hasPlayedOnceRef.current || skipPlaybackTimeRef.current >= 0.5) return
         const now = Date.now()
         if (now - stallRecoveryAtRef.current < 60_000) return
         stallRecoveryAtRef.current = now
@@ -3732,7 +3838,11 @@ export function MediaPlayer({
       // After the timeline has moved, keep the picture — don't flash the
       // full-screen "Finding a stream…" blackout over audible VAPlayer audio.
       const alreadyStarted =
-        video.currentTime > 0.35 || skipPlaybackTimeRef.current > 0.5
+        hasPlayedOnceRef.current ||
+        video.currentTime > 0.35 ||
+        skipPlaybackTimeRef.current > 0.5
+      // Never flip the full-screen source probe list back on after playback
+      // has already painted — that is the mid-play "loading list" flicker.
       if (!alreadyStarted) {
         setIsLoading(true)
       }
@@ -4268,7 +4378,14 @@ export function MediaPlayer({
 
   const toggleFullscreen = () => {
     const consoleVideo = videoRef.current
-    if (consoleVideo && (isPlayStationBrowser() || document.fullscreenEnabled === false)) {
+    // Only force native <video> controls on PlayStation / iOS WebKit.
+    // On Android Chrome inside a partner iframe, fullscreenEnabled is often
+    // false — flipping console controls made the FS button feel dead.
+    if (
+      consoleVideo &&
+      (isPlayStationBrowser() ||
+        (isIosSafariLike() && document.fullscreenEnabled === false))
+    ) {
       setConsoleControls(true)
       setInlinePlayback(false)
       enterConsoleVideoFullscreen(consoleVideo)
@@ -5015,11 +5132,14 @@ export function MediaPlayer({
           sourcesLoadingMore={sourcesLoadingMore}
           sourceHealth={sourceHealth}
           activeTestingProviderId={activeTestingProviderId}
+          selectedProviderId={selectedProviderId}
           scanFailedProviderIds={scanFailedProviderIds}
           unavailableProviders={unavailableProviders}
           isLoading={isLoading}
           isPlaying={isPlaying}
-          hasPlaybackProgress={duration > 0.05 || currentTime > 0.5}
+          hasPlaybackProgress={
+            hasPlayedOnce || duration > 0.05 || currentTime > 0.5 || isPlaying
+          }
           statusInsetLeft={statusInsetLeft}
           showRealProviderNames={showRealProviderNames}
           isFullscreen={isFullscreen}
@@ -5130,6 +5250,7 @@ export function MediaPlayer({
         unavailableProviders={unavailableProviders}
         sourceHealth={sourceHealth}
         activeTestingProviderId={activeTestingProviderId}
+          selectedProviderId={selectedProviderId}
         scanFailedProviderIds={scanFailedProviderIds}
         subtitles={effectiveSubtitles}
         currentSubtitleId={selectedSubtitleId}
