@@ -103,4 +103,4 @@ declare(strict_types=1);
 </div>
 
 <script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=32" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=33" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=34" defer></script>

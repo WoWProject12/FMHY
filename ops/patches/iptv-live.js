@@ -74,7 +74,9 @@
           logo: channel.logo || "",
           country: channel.country || "",
           streamUrl: channel.streamUrl || channel.url || "",
+          playPageUrl: channel.playPageUrl || "",
           tvgId: channel.tvgId || "",
+          epg: Array.isArray(channel.epg) ? channel.epg.slice(0, 4) : [],
         })
       );
     } catch (e) {}
@@ -103,46 +105,70 @@
     return null;
   }
 
+  function channelFromSnap(snap) {
+    if (!snap || !snap.id) return null;
+    var id = String(snap.id);
+    for (var i = 0; i < channels.length; i++) {
+      if (String(channels[i].id) === id) {
+        return { channel: channels[i], index: i };
+      }
+    }
+    return {
+      channel: {
+        id: id,
+        name: snap.name || ("Channel " + id),
+        logo: snap.logo || "",
+        country: snap.country || "",
+        streamUrl: snap.streamUrl || "",
+        url: snap.streamUrl || "",
+        playPageUrl: snap.playPageUrl || "",
+        tvgId: snap.tvgId || "",
+        epg: Array.isArray(snap.epg) ? snap.epg : [],
+      },
+      index: -1,
+    };
+  }
+
   function resumePlayIfNeeded() {
     if (resumedPlay) return;
-    if (root.classList.contains("is-player")) {
-      resumedPlay = true;
-      return;
-    }
     var snap = readPlayPersist();
     if (!snap || !snap.id) {
       resumedPlay = true;
       return;
     }
     resumedPlay = true;
-    var id = String(snap.id);
-    var ch = null;
-    var idx = -1;
-    for (var i = 0; i < channels.length; i++) {
-      if (String(channels[i].id) === id) {
-        ch = channels[i];
-        idx = i;
-        break;
-      }
-    }
-    if (!ch) {
-      // Prefer snapshot so we can reopen even if channel is off first page
-      if (snap.streamUrl || snap.name) {
-        ch = {
-          id: id,
-          name: snap.name || ("Channel " + id),
-          logo: snap.logo || "",
-          country: snap.country || "",
-          streamUrl: snap.streamUrl || "",
-          url: snap.streamUrl || "",
-          tvgId: snap.tvgId || "",
-        };
-        idx = -1;
-      } else {
+    try {
+      var found = channelFromSnap(snap);
+      if (!found || !found.channel) return;
+      if (
+        root.classList.contains("is-player") &&
+        activeId &&
+        String(activeId) === String(found.channel.id)
+      ) {
         return;
       }
+      showPlayer(found.channel, found.index);
+    } catch (eResume) {
+      try {
+        console.warn("iptv resume failed", eResume);
+      } catch (eLog) {}
     }
-    showPlayer(ch, idx);
+  }
+
+  /** Show player UI immediately on refresh — do not wait for channel list. */
+  function optimisticResumeShell() {
+    var snap = readPlayPersist();
+    if (!snap || !snap.id) return;
+    try {
+      var found = channelFromSnap(snap);
+      if (!found || !found.channel) return;
+      showPlayer(found.channel, found.index);
+      resumedPlay = true;
+    } catch (eOpt) {
+      try {
+        console.warn("iptv optimistic resume failed", eOpt);
+      } catch (eLog2) {}
+    }
   }
 
 
@@ -1070,8 +1096,18 @@
             }
             renderCountries();
           }
-          renderList();
-          if (!append) resumePlayIfNeeded();
+          if (!(root.classList.contains("is-player") && !append)) {
+            renderList();
+          } else if (!append) {
+            try {
+              renderCountries();
+            } catch (eC) {}
+          }
+          if (!append) {
+            try {
+              resumePlayIfNeeded();
+            } catch (eR) {}
+          }
         })
         .catch(function (err) {
           clearTimeout(timer);
@@ -1391,5 +1427,6 @@
     window.addEventListener("storage", syncAccountBadge);
   } catch (e5) {}
 
+  optimisticResumeShell();
   loadChannels(false);
 })();
