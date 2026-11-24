@@ -486,7 +486,7 @@
   function loadLogoMap() {
     if (LOGO_MAP.ready) return Promise.resolve(LOGO_MAP);
     if (LOGO_MAP.loading) return LOGO_MAP.loading;
-    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=44", {
+    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=45", {
       credentials: "same-origin",
       cache: "force-cache",
     })
