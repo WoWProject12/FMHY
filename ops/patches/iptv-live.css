@@ -27,15 +27,16 @@ body.page-iptv nav[aria-label="Mobile navigation"] {
   opacity: 1 !important;
 }
 
+/* Keep Chillflix aurora backdrop (same as rest of site) */
 body.page-iptv .aurora-bg {
-  opacity: 0.28;
-  filter: saturate(0.35);
+  opacity: 1;
+  filter: none;
 }
 
 html.page-iptv,
 body.page-iptv {
-  background: #1a1f26 !important;
-  color: #f3f4f6;
+  background: #0c0b09 !important;
+  color: #f4efe6;
 }
 
 body.page-iptv .layout-container,
@@ -45,20 +46,22 @@ body.page-iptv .page-wrap {
   max-width: none !important;
   padding: 0 !important;
   margin: 0 !important;
-  background: #1a1f26 !important;
+  background: transparent !important;
 }
 
 .huhu {
-  --huhu-bg: #1a1f26;
-  --huhu-panel: #232833;
-  --huhu-panel-2: #2a303c;
-  --huhu-text: #f3f4f6;
-  --huhu-muted: #9aa3b2;
-  --huhu-accent: #eb2b58;
+  /* Cinema theme tokens — match chillflix.lol */
+  --huhu-bg: transparent;
+  --huhu-panel: #1b1916;
+  --huhu-panel-2: #221f1b;
+  --huhu-text: #f4efe6;
+  --huhu-muted: #c2b08a;
+  --huhu-accent: #e4c27a;
+  --huhu-border: rgba(244, 239, 230, 0.12);
   min-height: 100dvh;
-  background: var(--huhu-bg);
+  background: transparent;
   color: var(--huhu-text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px));
   position: relative;
   z-index: 2;
@@ -100,7 +103,8 @@ body.page-iptv .page-wrap {
 
 .huhu-tab.is-on {
   background: var(--huhu-panel-2);
-  color: #fff;
+  color: #f4efe6;
+  box-shadow: inset 0 0 0 1px rgba(228, 194, 122, 0.22);
 }
 
 /* Search — soft floating shadow like photo */
@@ -113,7 +117,7 @@ body.page-iptv .page-wrap {
   border-radius: 12px;
   background: var(--huhu-panel);
   color: var(--huhu-muted);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--huhu-border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
 }
 
@@ -145,7 +149,7 @@ body.page-iptv .page-wrap {
 .huhu-select select {
   width: 100%;
   height: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--huhu-border);
   border-radius: 12px;
   background: var(--huhu-panel);
   color: var(--huhu-text);
@@ -198,13 +202,13 @@ body.page-iptv .page-wrap {
 
 .huhu-row:hover,
 .huhu-row.is-on {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(228, 194, 122, 0.06);
 }
 
 .huhu-idx {
   font-size: 12px;
   font-weight: 500;
-  color: #8e96a5;
+  color: rgba(194, 176, 138, 0.78);
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -249,7 +253,7 @@ body.page-iptv .page-wrap {
   display: block;
   font-size: 13px;
   font-weight: 650;
-  color: #fff;
+  color: #f4efe6;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -271,7 +275,7 @@ body.page-iptv .page-wrap {
   margin-top: 6px;
   height: 2.5px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(244, 239, 230, 0.12);
   overflow: hidden;
   display: block;
   width: 100%;
@@ -283,6 +287,7 @@ body.page-iptv .page-wrap {
   width: 0;
   background: var(--huhu-accent);
   border-radius: inherit;
+  box-shadow: 0 0 8px rgba(228, 194, 122, 0.35);
 }
 
 .huhu-heart {
@@ -290,7 +295,7 @@ body.page-iptv .page-wrap {
   height: 34px;
   border: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(244, 239, 230, 0.72);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -316,12 +321,14 @@ body.page-iptv .page-wrap {
   height: 52px;
   border: 0;
   border-radius: 12px 0 0 12px;
-  background: #2a303c;
-  color: #fff;
+  background: #221f1b;
+  color: #f4efe6;
   display: grid;
   place-items: center;
   cursor: pointer;
   box-shadow: -2px 0 12px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(228, 194, 122, 0.18);
+  border-right: 0;
 }
 
 .huhu.is-player .huhu-side-handle { display: none; }
@@ -385,10 +392,11 @@ body.page-iptv .page-wrap {
 
 .huhu-sheet {
   flex: 0 0 auto;
-  background: #171b22;
+  background: #141311;
   border-radius: 22px 22px 0 0;
   padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.45);
+  border-top: 1px solid rgba(228, 194, 122, 0.14);
 }
 
 .huhu-sheet-head {
@@ -426,7 +434,7 @@ body.page-iptv .page-wrap {
   height: 36px;
   border: 0;
   background: transparent;
-  color: #fff;
+  color: #f4efe6;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -450,7 +458,7 @@ body.page-iptv .page-wrap {
 .huhu-epg-left { color: var(--huhu-muted); white-space: nowrap; }
 
 .huhu-epg-title {
-  color: #fff;
+  color: #f4efe6;
   font-weight: 650;
   white-space: nowrap;
   overflow: hidden;
@@ -461,7 +469,7 @@ body.page-iptv .page-wrap {
   margin: 10px 0 8px;
   height: 3px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(244, 239, 230, 0.12);
   overflow: hidden;
 }
 
