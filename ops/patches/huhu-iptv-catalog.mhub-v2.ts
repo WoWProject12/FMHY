@@ -184,6 +184,8 @@ function mapCatalogItem(item: HuhuCatalogItem): IptvChannel | null {
     })
     .filter(Boolean) as Array<{ title: string; start: string; end: string }>
 
+  const tvgId = item.ids?.tvg ? String(item.ids.tvg).trim() : ""
+
   return {
     id,
     name: item.name || id,
@@ -191,6 +193,7 @@ function mapCatalogItem(item: HuhuCatalogItem): IptvChannel | null {
     p: 0,
     playPageUrl: item.url || buildHuhuIptvPlayPageUrl(id),
     logo,
+    tvgId: tvgId || undefined,
     epg: epg.length ? epg : undefined,
   }
 }
