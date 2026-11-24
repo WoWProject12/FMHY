@@ -315,16 +315,85 @@
     }
   }
 
+
+  var parkedDocks = [];
+  var dockWatchTimer = null;
+
+  function parkSiteDock() {
+    document.body.classList.add("is-iptv-player");
+    document.documentElement.classList.add("is-iptv-player");
+    document.querySelectorAll(
+      "nav.toflix-mobile-dock, nav[aria-label='Mobile navigation']"
+    ).forEach(function (el) {
+      if (el.getAttribute("data-iptv-parked") === "1") return;
+      parkedDocks.push({
+        el: el,
+        parent: el.parentNode,
+        next: el.nextSibling,
+      });
+      el.setAttribute("data-iptv-parked", "1");
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    if (dockWatchTimer) clearInterval(dockWatchTimer);
+    // Site scripts force-reinject the dock with inline !important — keep parking it.
+    dockWatchTimer = setInterval(function () {
+      if (!root.classList.contains("is-player")) return;
+      document.querySelectorAll(
+        "nav.toflix-mobile-dock, nav[aria-label='Mobile navigation']"
+      ).forEach(function (el) {
+        if (el.getAttribute("data-iptv-parked") === "1") {
+          if (el.parentNode) el.parentNode.removeChild(el);
+          return;
+        }
+        parkedDocks.push({
+          el: el,
+          parent: el.parentNode,
+          next: el.nextSibling,
+        });
+        el.setAttribute("data-iptv-parked", "1");
+        if (el.parentNode) el.parentNode.removeChild(el);
+      });
+    }, 250);
+  }
+
+  function restoreSiteDock() {
+    document.body.classList.remove("is-iptv-player");
+    document.documentElement.classList.remove("is-iptv-player");
+    if (dockWatchTimer) {
+      clearInterval(dockWatchTimer);
+      dockWatchTimer = null;
+    }
+    parkedDocks.forEach(function (item) {
+      try {
+        item.el.removeAttribute("data-iptv-parked");
+        item.el.removeAttribute("hidden");
+        item.el.style.removeProperty("display");
+        item.el.style.removeProperty("visibility");
+        item.el.style.removeProperty("opacity");
+        item.el.style.removeProperty("pointer-events");
+        item.el.style.removeProperty("transform");
+        item.el.style.removeProperty("height");
+        if (!item.parent) return;
+        if (item.next && item.next.parentNode === item.parent) {
+          item.parent.insertBefore(item.el, item.next);
+        } else {
+          item.parent.appendChild(item.el);
+        }
+      } catch (e) {}
+    });
+    parkedDocks = [];
+  }
+
+  function setSiteDockHidden(hidden) {
+    if (hidden) parkSiteDock();
+    else restoreSiteDock();
+  }
+
   function showPlayer(channel, index) {
     activeId = String(channel.id);
     activeIndex = index;
     root.classList.add("is-player");
-    document.body.classList.add("is-iptv-player");
-    document.documentElement.classList.add("is-iptv-player");
-    document.querySelectorAll("nav.toflix-mobile-dock, nav[aria-label='Mobile navigation']").forEach(function (el) {
-      el.setAttribute("hidden", "");
-      el.style.setProperty("display", "none", "important");
-    });
+    setSiteDockHidden(true);
     if (listView) listView.hidden = true;
     if (playerView) playerView.hidden = false;
 
@@ -356,12 +425,7 @@
 
   function hidePlayer() {
     root.classList.remove("is-player");
-    document.body.classList.remove("is-iptv-player");
-    document.documentElement.classList.remove("is-iptv-player");
-    document.querySelectorAll("nav.toflix-mobile-dock, nav[aria-label='Mobile navigation']").forEach(function (el) {
-      el.removeAttribute("hidden");
-      el.style.removeProperty("display");
-    });
+    setSiteDockHidden(false);
     if (playerView) playerView.hidden = true;
     if (listView) listView.hidden = false;
     destroyPlayer();

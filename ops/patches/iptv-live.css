@@ -535,3 +535,23 @@ body.page-iptv .page-wrap {
     justify-content: flex-end;
   }
 }
+
+
+/* Final override: never show site dock over Live TV player */
+html.is-iptv-player nav.toflix-mobile-dock,
+html.is-iptv-player nav[aria-label="Mobile navigation"],
+body.is-iptv-player nav.toflix-mobile-dock,
+body.is-iptv-player nav[aria-label="Mobile navigation"],
+html.is-iptv-player .Dock-module-scss-module__qZDorW__dockOuter,
+html.is-iptv-player .Dock-module-scss-module__qZDorW__dockPanel.dock-panel,
+body.is-iptv-player .Dock-module-scss-module__qZDorW__dockOuter,
+body.is-iptv-player .Dock-module-scss-module__qZDorW__dockPanel.dock-panel {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  transform: translateY(120%) !important;
+}
