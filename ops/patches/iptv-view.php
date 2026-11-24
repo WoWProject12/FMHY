@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=25">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=26">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -18,17 +18,21 @@ declare(strict_types=1);
       </label>
 
       <div class="huhu-filters">
-        <label class="huhu-select">
-          <select id="iptvSort">
-            <option value="trending">Trending</option>
-            <option value="name">A–Z</option>
-          </select>
-        </label>
-        <label class="huhu-select">
-          <select id="iptvCountry">
-            <option value="">Country: all</option>
-          </select>
-        </label>
+        <div class="huhu-dd" data-dd="sort">
+          <button type="button" class="huhu-dd-btn" id="iptvSortBtn" aria-haspopup="listbox" aria-expanded="false">Trending</button>
+          <div class="huhu-dd-menu" id="iptvSortMenu" role="listbox" hidden>
+            <button type="button" class="huhu-dd-option is-on" role="option" data-value="trending">Trending</button>
+            <button type="button" class="huhu-dd-option" role="option" data-value="name">A–Z</button>
+          </div>
+          <input type="hidden" id="iptvSort" value="trending">
+        </div>
+        <div class="huhu-dd" data-dd="country">
+          <button type="button" class="huhu-dd-btn" id="iptvCountryBtn" aria-haspopup="listbox" aria-expanded="false">Country: all</button>
+          <div class="huhu-dd-menu" id="iptvCountryMenu" role="listbox" hidden>
+            <button type="button" class="huhu-dd-option is-on" role="option" data-value="">Country: all</button>
+          </div>
+          <input type="hidden" id="iptvCountry" value="">
+        </div>
       </div>
     </header>
 
@@ -98,5 +102,5 @@ declare(strict_types=1);
   </button>
 </div>
 
-<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=25" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=25" defer></script>
+<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=26" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=26" defer></script>

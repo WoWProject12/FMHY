@@ -1,6 +1,8 @@
 /* Live TV — match huhu list sizes; Chillflix floating dock */
 
 /* Site header OFF; Chillflix dock ON */
+html body.page-iptv #siteHeader,
+html body.page-iptv header#siteHeader,
 body.page-iptv #siteHeader,
 body.page-iptv nav[aria-label="Main"],
 body.page-iptv .header-fade,
@@ -17,6 +19,9 @@ body.page-iptv .huhu-dock {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
 }
 
 body.page-iptv nav.toflix-mobile-dock,
@@ -176,9 +181,13 @@ body.page-iptv .page-wrap {
   gap: 10px;
 }
 
-.huhu-select { position: relative; display: block; }
+/* Themed dropdowns (no native OS picker) */
+.huhu-dd {
+  position: relative;
+  display: block;
+}
 
-.huhu-select select {
+.huhu-dd-btn {
   width: 100%;
   height: 40px;
   border: 1px solid var(--huhu-border);
@@ -189,14 +198,14 @@ body.page-iptv .page-wrap {
   font-weight: 560;
   font-family: inherit;
   padding: 0 30px 0 12px;
-  appearance: none;
-  -webkit-appearance: none;
+  text-align: left;
   outline: none;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.huhu-select::after {
+.huhu-dd-btn::after {
   content: "";
   position: absolute;
   right: 14px;
@@ -207,6 +216,74 @@ body.page-iptv .page-wrap {
   border-bottom: 2px solid var(--huhu-muted);
   transform: translateY(-65%) rotate(45deg);
   pointer-events: none;
+}
+
+.huhu-dd.is-open .huhu-dd-btn {
+  border-color: rgba(228, 194, 122, 0.45);
+}
+
+.huhu-dd-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  max-height: min(280px, 50vh);
+  overflow: auto;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(228, 194, 122, 0.22);
+  background: #161410;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  -webkit-overflow-scrolling: touch;
+}
+
+.huhu-dd-menu[hidden] { display: none !important; }
+
+.huhu-dd-option {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--huhu-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.huhu-dd-option:hover,
+.huhu-dd-option:focus {
+  background: rgba(228, 194, 122, 0.1);
+  outline: none;
+}
+
+.huhu-dd-option.is-on {
+  color: var(--huhu-accent);
+  background: rgba(228, 194, 122, 0.14);
+  font-weight: 650;
+}
+
+.huhu-status-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+.huhu-retry-btn {
+  border: 1px solid rgba(228, 194, 122, 0.35);
+  background: var(--huhu-panel);
+  color: var(--huhu-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
 }
 
 .huhu-rows {

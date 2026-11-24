@@ -4,6 +4,16 @@
   var root = document.getElementById("iptvApp");
   if (!root) return;
 
+  // Site chrome can be re-shown by layout pin scripts — keep it off on Live TV
+  try {
+    document.body.classList.add("page-iptv");
+    var siteHeader = document.getElementById("siteHeader");
+    if (siteHeader) {
+      siteHeader.setAttribute("hidden", "");
+      siteHeader.style.setProperty("display", "none", "important");
+    }
+  } catch (eHdr) {}
+
   var listView = document.getElementById("iptvListView");
   var playerView = document.getElementById("iptvPlayerView");
   var listEl = document.getElementById("iptvList");
@@ -424,32 +434,64 @@
   }
 
   function renderCountries() {
-    if (!countryEl) return;
-    var selected = countryEl.value;
-    var html = '<option value="">Country: all</option>';
-    groups.forEach(function (g) {
-      html +=
-        '<option value="' +
-        escapeAttr(g) +
-        '"' +
-        (g === selected ? " selected" : "") +
-        ">Country: " +
-        escapeHtml(g) +
-        "</option>";
-    });
-    countryEl.innerHTML = html;
+    var menu = document.getElementById("iptvCountryMenu");
+    var btn = document.getElementById("iptvCountryBtn");
+    if (!menu || !countryEl) return;
+    var selected = countryEl.value || "";
+    var opts = [{ value: "", label: "Country: all" }].concat(
+      groups.map(function (g) {
+        return { value: g, label: "Country: " + g };
+      })
+    );
+    menu.innerHTML = opts
+      .map(function (o) {
+        return (
+          '<button type="button" class="huhu-dd-option' +
+          (o.value === selected ? " is-on" : "") +
+          '" role="option" data-value="' +
+          escapeAttr(o.value) +
+          '">' +
+          escapeHtml(o.label) +
+          "</button>"
+        );
+      })
+      .join("");
+    if (btn) {
+      var cur = opts.find(function (o) {
+        return o.value === selected;
+      });
+      btn.textContent = cur ? cur.label : "Country: all";
+    }
+  }
+
+  function setStatus(msg, withRetry) {
+    if (!statusEl) return;
+    if (!withRetry) {
+      statusEl.textContent = msg;
+      return;
+    }
+    statusEl.innerHTML =
+      escapeHtml(msg) +
+      '<div class="huhu-status-actions"><button type="button" class="huhu-retry-btn" id="iptvRetryLoad">Retry</button></div>';
+    var retry = document.getElementById("iptvRetryLoad");
+    if (retry) {
+      retry.addEventListener("click", function () {
+        loadChannels(false);
+      });
+    }
   }
 
   function renderList() {
     var rows = visibleChannels();
     if (statusEl) {
       if (!rows.length) {
-        statusEl.textContent = tab === "favs" ? "No favorites yet." : "No channels";
+        setStatus(tab === "favs" ? "No favorites yet." : "No channels");
       } else {
-        statusEl.textContent =
+        setStatus(
           rows.length +
-          (totalAll > rows.length && tab === "live" ? " / " + totalAll : "") +
-          " channels";
+            (totalAll > rows.length && tab === "live" ? " / " + totalAll : "") +
+            " channels"
+        );
       }
     }
     if (!listEl) return;
@@ -733,12 +775,21 @@
     btn.classList.toggle("is-on", !video.muted);
   }
 
+  var loadAbort = null;
+  var loadSeq = 0;
+
   function loadChannels(append) {
     if (append) {
       if (loadingMore || channels.length >= totalAll) return;
       loadingMore = true;
-    } else if (statusEl) {
-      statusEl.textContent = "Loading…";
+    } else {
+      loadingMore = false;
+      setStatus("Loading…");
+      if (loadAbort) {
+        try {
+          loadAbort.abort();
+        } catch (e) {}
+      }
     }
 
     var params = new URLSearchParams({
@@ -753,45 +804,154 @@
     if (country) params.set("country", country);
     if (sort) params.set("sort", sort);
 
-    fetch("/api/iptv/channels?" + params.toString(), {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        loadingMore = false;
-        if (!data || !data.success) {
-          throw new Error((data && data.error) || "Failed to load channels");
-        }
-        var batch = Array.isArray(data.channels) ? data.channels : [];
-        totalAll = Number(data.totalAll || data.total || batch.length) || batch.length;
-        channels = append ? channels.concat(batch) : batch;
+    var seq = ++loadSeq;
+    var attempts = 0;
+    var maxAttempts = append ? 1 : 2;
 
-        if (!append) {
-          if (Array.isArray(data.countryCounts) && data.countryCounts.length) {
-            groups = data.countryCounts
-              .map(function (c) { return c.country; })
-              .filter(Boolean);
-          } else {
-            groups = Array.from(
-              new Set(channels.map(function (c) { return c.country; }).filter(Boolean))
-            ).sort();
-          }
-          renderCountries();
-        }
-        renderList();
+    function fail(err) {
+      if (seq !== loadSeq) return;
+      loadingMore = false;
+      if (!append) {
+        channels = [];
+        if (listEl) listEl.innerHTML = "";
+        setStatus(
+          (err && err.message) || "Failed to load channels",
+          true
+        );
+      }
+    }
+
+    function attempt() {
+      attempts += 1;
+      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      if (!append) loadAbort = ctrl;
+      var timer = setTimeout(function () {
+        if (ctrl) ctrl.abort();
+      }, 12000);
+
+      fetch("/api/iptv/channels?" + params.toString(), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal: ctrl ? ctrl.signal : undefined,
       })
-      .catch(function (err) {
-        loadingMore = false;
-        if (!append) {
-          channels = [];
-          renderList();
-          if (statusEl) {
-            statusEl.textContent = err && err.message ? err.message : "Failed to load";
+        .then(function (r) {
+          if (!r.ok) throw new Error("Channels unavailable (" + r.status + ")");
+          return r.text().then(function (text) {
+            try {
+              return JSON.parse(text);
+            } catch (e) {
+              throw new Error("Bad channels response");
+            }
+          });
+        })
+        .then(function (data) {
+          clearTimeout(timer);
+          if (seq !== loadSeq) return;
+          loadingMore = false;
+          if (!data || !data.success) {
+            throw new Error((data && data.error) || "Failed to load channels");
           }
-        }
+          var batch = Array.isArray(data.channels) ? data.channels : [];
+          totalAll =
+            Number(data.totalAll || data.total || batch.length) || batch.length;
+          channels = append ? channels.concat(batch) : batch;
+
+          if (!append) {
+            if (Array.isArray(data.countryCounts) && data.countryCounts.length) {
+              groups = data.countryCounts
+                .map(function (c) {
+                  return c.country;
+                })
+                .filter(Boolean);
+            } else {
+              groups = Array.from(
+                new Set(
+                  channels
+                    .map(function (c) {
+                      return c.country;
+                    })
+                    .filter(Boolean)
+                )
+              ).sort();
+            }
+            renderCountries();
+          }
+          renderList();
+        })
+        .catch(function (err) {
+          clearTimeout(timer);
+          if (seq !== loadSeq) return;
+          var aborted = err && (err.name === "AbortError" || /abort/i.test(String(err)));
+          if (!append && attempts < maxAttempts) {
+            setStatus(aborted ? "Still loading…" : "Retrying…");
+            setTimeout(attempt, aborted ? 400 : 700);
+            return;
+          }
+          fail(
+            aborted
+              ? new Error("Loading timed out")
+              : err || new Error("Failed to load")
+          );
+        });
+    }
+
+    attempt();
+  }
+
+  function closeAllDropdowns() {
+    root.querySelectorAll(".huhu-dd.is-open").forEach(function (dd) {
+      dd.classList.remove("is-open");
+      var menu = dd.querySelector(".huhu-dd-menu");
+      var btn = dd.querySelector(".huhu-dd-btn");
+      if (menu) menu.hidden = true;
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function wireDropdowns() {
+    root.querySelectorAll(".huhu-dd").forEach(function (dd) {
+      var btn = dd.querySelector(".huhu-dd-btn");
+      var menu = dd.querySelector(".huhu-dd-menu");
+      var input = dd.querySelector('input[type="hidden"]');
+      if (!btn || !menu || !input) return;
+
+      btn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var open = !dd.classList.contains("is-open");
+        closeAllDropdowns();
+        if (!open) return;
+        dd.classList.add("is-open");
+        menu.hidden = false;
+        btn.setAttribute("aria-expanded", "true");
       });
+
+      menu.addEventListener("click", function (ev) {
+        var opt = ev.target && ev.target.closest ? ev.target.closest(".huhu-dd-option") : null;
+        if (!opt || !menu.contains(opt)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        var value = opt.getAttribute("data-value");
+        if (value == null) value = "";
+        input.value = value;
+        btn.textContent = opt.textContent || value;
+        menu.querySelectorAll(".huhu-dd-option").forEach(function (o) {
+          o.classList.toggle("is-on", o === opt);
+        });
+        closeAllDropdowns();
+        loadChannels(false);
+      });
+    });
+
+    document.addEventListener(
+      "click",
+      function (ev) {
+        if (ev.target && ev.target.closest && ev.target.closest(".huhu-dd")) return;
+        closeAllDropdowns();
+      },
+      true
+    );
   }
 
   // Tabs
@@ -833,8 +993,8 @@
       searchTimer = setTimeout(function () { loadChannels(false); }, 280);
     });
   }
-  if (countryEl) countryEl.addEventListener("change", function () { loadChannels(false); });
-  if (sortEl) sortEl.addEventListener("change", function () { loadChannels(false); });
+  wireDropdowns();
+  renderCountries();
 
   var dockSearch = document.getElementById("iptvDockSearch");
   var sideHandle = document.getElementById("iptvSideHandle");
