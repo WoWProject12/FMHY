@@ -28,28 +28,27 @@ $items = [
   .dock-item-live {
     position: relative;
   }
+  .dock-item-live .Dock-module-scss-module__qZDorW__dockIcon {
+    position: relative;
+  }
   .dock-new-badge {
     position: absolute;
-    top: 0;
-    right: 2px;
+    top: -5px;
+    right: -10px;
     left: auto;
     transform: none;
     z-index: 3;
-    padding: 0 3px;
-    border-radius: 4px;
-    font-size: 7px;
+    padding: 0 2px;
+    border-radius: 3px;
+    font-size: 6px;
     font-weight: 800;
-    letter-spacing: 0.04em;
-    line-height: 1.35;
+    letter-spacing: 0.03em;
+    line-height: 1.4;
     color: #0c0b09;
     background: #e4c27a;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     pointer-events: none;
     white-space: nowrap;
-  }
-  .dock-item-live .Dock-module-scss-module__qZDorW__dockIcon,
-  .dock-item-live .dock-label {
-    position: relative;
   }
 </style>
 <nav class="fixed bottom-0 left-0 right-0 z-40 pointer-events-none md:hidden toflix-mobile-dock" aria-label="Mobile navigation">
@@ -74,8 +73,8 @@ $items = [
         <span class="dock-label">Shows</span>
       </a>
       <a aria-label="Live TV" href="<?= movy_e(movy_url('/iptv')) ?>" class="<?= $itemClass . ' dock-item-live' . ($nav === 'iptv' ? $activeClass : '') ?>" title="Live TV">
-        <span class="dock-new-badge" aria-hidden="true">NEW</span>
         <span class="Dock-module-scss-module__qZDorW__dockIcon" aria-hidden="true">
+          <span class="dock-new-badge">NEW</span>
           <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="20"><path d="m8 3 4 4 4-4"/><rect width="20" height="13" x="2" y="7" rx="2"/><circle cx="12" cy="13.5" r="2.25"/><path d="M7 20h10"/></svg>
         </span>
         <span class="dock-label">Live</span>

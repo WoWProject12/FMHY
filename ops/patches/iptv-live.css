@@ -90,7 +90,8 @@ body.page-iptv .page-wrap {
 .huhu-list-view {
   max-width: 720px;
   margin: 0 auto;
-  padding: 12px 16px 110px;
+  /* Extra right pad so hearts clear the side handle */
+  padding: 12px 36px 110px 16px;
 }
 
 .huhu-top {
@@ -219,7 +220,7 @@ body.page-iptv .page-wrap {
 /* Compact rows — reference text/avatars are smaller than our old 15px/50px */
 .huhu-row {
   display: grid;
-  grid-template-columns: 20px 42px minmax(0, 1fr) 40px;
+  grid-template-columns: 20px 42px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -230,6 +231,7 @@ body.page-iptv .page-wrap {
   text-align: left;
   cursor: pointer;
   border-radius: 10px;
+  position: relative;
 }
 
 .huhu-row:hover,
@@ -325,23 +327,34 @@ body.page-iptv .page-wrap {
 .huhu-heart {
   position: relative;
   z-index: 6;
-  width: 40px;
-  height: 40px;
-  margin-right: -4px;
+  width: 44px;
+  height: 44px;
+  margin: 0;
   border: 0;
   background: transparent;
-  color: rgba(244, 239, 230, 0.78);
+  color: rgba(244, 239, 230, 0.9);
   display: grid;
   place-items: center;
   cursor: pointer;
   border-radius: 999px;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  pointer-events: auto;
+  pointer-events: auto !important;
+  flex-shrink: 0;
 }
 
-.huhu-heart.is-on { color: var(--huhu-accent); }
-.huhu-heart svg { pointer-events: none; width: 18px; height: 18px; }
+.huhu-heart.is-on {
+  color: var(--huhu-accent);
+}
+.huhu-heart.is-on svg path {
+  fill: currentColor;
+  stroke: none;
+}
+.huhu-heart svg {
+  pointer-events: none !important;
+  width: 20px;
+  height: 20px;
+}
 
 .huhu-status {
   margin: 18px 0 0;
@@ -350,23 +363,25 @@ body.page-iptv .page-wrap {
   font-size: 13px;
 }
 
+/* Left edge — must NOT cover favorite hearts on the right */
 .huhu-side-handle {
   position: fixed;
-  right: 0;
+  left: 0;
+  right: auto;
   top: 42%;
-  z-index: 65;
-  width: 28px;
+  z-index: 40;
+  width: 26px;
   height: 52px;
   border: 0;
-  border-radius: 12px 0 0 12px;
+  border-radius: 0 12px 12px 0;
   background: #221f1b;
   color: #f4efe6;
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(228, 194, 122, 0.18);
-  border-right: 0;
+  border-left: 0;
 }
 
 .huhu.is-player .huhu-side-handle { display: none; }

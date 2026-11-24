@@ -60,6 +60,76 @@
     return list.indexOf(id) !== -1;
   }
 
+  var lastFavTapAt = 0;
+  var lastFavTapId = "";
+
+  function heartSvg(on) {
+    return on
+      ? '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="currentColor"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+  }
+
+  function applyHeartUI(btn, on) {
+    if (!btn) return;
+    btn.classList.toggle("is-on", !!on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.innerHTML = heartSvg(!!on);
+  }
+
+  /** Single tap only — ignore duplicate pointer/click within 450ms (mobile double-fire). */
+  function favTap(id, btn) {
+    id = String(id);
+    var now = Date.now();
+    if (id === lastFavTapId && now - lastFavTapAt < 450) {
+      return isFav(id);
+    }
+    lastFavTapAt = now;
+    lastFavTapId = id;
+    var on = toggleFav(id);
+    applyHeartUI(btn, on);
+    return on;
+  }
+
+  function wireHeartButtons() {
+    if (!listEl) return;
+    var buttons = listEl.querySelectorAll(".huhu-heart[data-fav]");
+    for (var i = 0; i < buttons.length; i++) {
+      (function (btn) {
+        btn.onclick = function (ev) {
+          if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          }
+          var id = btn.getAttribute("data-fav");
+          if (!id) return false;
+          favTap(id, btn);
+          if (tab === "favs") renderList();
+          return false;
+        };
+        // Block row open without toggling (avoids pointerdown+click double toggle)
+        btn.onpointerdown = function (ev) {
+          if (ev) {
+            ev.stopPropagation();
+            if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          }
+        };
+        btn.ontouchend = function (ev) {
+          if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          }
+          var id = btn.getAttribute("data-fav");
+          if (!id) return false;
+          favTap(id, btn);
+          if (tab === "favs") renderList();
+          return false;
+        };
+      })(buttons[i]);
+    }
+  }
+
   function avatarColor(name) {
     var s = String(name || "?");
     var hash = 0;
@@ -266,14 +336,13 @@
           '" data-fav="' +
           escapeAttr(id) +
           '" aria-label="Favorite">' +
-          (fav
-            ? '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="currentColor"/></svg>'
-            : '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>') +
+          heartSvg(fav) +
           "</button>" +
           "</div>"
         );
       })
       .join("");
+    wireHeartButtons();
   }
 
   function updatePlayerEpg(channel) {
@@ -570,31 +639,14 @@
     });
   });
 
-  // List interactions — fav heart must not open the player
+  // Row click opens player — hearts handle themselves via wireHeartButtons()
   if (listEl) {
     listEl.addEventListener(
       "click",
       function (ev) {
-        var favBtn =
-          ev.target && ev.target.closest
-            ? ev.target.closest(".huhu-heart, [data-fav]")
-            : null;
-        if (favBtn && listEl.contains(favBtn)) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-          var favId = favBtn.getAttribute("data-fav");
-          if (!favId) return;
-          var on = toggleFav(favId);
-          // Update just this heart without full re-render (avoids click races)
-          favBtn.classList.toggle("is-on", on);
-          favBtn.innerHTML = on
-            ? '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="currentColor"/></svg>'
-            : '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
-          if (statusEl && tab === "favs") renderList();
+        if (ev.target && ev.target.closest && ev.target.closest(".huhu-heart, [data-fav]")) {
           return;
         }
-
         var row = ev.target.closest(".huhu-row[data-id], [data-id]");
         if (!row || !listEl.contains(row)) return;
         var id = row.getAttribute("data-id");
@@ -605,7 +657,7 @@
         if (idx < 0) return;
         showPlayer(rows[idx], idx);
       },
-      true
+      false
     );
   }
 
