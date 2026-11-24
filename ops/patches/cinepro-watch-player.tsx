@@ -274,7 +274,6 @@ export function CineProWatchPlayer({
 
     const livePlaybackTimeRef = useRef(0)
     const [upgradeResumeTime, setUpgradeResumeTime] = useState<number | undefined>()
-    const [deferredContinueAt, setDeferredContinueAt] = useState<number | undefined>()
 
     const resumeTime = useMemo(() => {
         // Explicit 0 = manual VAPlayer/Videasy/Movy remount — do not fall
@@ -294,7 +293,6 @@ export function CineProWatchPlayer({
 
     useEffect(() => {
         setUpgradeResumeTime(undefined)
-        setDeferredContinueAt(undefined)
         livePlaybackTimeRef.current = 0
     }, [mediaId, mediaType, season, episode])
 
@@ -797,11 +795,6 @@ export function CineProWatchPlayer({
             if (isClientResolve) {
                 setUpgradeResumeTime(0)
                 livePlaybackTimeRef.current = 0
-                // Remount at 0 so fresh CDN can start; seek to Continue Watching after ready.
-                const opening = openingPlaybackRef.current.startAt
-                setDeferredContinueAt(
-                    typeof opening === "number" && opening > 0.5 ? opening : undefined
-                )
             }
 
             const alreadyCommitted = autoClientResolveCommitRef.current === commitKey
@@ -1686,20 +1679,9 @@ export function CineProWatchPlayer({
         if (optionIsClientResolve) {
             setUpgradeResumeTime(0)
             livePlaybackTimeRef.current = 0
-            const opening = openingPlaybackRef.current.startAt
-            const deferred =
-                typeof resumeAt === "number" && resumeAt > 0.5
-                    ? resumeAt
-                    : typeof opening === "number" && opening > 0.5
-                      ? opening
-                      : undefined
-            setDeferredContinueAt(deferred)
         } else if (resumeAt !== undefined) {
             setUpgradeResumeTime(resumeAt)
             livePlaybackTimeRef.current = resumeAt
-            setDeferredContinueAt(undefined)
-        } else {
-            setDeferredContinueAt(undefined)
         }
 
         if (option) {
@@ -1763,16 +1745,6 @@ export function CineProWatchPlayer({
         } else if (isClientResolve) {
             setUpgradeResumeTime(0)
             livePlaybackTimeRef.current = 0
-            const opening = openingPlaybackRef.current.startAt
-            const deferred =
-                typeof holdAt === "number" && holdAt > 0.5
-                    ? holdAt
-                    : typeof opening === "number" && opening > 0.5
-                      ? opening
-                      : undefined
-            setDeferredContinueAt(deferred)
-        } else {
-            setDeferredContinueAt(undefined)
         }
 
         // Keep the current stream mounted while the next provider resolves.
@@ -2450,11 +2422,6 @@ const quietStallAttemptRef = useRef(0)
                       : autoClientResolveResumeTime === 0
                         ? 0
                         : resumeTime
-            }
-            deferredResumeTime={
-                isWatchPartyGuest || awaitingPartyRoom
-                    ? undefined
-                    : deferredContinueAt
             }
             onPlaybackSync={isWatchPartyHost ? handlePlaybackSync : undefined}
             syncPlayback={isWatchPartyGuest ? syncPlayback : null}

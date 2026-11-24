@@ -427,7 +427,6 @@ interface MediaPlayerProps {
   watchMeta?: WatchProgressMeta
   nextTvEpisodeOnComplete?: TvEpisodeRef | null
   resumeTime?: number
-  deferredResumeTime?: number
   playbackToken?: string
   onPlaybackSync?: (state: { currentTime: number; isPlaying: boolean }) => void
   syncPlayback?: {
@@ -644,7 +643,6 @@ export function MediaPlayer({
   watchMeta,
   nextTvEpisodeOnComplete,
   resumeTime,
-  deferredResumeTime,
   playbackToken,
   onPlaybackSync,
   syncPlayback,
@@ -1623,70 +1621,6 @@ export function MediaPlayer({
       }
     }
   }, [resumeTime])
-
-  // Continue Watching / mid-watch hold: client-resolve remounts must start@0 or the
-  // fresh CDN stalls black. Once the stream is actually delivering, seek once.
-  const deferredSeekAppliedRef = useRef(false)
-  useEffect(() => {
-    deferredSeekAppliedRef.current = false
-  }, [source.id, deferredResumeTime])
-
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    if (typeof deferredResumeTime !== "number" || deferredResumeTime <= 0.5) return
-
-    const trySeek = () => {
-      if (deferredSeekAppliedRef.current) return
-      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return
-      // User already moved on — don't yank them back to Continue Watching.
-      if (video.currentTime > 20) {
-        deferredSeekAppliedRef.current = true
-        return
-      }
-      let buffered = 0
-      try {
-        if (video.buffered.length > 0) {
-          buffered = video.buffered.end(0) - video.buffered.start(0)
-        }
-      } catch {}
-      if (buffered < 0.35 && video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
-        return
-      }
-
-      const maxSeek = Number.isFinite(video.duration)
-        ? Math.max(0, video.duration - 1)
-        : deferredResumeTime
-      const applied = Math.min(deferredResumeTime, maxSeek)
-      if (applied <= 0.5) {
-        deferredSeekAppliedRef.current = true
-        return
-      }
-      try {
-        video.currentTime = applied
-      } catch {
-        return
-      }
-      skipPlaybackTimeRef.current = applied
-      setCurrentTime(applied)
-      deferredSeekAppliedRef.current = true
-      if (video.paused) {
-        void video.play().catch(() => undefined)
-      }
-    }
-
-    video.addEventListener("loadeddata", trySeek)
-    video.addEventListener("canplay", trySeek)
-    video.addEventListener("playing", trySeek)
-    const timer = window.setInterval(trySeek, 350)
-    trySeek()
-    return () => {
-      video.removeEventListener("loadeddata", trySeek)
-      video.removeEventListener("canplay", trySeek)
-      video.removeEventListener("playing", trySeek)
-      window.clearInterval(timer)
-    }
-  }, [deferredResumeTime, source.id])
 
   const continueSessionKey = useMemo(() => {
     if (!watchMeta?.id) return ""

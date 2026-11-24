@@ -1,16 +1,13 @@
-# Continue Watching: deferred seek after client-resolve remount
+# Continue Watching: deferred seek (ROLLED BACK LIVE)
 
-## Symptom
-After VAPlayer / Videasy / 7Movies / Movy (client-resolve) auto-pick or Sources remount, Continue Watching / `?startAt=` opened from the beginning instead of the saved position.
+## Status
+**Rolled back on chillflix.pw** (2026-11-24 ~15:34Z). Live traffic is back on `.next-embed38` (`pcv=20261124T1533Zrollback`).
 
-## Cause
-Client-resolve remounts intentionally force `upgradeResumeTime = 0` so a fresh CDN URL can start without black-stall. That sticky zero also blocked `resolveResumeTime` / opening `startAt`, so MediaPlayer always mounted at t=0 with no later seek.
+The `.next-embed39` deploy that included deferred seek left the player stuck on “Looking for the fastest source” / SourceProbeFlow for titles such as movie `1368337`. VA resolve itself still returned streams; the client never left the probe overlay.
 
-## Fix (live on chillflix.pw, build `.next-embed39`)
-1. `cinepro-watch-player.tsx` — keep remount-at-0 for client-resolve, but stash the intended time in `deferredContinueAt` (from opening `startAt` or prior hold time) and pass it as `deferredResumeTime` to MediaPlayer.
-2. `MediaPlayer.tsx` — once the video has current data / buffer, seek once to `deferredResumeTime` (skip if the user already scrubbed past ~20s).
+## Intended fix (not live)
+Keep client-resolve remounts at t=0, stash Continue Watching / `?startAt=` in `deferredContinueAt`, seek once in MediaPlayer after HAVE_CURRENT_DATA.
 
-## Deploy notes
-- `NEXT_DIST_DIR=.next-embed39` in `start-player-new.sh`, `start-player-b.sh`, `start-embed.sh`
-- pcv buster `20261124T1529Zcd1e`
-- Active upstream remains `chillflix-player-b` on `:3029`
+## Do not re-flip to embed39 until
+1. Deferred-seek change is re-tested on a side process (e.g. player A :3002) with a real embed open.
+2. Probe overlay clears and playback starts for a fresh title and a Continue Watching title.
