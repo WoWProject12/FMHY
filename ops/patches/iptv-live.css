@@ -71,17 +71,17 @@ body.page-iptv .page-wrap {
 .huhu * { box-sizing: border-box; }
 
 .huhu-list-view {
-  /* Narrower content column — more side gutter like the reference */
-  max-width: 420px;
+  /* Narrower than full phone width — match reference gutters */
+  max-width: 390px;
   margin: 0 auto;
-  padding: 14px 26px 110px;
+  padding: 12px 34px 110px;
 }
 
 @media (min-width: 480px) {
   .huhu-list-view {
-    max-width: 460px;
-    padding-left: 32px;
-    padding-right: 32px;
+    max-width: 420px;
+    padding-left: 40px;
+    padding-right: 40px;
   }
 }
 
@@ -121,11 +121,17 @@ body.page-iptv .page-wrap {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 46px;
-  padding: 0 16px;
+  height: 44px;
+  padding: 0 14px;
   border-radius: 14px;
   background: var(--huhu-panel);
   color: var(--huhu-muted);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    0 6px 14px rgba(0, 0, 0, 0.28),
+    0 1px 2px rgba(0, 0, 0, 0.22);
 }
 
 .huhu-search input {
@@ -134,7 +140,7 @@ body.page-iptv .page-wrap {
   outline: none;
   background: transparent;
   color: var(--huhu-text);
-  font-size: 15px;
+  font-size: 14px;
   font-family: inherit;
 }
 
@@ -150,12 +156,12 @@ body.page-iptv .page-wrap {
 
 .huhu-select select {
   width: 100%;
-  height: 44px;
-  border: 0;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 14px;
   background: var(--huhu-panel);
   color: var(--huhu-text);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 560;
   font-family: inherit;
   padding: 0 34px 0 14px;
@@ -163,6 +169,11 @@ body.page-iptv .page-wrap {
   -webkit-appearance: none;
   outline: none;
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    0 6px 14px rgba(0, 0, 0, 0.28),
+    0 1px 2px rgba(0, 0, 0, 0.22);
 }
 
 .huhu-select::after {
@@ -187,11 +198,11 @@ body.page-iptv .page-wrap {
 
 .huhu-row {
   display: grid;
-  grid-template-columns: 22px 48px minmax(0, 1fr) 36px;
+  grid-template-columns: 20px 44px minmax(0, 1fr) 34px;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 13px 0;
+  padding: 11px 0;
   border: 0;
   background: transparent;
   color: inherit;
@@ -214,12 +225,12 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.94);
   letter-spacing: -0.02em;
@@ -230,7 +241,7 @@ body.page-iptv .page-wrap {
   z-index: 1;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 6px 16px rgba(0, 0, 0, 0.55),
+    0 5px 14px rgba(0, 0, 0, 0.55),
     0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
@@ -253,7 +264,7 @@ body.page-iptv .page-wrap {
 
 .huhu-name {
   display: block;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: #fff;
   white-space: nowrap;
@@ -263,8 +274,8 @@ body.page-iptv .page-wrap {
 
 .huhu-epg-line {
   display: block;
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 3px;
+  font-size: 11.5px;
   color: var(--huhu-muted);
   white-space: nowrap;
   overflow: hidden;
