@@ -319,6 +319,12 @@
     activeId = String(channel.id);
     activeIndex = index;
     root.classList.add("is-player");
+    document.body.classList.add("is-iptv-player");
+    document.documentElement.classList.add("is-iptv-player");
+    document.querySelectorAll("nav.toflix-mobile-dock, nav[aria-label='Mobile navigation']").forEach(function (el) {
+      el.setAttribute("hidden", "");
+      el.style.setProperty("display", "none", "important");
+    });
     if (listView) listView.hidden = true;
     if (playerView) playerView.hidden = false;
 
@@ -350,6 +356,12 @@
 
   function hidePlayer() {
     root.classList.remove("is-player");
+    document.body.classList.remove("is-iptv-player");
+    document.documentElement.classList.remove("is-iptv-player");
+    document.querySelectorAll("nav.toflix-mobile-dock, nav[aria-label='Mobile navigation']").forEach(function (el) {
+      el.removeAttribute("hidden");
+      el.style.removeProperty("display");
+    });
     if (playerView) playerView.hidden = true;
     if (listView) listView.hidden = false;
     destroyPlayer();
