@@ -594,10 +594,12 @@ body.page-iptv .page-wrap {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 4px;
+  gap: 2px;
   margin-bottom: 16px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  padding-bottom: 2px;
 }
 
 .huhu-toolbar::-webkit-scrollbar { display: none; }
@@ -747,3 +749,14 @@ body.is-iptv-player .Dock-module-scss-module__qZDorW__dockPanel.dock-panel {
   color: #f4efe6;
 }
 .huhu-account-av.has-avatar .dock-acct-fallback { display: none; }
+
+@media (max-width: 420px) {
+  .huhu-toolbar .huhu-icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .huhu-toolbar .huhu-icon-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+}

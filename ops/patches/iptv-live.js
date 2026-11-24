@@ -868,7 +868,7 @@
   }
 
   var chromeTimer = null;
-  var CHROME_HIDE_MS = 2000;
+  var CHROME_HIDE_MS = 4500;
 
   function clearChromeTimer() {
     if (chromeTimer) {
