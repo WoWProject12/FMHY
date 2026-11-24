@@ -1423,6 +1423,22 @@
     window.addEventListener("storage", syncAccountBadge);
   } catch (e5) {}
 
+
+  var partyBtn = document.getElementById("iptvParty");
+  if (partyBtn) {
+    partyBtn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try {
+        var base = "";
+        try { base = String(document.body.getAttribute("data-base") || ""); } catch (eB) {}
+        window.location.href = base + "/party";
+      } catch (eParty) {
+        window.location.href = "/party";
+      }
+    });
+  }
+
   optimisticResumeShell();
   loadChannels(false);
 })();

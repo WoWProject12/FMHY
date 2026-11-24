@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=35">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=36">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -76,6 +76,13 @@ declare(strict_types=1);
         <button type="button" id="iptvFs" class="huhu-icon-btn" title="Fullscreen" aria-label="Fullscreen">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
+        <button type="button" id="iptvParty" class="huhu-icon-btn" title="Watch Party" aria-label="Watch Party">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="9" cy="8" r="3.2"/>
+            <path d="M3.5 19a5.5 5.5 0 0 1 11 0"/>
+            <path d="M18 7v4M20 9h-4"/>
+          </svg>
+        </button>
         <!-- Logged-in indicator only (not clickable) — uses site profile avatar -->
         <span id="iptvAccount" class="huhu-icon-btn huhu-account-badge" title="Logged in" aria-label="Logged in" hidden>
           <span class="huhu-account-av" data-acct-nav-av aria-hidden="true">
@@ -103,4 +110,4 @@ declare(strict_types=1);
 </div>
 
 <script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=32" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=35" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=36" defer></script>
