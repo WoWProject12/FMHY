@@ -345,9 +345,21 @@ body.page-iptv .page-wrap {
 .huhu-avatar img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: inherit;
   display: block;
+  background: #161410;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.huhu-avatar.has-logo {
+  background: #161410 !important;
+  overflow: hidden;
+}
+
+.huhu-avatar-fallback[hidden] {
+  display: none !important;
 }
 
 .huhu-avatar-lg {
@@ -471,6 +483,9 @@ body.page-iptv .page-wrap {
 }
 
 .huhu.is-player .huhu-side-handle { display: none; }
+
+/* Removed Sources edge tab */
+.huhu-side-handle { display: none !important; }
 
 /* PLAYER */
 .huhu-list-view[hidden],

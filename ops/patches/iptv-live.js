@@ -192,8 +192,13 @@
     var avatar = document.getElementById("iptvNowAvatar");
     var nameEl = document.getElementById("iptvNowName");
     if (avatar) {
-      avatar.textContent = initial(activeChannel.name);
-      avatar.style.background = avatarColor(activeChannel.name);
+      var wrap = document.createElement("div");
+      wrap.innerHTML = avatarHtml(activeChannel, "huhu-avatar-lg");
+      var nextAv = wrap.firstChild;
+      if (nextAv) {
+        nextAv.id = avatar.id;
+        avatar.replaceWith(nextAv);
+      }
     }
     if (nameEl) nameEl.textContent = displayNameNoNumber(activeChannel.name);
     updatePlayerEpg(activeChannel);
@@ -467,6 +472,107 @@
     return (s.charAt(0) || "?").toUpperCase();
   }
 
+
+  var COUNTRY_TLD = {
+    croatia: "hr", bulgaria: "bg", france: "fr", germany: "de",
+    italy: "it", spain: "es", portugal: "pt", poland: "pl",
+    romania: "ro", netherlands: "nl", turkey: "tr", russia: "ru",
+    "united kingdom": "uk", uk: "uk", arabia: "ae", albania: "al",
+    balkans: "ba", "france sport": "fr"
+  };
+
+  function channelNameSlug(name) {
+    var clean = String(name || "")
+      .replace(/\s*[(\[]\s*#?\d+\s*[)\]]\s*$/u, "")
+      .replace(/\b(HD|FHD|HEVC|SD|4K|UHD|H265)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return clean.toLowerCase().replace(/[^a-z0-9]+/gi, "");
+  }
+
+  function logoDomains(name, country, tvgId) {
+    var domains = [];
+    var nameSlug = channelNameSlug(name);
+    var tld = COUNTRY_TLD[String(country || "").toLowerCase().trim()] || "";
+    if (nameSlug && tld) {
+      if (nameSlug.length > 2 && nameSlug.slice(-2) === "tv") {
+        domains.push(nameSlug.slice(0, -2) + "." + tld);
+      }
+      domains.push(nameSlug + "." + tld);
+    }
+    tvgId = String(tvgId || "").trim();
+    if (tvgId.indexOf(".") !== -1 && nameSlug) {
+      var parts = tvgId.split(".");
+      var tvgTld = String(parts.pop() || "").toLowerCase();
+      var tvgSlug = parts.join("").toLowerCase().replace(/[^a-z0-9]+/gi, "");
+      var related =
+        tvgSlug &&
+        (tvgSlug.indexOf(nameSlug) !== -1 ||
+          nameSlug.indexOf(tvgSlug) !== -1 ||
+          (nameSlug.length >= 4 && tvgSlug.indexOf(nameSlug.slice(0, 4)) === 0));
+      if (related && tvgTld) {
+        if (tvgSlug.length > 2 && tvgSlug.slice(-2) === "tv") {
+          domains.push(tvgSlug.slice(0, -2) + "." + tvgTld);
+        }
+        domains.push(tvgSlug + "." + tvgTld);
+      }
+    }
+    var out = [];
+    var seen = {};
+    domains.forEach(function (d) {
+      d = String(d || "").toLowerCase().trim();
+      if (!d || seen[d]) return;
+      seen[d] = true;
+      out.push(d);
+    });
+    return out;
+  }
+
+  /** Same idea as search Live hits: brand icon, else provider logo. */
+  function channelLogoUrl(ch) {
+    if (!ch) return "";
+    var huhu = String(ch.logo || "").trim();
+    var domains = logoDomains(ch.name, ch.country, ch.tvgId || ch.tvg_id || "");
+    if (domains.length) {
+      return "https://icon.horse/icon/" + encodeURIComponent(domains[0]);
+    }
+    if (/^https?:\/\//i.test(huhu)) return huhu;
+    return "";
+  }
+
+  function avatarHtml(ch, extraClass) {
+    var letter = escapeHtml(initial(ch && ch.name));
+    var color = avatarColor(ch && ch.name);
+    var logo = channelLogoUrl(ch);
+    var cls = "huhu-avatar" + (extraClass ? " " + extraClass : "") + (logo ? " has-logo" : "");
+    if (!logo) {
+      return (
+        '<span class="' +
+        cls +
+        '" style="background:' +
+        color +
+        '">' +
+        letter +
+        "</span>"
+      );
+    }
+    return (
+      '<span class="' +
+      cls +
+      '" style="background:' +
+      color +
+      '">' +
+      '<img src="' +
+      escapeAttr(logo) +
+      '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.display=\'none\';var f=this.parentNode&&this.parentNode.querySelector(\'.huhu-avatar-fallback\');if(f){f.hidden=false;this.parentNode.classList.remove(\'has-logo\');}" />' +
+      '<span class="huhu-avatar-fallback" hidden>' +
+      letter +
+      "</span>" +
+      "</span>"
+    );
+  }
+
+
   /** Player title: keep name, drop trailing channel numbers like " (7)" / " #1". */
   function displayNameNoNumber(name) {
     return String(name || "Channel")
@@ -691,11 +797,7 @@
           '<span class="huhu-idx">' +
           (idx + 1) +
           "</span>" +
-          '<span class="huhu-avatar" style="background:' +
-          avatarColor(ch.name) +
-          '">' +
-          escapeHtml(initial(ch.name)) +
-          "</span>" +
+          avatarHtml(ch) +
           '<span class="huhu-meta">' +
           '<span class="huhu-name">' +
           escapeHtml(ch.name || id) +
@@ -866,8 +968,13 @@
     var favBtn = document.getElementById("iptvFavPlayer");
 
     if (avatar) {
-      avatar.textContent = initial(channel.name);
-      avatar.style.background = avatarColor(channel.name);
+      var wrap = document.createElement("div");
+      wrap.innerHTML = avatarHtml(channel, "huhu-avatar-lg");
+      var nextAv = wrap.firstChild;
+      if (nextAv) {
+        nextAv.id = avatar.id;
+        avatar.replaceWith(nextAv);
+      }
     }
     if (rank) {
       rank.hidden = true;
@@ -1269,15 +1376,6 @@
   renderCountries();
 
   var dockSearch = document.getElementById("iptvDockSearch");
-  var sideHandle = document.getElementById("iptvSideHandle");
-  if (sideHandle) {
-    sideHandle.addEventListener("click", function () {
-      if (searchEl) {
-        searchEl.focus();
-        try { searchEl.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
-      }
-    });
-  }
 
   if (dockSearch && searchEl) {
     dockSearch.addEventListener("click", function () {

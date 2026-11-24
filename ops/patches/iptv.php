@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=39">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=40">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -104,10 +104,7 @@ declare(strict_types=1);
   </div>
 
 
-  <button type="button" class="huhu-side-handle" id="iptvSideHandle" title="Sources" aria-label="Sources">
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="6" cy="12" r="2.2" fill="currentColor"/><circle cx="16" cy="6" r="2.2" fill="currentColor"/><circle cx="16" cy="18" r="2.2" fill="currentColor"/><path d="M8 12h6M14 7.5 8.8 11M14 16.5 8.8 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-  </button>
 </div>
 
 <script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=32" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=39" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=40" defer></script>
