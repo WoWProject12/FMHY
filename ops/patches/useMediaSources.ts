@@ -2043,10 +2043,14 @@ function unwrapVaplayerViewerSource(source: MediaSource): MediaSource {
               } else if (
                 sourcesIncludeStartedProvider(sourcesRef.current, providerId)
               ) {
-                // URLs returned but never became ready in settle (dead CDN /
-                // hung HLS). Soft-demote and keep walking so #2 (7Movies)
-                // can start instead of freezing the spinner on VAPlayer.
-                markProviderFailed(providerId)
+                // VAPlayer often returns CDN URLs that never play. Soft-demote
+                // only that row so Auto reaches 7Movies. Other client-resolve
+                // (7Movies MP4/Orion) can first-win on URLs alone.
+                if (normalizeProviderName(providerId) === "vaplayer") {
+                  markProviderFailed(providerId)
+                } else {
+                  break
+                }
               }
             }
 

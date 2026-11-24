@@ -873,6 +873,8 @@ export type ProviderScanGate = {
     isScanningProviders?: boolean
     scanningProviderId?: string
     scanFailedProviderIds?: readonly string[]
+    /** Sticky Auto walk — demote past these even if soft-fail was cleared. */
+    scanAttemptedProviderIds?: readonly string[]
     /** When set, lower-ranked providers unlock after this many ms (admin Head-start). */
     scanStartedAt?: number
     /** Admin-configured #1 exclusive window; falls back to PRIMARY_PROVIDER_HEAD_START_MS. */
@@ -902,6 +904,9 @@ export function filterPlaybackOptionsByScanGate<
     const failed = new Set(
         (gate.scanFailedProviderIds ?? []).map((id) => normalizeProviderName(id))
     )
+    const attempted = new Set(
+        (gate.scanAttemptedProviderIds ?? []).map((id) => normalizeProviderName(id))
+    )
     const activeId = gate.scanningProviderId
         ? normalizeProviderName(gate.scanningProviderId)
         : ""
@@ -929,12 +934,12 @@ export function filterPlaybackOptionsByScanGate<
 
         for (let index = 0; index < rank; index += 1) {
             const higherId = order[index] ?? ""
-            if (failed.has(higherId)) {
+            if (failed.has(higherId) || attempted.has(higherId)) {
                 continue
             }
             // After head-start, non-client primaries may yield. Client-resolve
-            // #1 (VAPlayer) must stay gated until it fails — otherwise RiveStream
-            // unlocks in the gate at 2s and auto ignores Sources order.
+            // #1 (VAPlayer) must stay gated until it fails/attempted — otherwise
+            // RiveStream unlocks in the gate at 2s and auto ignores Sources order.
             if (
                 headStartExpired &&
                 higherId === primaryId &&
@@ -1036,9 +1041,7 @@ export function pickForceStartPlaybackSource<
                 .some((providerId) => {
                     const key = normalizeProviderName(providerId)
                     if (!isClientResolveProvider(key)) return false
-                    if (args.pickGate?.scanFailedProviderIds?.has(key)) return false
-                    if (args.pickGate?.unavailableProviderIds?.has(key)) return false
-                    if (args.pickGate?.healthFailedProviderIds?.has(key)) return false
+                    if (isProviderDemotedForPick(key, args.pickGate)) return false
                     return !nonHold.some(
                         (option) =>
                             normalizeProviderName(option.providerId ?? "") === key
@@ -1053,11 +1056,7 @@ export function pickForceStartPlaybackSource<
 
     const higherStillOpen = order.some((providerId) => {
         if (shouldHoldForHigherRankedProviders(providerId)) return false
-        return (
-            !args.pickGate?.scanFailedProviderIds?.has(providerId) &&
-            !args.pickGate?.unavailableProviderIds?.has(providerId) &&
-            !args.pickGate?.healthFailedProviderIds?.has(providerId)
-        )
+        return !isProviderDemotedForPick(providerId, args.pickGate)
     })
     if (higherStillOpen) {
         return undefined
@@ -1177,6 +1176,7 @@ export type PlaybackPickGate = {
     unavailableProviderIds?: ReadonlySet<string>
     healthFailedProviderIds?: ReadonlySet<string>
     scanFailedProviderIds?: ReadonlySet<string>
+    scanAttemptedProviderIds?: ReadonlySet<string>
     sourceHealth?: Record<string, "idle" | "checking" | "ready" | "failed">
     primaryProviderId?: string
 }
@@ -1188,6 +1188,7 @@ export function buildPlaybackPickGate(args: {
     playbackOptions?: Array<{ id: string; providerId?: string }>
     primaryProviderId?: string
     scanFailedProviderIds?: ReadonlySet<string>
+    scanAttemptedProviderIds?: ReadonlySet<string>
 }): PlaybackPickGate {
     return {
         sourcesLoadingMore: args.sourcesLoadingMore,
@@ -1195,11 +1196,25 @@ export function buildPlaybackPickGate(args: {
         sourceHealth: args.sourceHealth,
         primaryProviderId: args.primaryProviderId,
         scanFailedProviderIds: args.scanFailedProviderIds,
+        scanAttemptedProviderIds: args.scanAttemptedProviderIds,
         healthFailedProviderIds:
             args.sourceHealth && args.playbackOptions
                 ? getHealthFailedProviderIds(args.playbackOptions, args.sourceHealth)
                 : undefined,
     }
+}
+
+function isProviderDemotedForPick(
+    providerId: string,
+    gate?: PlaybackPickGate
+): boolean {
+    if (!gate) return false
+    return Boolean(
+        gate.scanFailedProviderIds?.has(providerId) ||
+            gate.scanAttemptedProviderIds?.has(providerId) ||
+            gate.unavailableProviderIds?.has(providerId) ||
+            gate.healthFailedProviderIds?.has(providerId)
+    )
 }
 
 export function getHealthFailedProviderIds<
@@ -1238,7 +1253,8 @@ export function isProviderResolvedForPlayback(
     if (
         gate.unavailableProviderIds?.has(providerId) ||
         gate.healthFailedProviderIds?.has(providerId) ||
-        gate.scanFailedProviderIds?.has(providerId)
+        gate.scanFailedProviderIds?.has(providerId) ||
+        gate.scanAttemptedProviderIds?.has(providerId)
     ) {
         return true
     }
@@ -1434,10 +1450,7 @@ export function pickPreferredPlaybackSource<T extends { id: string; providerId?:
             )
             if (providerOptions.length === 0) {
                 // No URLs yet for this ranked provider.
-                const stillPending =
-                    !gate.scanFailedProviderIds?.has(providerId) &&
-                    !gate.unavailableProviderIds?.has(providerId) &&
-                    !gate.healthFailedProviderIds?.has(providerId)
+                const stillPending = !isProviderDemotedForPick(providerId, gate)
                 if (!stillPending) {
                     continue
                 }
@@ -1450,6 +1463,12 @@ export function pickPreferredPlaybackSource<T extends { id: string; providerId?:
                 continue
             }
 
+            // Soft/hard failed or already walked — do not lock Auto onto dead
+            // #1 CDN URLs (VAPlayer) when 7Movies/#2 is ready next.
+            if (isProviderDemotedForPick(providerId, gate)) {
+                continue
+            }
+
             // Fast server scrapes / native bulk (FileSuN, Huhu, …): never
             // auto-start while any higher admin-ranked provider is still
             // pending. Client-resolve peers (Videasy/Movy/VAPlayer) may start.
@@ -1457,11 +1476,7 @@ export function pickPreferredPlaybackSource<T extends { id: string; providerId?:
                 const nativeIndex = order.indexOf(providerId)
                 const higherPending = order.slice(0, Math.max(0, nativeIndex)).some((higherId) => {
                     if (skipProviderIds.has(higherId)) return false
-                    return (
-                        !gate.scanFailedProviderIds?.has(higherId) &&
-                        !gate.unavailableProviderIds?.has(higherId) &&
-                        !gate.healthFailedProviderIds?.has(higherId)
-                    )
+                    return !isProviderDemotedForPick(higherId, gate)
                 })
                 if (higherPending) {
                     return undefined
@@ -1482,6 +1497,15 @@ export function pickPreferredPlaybackSource<T extends { id: string; providerId?:
             const requiresProbe = providerOptions.some((option) =>
                 isProviderRequiringHealthProbe(option.providerId, option.src)
             )
+            // VAPlayer CDN tokens often look fine then never play. While Auto
+            // is still scanning that row, wait for ready/demotion instead of
+            // locking playback on #1 and never starting 7Movies.
+            if (
+                gate.sourcesLoadingMore &&
+                normalizeProviderName(providerId) === "vaplayer"
+            ) {
+                return undefined
+            }
             if (!requiresProbe) {
                 return sortEligibleByProviderRank(providerOptions, order)[0]
             }
@@ -1523,9 +1547,7 @@ export function pickPreferredPlaybackSource<T extends { id: string; providerId?:
                 .some((higherId) => {
                     if (skipProviderIds.has(higherId)) return false
                     if (!isClientResolveProvider(higherId)) return false
-                    if (gate?.scanFailedProviderIds?.has(higherId)) return false
-                    if (gate?.unavailableProviderIds?.has(higherId)) return false
-                    if (gate?.healthFailedProviderIds?.has(higherId)) return false
+                    if (isProviderDemotedForPick(higherId, gate)) return false
                     return !eligible.some(
                         (option) =>
                             normalizeProviderName(option.providerId ?? "") ===
@@ -1540,11 +1562,7 @@ export function pickPreferredPlaybackSource<T extends { id: string; providerId?:
                     .slice(0, Math.max(0, nativeIndex))
                     .some((higherId) => {
                         if (skipProviderIds.has(higherId)) return false
-                        return (
-                            !gate?.scanFailedProviderIds?.has(higherId) &&
-                            !gate?.unavailableProviderIds?.has(higherId) &&
-                            !gate?.healthFailedProviderIds?.has(higherId)
-                        )
+                        return !isProviderDemotedForPick(higherId, gate)
                     })
                 if (higherPending) {
                     return undefined
@@ -1557,10 +1575,7 @@ export function pickPreferredPlaybackSource<T extends { id: string; providerId?:
         // Client-resolve still absent from the pool — wait (don't continue to
         // RiveStream) until it fails or sources finish without it.
         if (isClientResolveProvider(providerId)) {
-            const failed =
-                gate?.scanFailedProviderIds?.has(providerId) ||
-                gate?.unavailableProviderIds?.has(providerId) ||
-                gate?.healthFailedProviderIds?.has(providerId)
+            const failed = isProviderDemotedForPick(providerId, gate)
             if (!failed && (gate?.sourcesLoadingMore || !isProviderResolvedForPlayback(providerId, gate))) {
                 return undefined
             }
