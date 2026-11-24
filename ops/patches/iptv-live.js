@@ -41,6 +41,110 @@
   var FAV_COOKIE = "chillflix_iptv_favs";
   var epgTimer = null;
   var activeChannel = null;
+  var PLAY_KEY = "chillflix_iptv_play";
+  var resumedPlay = false;
+
+  function playQueryId() {
+    try {
+      var u = new URL(window.location.href);
+      return String(u.searchParams.get("play") || "").trim();
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function setPlayQuery(id) {
+    try {
+      var u = new URL(window.location.href);
+      if (id) u.searchParams.set("play", String(id));
+      else u.searchParams.delete("play");
+      history.replaceState(null, "", u.pathname + u.search + u.hash);
+    } catch (e) {}
+  }
+
+  function persistPlay(channel) {
+    if (!channel || !channel.id) return;
+    setPlayQuery(channel.id);
+    try {
+      sessionStorage.setItem(
+        PLAY_KEY,
+        JSON.stringify({
+          id: String(channel.id),
+          name: channel.name || "",
+          logo: channel.logo || "",
+          country: channel.country || "",
+          streamUrl: channel.streamUrl || channel.url || "",
+          tvgId: channel.tvgId || "",
+        })
+      );
+    } catch (e) {}
+  }
+
+  function clearPlayPersist() {
+    setPlayQuery("");
+    try {
+      sessionStorage.removeItem(PLAY_KEY);
+    } catch (e) {}
+  }
+
+  function readPlayPersist() {
+    var qid = playQueryId();
+    var snap = null;
+    try {
+      snap = JSON.parse(sessionStorage.getItem(PLAY_KEY) || "null");
+    } catch (e) {
+      snap = null;
+    }
+    if (qid) {
+      if (snap && String(snap.id) === qid) return snap;
+      return { id: qid };
+    }
+    if (snap && snap.id) return snap;
+    return null;
+  }
+
+  function resumePlayIfNeeded() {
+    if (resumedPlay) return;
+    if (root.classList.contains("is-player")) {
+      resumedPlay = true;
+      return;
+    }
+    var snap = readPlayPersist();
+    if (!snap || !snap.id) {
+      resumedPlay = true;
+      return;
+    }
+    resumedPlay = true;
+    var id = String(snap.id);
+    var ch = null;
+    var idx = -1;
+    for (var i = 0; i < channels.length; i++) {
+      if (String(channels[i].id) === id) {
+        ch = channels[i];
+        idx = i;
+        break;
+      }
+    }
+    if (!ch) {
+      // Prefer snapshot so we can reopen even if channel is off first page
+      if (snap.streamUrl || snap.name) {
+        ch = {
+          id: id,
+          name: snap.name || ("Channel " + id),
+          logo: snap.logo || "",
+          country: snap.country || "",
+          streamUrl: snap.streamUrl || "",
+          url: snap.streamUrl || "",
+          tvgId: snap.tvgId || "",
+        };
+        idx = -1;
+      } else {
+        return;
+      }
+    }
+    showPlayer(ch, idx);
+  }
+
 
   var AVATAR_COLORS = [
     "#6b4a32", "#5a4630", "#4a3f2e", "#6b5238", "#5c4834",
@@ -669,6 +773,7 @@
     activeId = String(channel.id);
     activeChannel = channel || null;
     activeIndex = index;
+    persistPlay(channel);
     // Channel open is a user gesture — unlock audio for unmuted playback
     if (video) {
       preferAudible();
@@ -711,6 +816,10 @@
   }
 
   function hidePlayer() {
+    clearPlayPersist();
+    activeId = "";
+    activeChannel = null;
+    activeIndex = -1;
     root.classList.remove("is-player");
     setSiteDockHidden(false);
     if (playerView) {
@@ -962,6 +1071,7 @@
             renderCountries();
           }
           renderList();
+          if (!append) resumePlayIfNeeded();
         })
         .catch(function (err) {
           clearTimeout(timer);
