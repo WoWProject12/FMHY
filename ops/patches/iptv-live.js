@@ -43,7 +43,9 @@
   }
 
   function setFavs(list) {
-    localStorage.setItem(FAV_KEY, JSON.stringify(list));
+    try {
+      localStorage.setItem(FAV_KEY, JSON.stringify(list));
+    } catch (e) {}
   }
 
   function isFav(id) {
@@ -63,17 +65,27 @@
   var lastFavTapAt = 0;
   var lastFavTapId = "";
 
-  function heartSvg(on) {
+  function heartSvg(on, size) {
+    size = size || 20;
     return on
-      ? '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="currentColor"/></svg>'
-      : '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+      ? '<svg viewBox="0 0 24 24" width="' +
+          size +
+          '" height="' +
+          size +
+          '" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#e4c27a"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="' +
+          size +
+          '" height="' +
+          size +
+          '" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   }
 
   function applyHeartUI(btn, on) {
     if (!btn) return;
+    var player = btn.id === "iptvFavPlayer";
     btn.classList.toggle("is-on", !!on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    btn.innerHTML = heartSvg(!!on);
+    btn.innerHTML = heartSvg(!!on, player ? 22 : 20);
   }
 
   /** Single tap only — ignore duplicate pointer/click within 450ms (mobile double-fire). */
@@ -87,47 +99,69 @@
     lastFavTapId = id;
     var on = toggleFav(id);
     applyHeartUI(btn, on);
+    // Keep list hearts in sync when toggled from player
+    if (btn && btn.id === "iptvFavPlayer" && listEl) {
+      var listBtn = listEl.querySelector('.huhu-heart[data-fav="' + id + '"]');
+      if (listBtn) applyHeartUI(listBtn, on);
+    }
     return on;
   }
 
+  function favButtonFromEvent(ev) {
+    var t = ev && ev.target;
+    if (!t) return null;
+    if (t.nodeType !== 1) t = t.parentElement;
+    if (!t || !t.closest) return null;
+    return t.closest(".huhu-heart[data-fav], #iptvFavPlayer");
+  }
+
+  function onFavGesture(ev) {
+    var btn = favButtonFromEvent(ev);
+    if (!btn || !root.contains(btn)) return;
+    if (ev.cancelable) ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    var id =
+      btn.getAttribute("data-fav") ||
+      (btn.id === "iptvFavPlayer" ? activeId : "");
+    if (!id) return;
+    favTap(id, btn);
+    if (tab === "favs" && btn.id !== "iptvFavPlayer") renderList();
+  }
+
+  // Capture on window so site layout cannot swallow heart taps.
+  // Track pointer movement so scrolls over a heart do not favorite.
+  var favPtr = { x: 0, y: 0, ok: false };
+  window.addEventListener(
+    "pointerdown",
+    function (ev) {
+      var btn = favButtonFromEvent(ev);
+      if (!btn || !root.contains(btn)) {
+        favPtr.ok = false;
+        return;
+      }
+      favPtr.ok = true;
+      favPtr.x = ev.clientX || 0;
+      favPtr.y = ev.clientY || 0;
+    },
+    true
+  );
+  window.addEventListener(
+    "pointerup",
+    function (ev) {
+      if (!favPtr.ok) return;
+      favPtr.ok = false;
+      var dx = Math.abs((ev.clientX || 0) - favPtr.x);
+      var dy = Math.abs((ev.clientY || 0) - favPtr.y);
+      if (dx > 12 || dy > 12) return;
+      onFavGesture(ev);
+    },
+    true
+  );
+  window.addEventListener("click", onFavGesture, true);
+
   function wireHeartButtons() {
-    if (!listEl) return;
-    var buttons = listEl.querySelectorAll(".huhu-heart[data-fav]");
-    for (var i = 0; i < buttons.length; i++) {
-      (function (btn) {
-        btn.onclick = function (ev) {
-          if (ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
-            if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-          }
-          var id = btn.getAttribute("data-fav");
-          if (!id) return false;
-          favTap(id, btn);
-          if (tab === "favs") renderList();
-          return false;
-        };
-        // Block row open without toggling (avoids pointerdown+click double toggle)
-        btn.onpointerdown = function (ev) {
-          if (ev) {
-            ev.stopPropagation();
-            if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-          }
-        };
-        btn.ontouchend = function (ev) {
-          if (ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
-            if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-          }
-          var id = btn.getAttribute("data-fav");
-          if (!id) return false;
-          favTap(id, btn);
-          if (tab === "favs") renderList();
-          return false;
-        };
-      })(buttons[i]);
-    }
+    // no-op kept for call sites — global capture handlers own favorites
   }
 
   function avatarColor(name) {
@@ -480,7 +514,7 @@
       rank.textContent = "";
     }
     if (name) name.textContent = displayNameNoNumber(channel.name);
-    if (favBtn) favBtn.classList.toggle("is-on", isFav(channel.id));
+    if (favBtn) applyHeartUI(favBtn, isFav(channel.id));
 
     updatePlayerEpg(channel);
     if (epgTimer) clearInterval(epgTimer);
@@ -698,15 +732,7 @@
     });
   }
 
-  var favPlayer = document.getElementById("iptvFavPlayer");
-  if (favPlayer) {
-    favPlayer.addEventListener("click", function () {
-      if (!activeId) return;
-      var on = toggleFav(activeId);
-      favPlayer.classList.toggle("is-on", on);
-      renderList();
-    });
-  }
+  // Player favorite uses the same window capture handlers as list hearts.
 
   function zap(delta) {
     var rows = visibleChannels();

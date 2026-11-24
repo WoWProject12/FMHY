@@ -90,8 +90,7 @@ body.page-iptv .page-wrap {
 .huhu-list-view {
   max-width: 720px;
   margin: 0 auto;
-  /* Extra right pad so hearts clear the side handle */
-  padding: 12px 36px 110px 16px;
+  padding: 12px 16px 110px;
 }
 
 .huhu-top {
@@ -363,25 +362,26 @@ body.page-iptv .page-wrap {
   font-size: 13px;
 }
 
-/* Left edge — must NOT cover favorite hearts on the right */
+/* Right edge — z-index below hearts so taps hit favorites, not this handle */
 .huhu-side-handle {
   position: fixed;
-  left: 0;
-  right: auto;
+  right: 0;
+  left: auto;
   top: 42%;
-  z-index: 40;
-  width: 26px;
+  z-index: 3;
+  width: 28px;
   height: 52px;
   border: 0;
-  border-radius: 0 12px 12px 0;
+  border-radius: 12px 0 0 12px;
   background: #221f1b;
   color: #f4efe6;
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(228, 194, 122, 0.18);
-  border-left: 0;
+  border-right: 0;
+  pointer-events: none;
 }
 
 .huhu.is-player .huhu-side-handle { display: none; }
@@ -498,6 +498,10 @@ body.page-iptv .page-wrap {
 
 .huhu-icon-btn:disabled { opacity: 0.35; cursor: default; }
 .huhu-icon-btn.is-on { color: var(--huhu-accent); }
+.huhu-icon-btn.is-on svg path {
+  fill: currentColor !important;
+  stroke: none !important;
+}
 
 .huhu-epg-now {
   display: grid;
