@@ -486,7 +486,7 @@
   function loadLogoMap() {
     if (LOGO_MAP.ready) return Promise.resolve(LOGO_MAP);
     if (LOGO_MAP.loading) return LOGO_MAP.loading;
-    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=43", {
+    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=44", {
       credentials: "same-origin",
       cache: "force-cache",
     })
@@ -594,17 +594,30 @@
 
   function pushUrl(list, seen, url) {
     url = String(url || "").trim();
-    if (!url || !/^https?:\/\//i.test(url) || seen[url]) return;
+    if (!url || seen[url]) return;
+    if (!/^https?:\/\//i.test(url) && url.charAt(0) !== "/") return;
     seen[url] = true;
     list.push(url);
   }
 
-  /** Ordered candidates: iptv-org tvg → brand map → icon.horse → google favicon → provider logo */
+  function proxiedLogo(url) {
+    url = String(url || "").trim();
+    if (!url) return "";
+    if (url.charAt(0) === "/") return url; // same-origin asset
+    if (!/^https?:\/\//i.test(url)) return "";
+    // already proxied
+    if (url.indexOf("/api/iptv/logo?") === 0) return url;
+    return "/api/iptv/logo?src=" + encodeURIComponent(url);
+  }
+
+  /** Ordered candidates: API logo / iptv-org tvg → brand map → icon.horse → google favicon → provider logo */
   function channelLogoCandidates(ch) {
     var list = [];
     var seen = {};
     if (!ch) return list;
     var tvg = String(ch.tvgId || ch.tvg_id || "").trim();
+    // Prefer server-resolved logo on the channel object
+    pushUrl(list, seen, ch.logo);
     if (tvg && LOGO_MAP.tvg[tvg]) pushUrl(list, seen, LOGO_MAP.tvg[tvg]);
     var bk = brandKey(ch.name);
     if (LOGO_MAP.brand[bk]) pushUrl(list, seen, LOGO_MAP.brand[bk]);
@@ -616,8 +629,7 @@
         "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(d) + "&sz=128"
       );
     });
-    pushUrl(list, seen, ch.logo);
-    return list;
+    return list.map(proxiedLogo).filter(Boolean);
   }
 
   function channelLogoUrl(ch) {
@@ -625,9 +637,13 @@
     return c.length ? c[0] : "";
   }
 
+
   function onLogoError(img) {
     try {
-      var raw = img.getAttribute("data-candidates") || "[]";
+      var b64 = img.getAttribute("data-cands-b64") || "";
+      var raw = b64
+        ? decodeURIComponent(escape(atob(b64)))
+        : img.getAttribute("data-candidates") || "[]";
       var cands = JSON.parse(raw);
       var idx = Number(img.getAttribute("data-ci") || "0") + 1;
       if (idx < cands.length) {
@@ -675,8 +691,8 @@
       '">' +
       '<img src="' +
       escapeAttr(logo) +
-      '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-ci="0" data-candidates="' +
-      escapeAttr(JSON.stringify(cands)) +
+      '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-ci="0" data-cands-b64="' +
+      btoa(unescape(encodeURIComponent(JSON.stringify(cands)))) +
       '" onerror="window.__iptvLogoErr&&window.__iptvLogoErr(this)" />' +
       '<span class="huhu-avatar-fallback" hidden>' +
       letter +
