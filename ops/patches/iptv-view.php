@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=28">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=29">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -70,7 +70,7 @@ declare(strict_types=1);
         <button type="button" id="iptvBackList" class="huhu-icon-btn" title="Channels" aria-label="Back to channels">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         </button>
-        <button type="button" class="huhu-icon-btn" title="Profile" aria-label="Profile" disabled>
+        <button type="button" id="iptvProfile" class="huhu-icon-btn" title="Account" aria-label="Account" hidden>
           <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M18 7v4M20 9h-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         </button>
         <button type="button" id="iptvPip" class="huhu-icon-btn" title="Picture in picture" aria-label="Picture in picture">
@@ -102,5 +102,5 @@ declare(strict_types=1);
   </button>
 </div>
 
-<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=28" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=28" defer></script>
+<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=29" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=29" defer></script>

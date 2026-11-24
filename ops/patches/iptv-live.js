@@ -1207,5 +1207,45 @@
     if (ev.key === "ArrowDown") zap(1);
   });
 
+  function isLoggedIn() {
+    try {
+      var bodyUser = document.body && document.body.getAttribute("data-auth-user");
+      if (bodyUser && String(bodyUser).trim()) return true;
+    } catch (e) {}
+    try {
+      if (localStorage.getItem("movy_new_token")) return true;
+      if (localStorage.getItem("movy_new_user")) return true;
+    } catch (e2) {}
+    return false;
+  }
+
+  function syncProfileBtn() {
+    var btn = document.getElementById("iptvProfile");
+    if (!btn) return;
+    var on = isLoggedIn();
+    btn.hidden = !on;
+    btn.disabled = !on;
+  }
+
+  var profileBtn = document.getElementById("iptvProfile");
+  if (profileBtn) {
+    profileBtn.addEventListener("click", function () {
+      if (!isLoggedIn()) return;
+      // Same entry as dock Account
+      var dock = document.getElementById("dockLogin");
+      if (dock) {
+        dock.click();
+        return;
+      }
+      try {
+        window.location.href = (document.body.getAttribute("data-base") || "") + "/account";
+      } catch (e) {}
+    });
+  }
+  syncProfileBtn();
+  // Auth can hydrate after first paint
+  setTimeout(syncProfileBtn, 400);
+  setTimeout(syncProfileBtn, 1500);
+
   loadChannels(false);
 })();
