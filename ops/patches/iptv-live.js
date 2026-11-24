@@ -34,7 +34,7 @@
   var searchTimer = null;
   var loadingMore = false;
   var totalAll = 0;
-  var PAGE = 300;
+  var PAGE = 60;
   // v2 stores channel snapshots so Favorites works after refresh
   var FAV_KEY = "chillflix_iptv_favs_v2";
   var FAV_KEY_LEGACY = "chillflix:iptv-favs";
@@ -97,11 +97,15 @@
     } catch (e) {
       snap = null;
     }
+    // Only auto-open player when URL has ?play=… (refresh / deep link).
+    // sessionStorage alone made /iptv sticky after Home → Live.
     if (qid) {
       if (snap && String(snap.id) === qid) return snap;
       return { id: qid };
     }
-    if (snap && snap.id) return snap;
+    if (snap && snap.id) {
+      try { sessionStorage.removeItem(PLAY_KEY); } catch (eClr) {}
+    }
     return null;
   }
 
@@ -486,7 +490,7 @@
   function loadLogoMap() {
     if (LOGO_MAP.ready) return Promise.resolve(LOGO_MAP);
     if (LOGO_MAP.loading) return LOGO_MAP.loading;
-    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=45", {
+    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=46", {
       credentials: "same-origin",
       cache: "force-cache",
     })
@@ -610,26 +614,34 @@
     return "/api/iptv/logo?src=" + encodeURIComponent(url);
   }
 
-  /** Ordered candidates: API logo / iptv-org tvg → brand map → icon.horse → google favicon → provider logo */
+  /** Prefer hosted/API logo; only add remote fallbacks when nothing local exists. */
   function channelLogoCandidates(ch) {
     var list = [];
     var seen = {};
     if (!ch) return list;
     var tvg = String(ch.tvgId || ch.tvg_id || "").trim();
-    // Prefer server-resolved logo on the channel object
     pushUrl(list, seen, ch.logo);
     if (tvg && LOGO_MAP.tvg[tvg]) pushUrl(list, seen, LOGO_MAP.tvg[tvg]);
     var bk = brandKey(ch.name);
     if (LOGO_MAP.brand[bk]) pushUrl(list, seen, LOGO_MAP.brand[bk]);
-    logoDomains(ch.name, ch.country, tvg).forEach(function (d) {
-      pushUrl(list, seen, "https://icon.horse/icon/" + encodeURIComponent(d));
-      pushUrl(
-        list,
-        seen,
-        "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(d) + "&sz=128"
-      );
+    var hasLocal = list.some(function (u) {
+      return String(u).charAt(0) === "/";
     });
-    return list.map(proxiedLogo).filter(Boolean);
+    if (!hasLocal) {
+      logoDomains(ch.name, ch.country, tvg).forEach(function (d) {
+        pushUrl(list, seen, "https://icon.horse/icon/" + encodeURIComponent(d));
+        pushUrl(
+          list,
+          seen,
+          "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(d) + "&sz=128"
+        );
+      });
+    }
+    // Cap candidates so row HTML stays small
+    return list
+      .map(proxiedLogo)
+      .filter(Boolean)
+      .slice(0, hasLocal ? 2 : 4);
   }
 
   function channelLogoUrl(ch) {
@@ -1719,6 +1731,9 @@
   }
 
   optimisticResumeShell();
-  loadLogoMap();
   loadChannels(false);
+  // Defer logo map so first channel paint isn't competing with a 270KB JSON fetch.
+  setTimeout(function () {
+    loadLogoMap();
+  }, 50);
 })();
