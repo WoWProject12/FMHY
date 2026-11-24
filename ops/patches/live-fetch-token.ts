@@ -1,48 +1,67 @@
 import "server-only"
 
-import { createHash, randomBytes } from "crypto"
+import { createHmac, timingSafeEqual } from "crypto"
 
-type Entry = {
-  url: string
-  expiresAt: number
+const TTL_SEC = 20 * 60
+
+function secret() {
+  return (
+    process.env.IPTV_LIVE_FETCH_SECRET ||
+    process.env.PLAYBACK_TOKEN_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    "chillflix-iptv-live-fetch-v1"
+  )
 }
 
-const TTL_MS = 15 * 60 * 1000
-const store = new Map<string, Entry>()
-
-function prune(now = Date.now()) {
-  for (const [key, entry] of store) {
-    if (entry.expiresAt <= now) store.delete(key)
-  }
+function b64url(input: Buffer | string) {
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input, "utf8")
+  return buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "")
 }
 
-/** Opaque token so CF Bot Fight does not challenge open-proxy `?u=http://...` URLs. */
+function fromB64url(input: string) {
+  const padded = input.replace(/-/g, "+").replace(/_/g, "/")
+  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4))
+  return Buffer.from(padded + pad, "base64")
+}
+
+/** Stateless signed token — survives Next HMR / multi-instance (no Map misses → 400). */
 export function mintLiveFetchToken(targetUrl: string) {
-  prune()
-  const token = randomBytes(16).toString("hex")
-  store.set(token, {
-    url: targetUrl,
-    expiresAt: Date.now() + TTL_MS,
-  })
-  // Also index by short hash for stable segment URLs within a playlist window.
-  const hash = createHash("sha256").update(targetUrl).digest("hex").slice(0, 24)
-  store.set(hash, {
-    url: targetUrl,
-    expiresAt: Date.now() + TTL_MS,
-  })
-  return token
+  const exp = Math.floor(Date.now() / 1000) + TTL_SEC
+  const body = b64url(JSON.stringify({ u: targetUrl, e: exp }))
+  const sig = b64url(createHmac("sha256", secret()).update(body).digest())
+  return `${body}.${sig}`
 }
 
 export function resolveLiveFetchToken(token: string) {
-  if (!token) return null
-  prune()
-  const entry = store.get(token)
-  if (!entry) return null
-  if (entry.expiresAt <= Date.now()) {
-    store.delete(token)
+  if (!token || !token.includes(".")) return null
+
+  const [body, sig] = token.split(".")
+  if (!body || !sig) return null
+
+  const expected = b64url(createHmac("sha256", secret()).update(body).digest())
+  try {
+    const a = Buffer.from(sig)
+    const b = Buffer.from(expected)
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null
+  } catch {
     return null
   }
-  return entry.url
+
+  try {
+    const payload = JSON.parse(fromB64url(body).toString("utf8")) as {
+      u?: string
+      e?: number
+    }
+    if (!payload?.u || typeof payload.u !== "string") return null
+    if (!payload.e || payload.e < Math.floor(Date.now() / 1000)) return null
+    return payload.u
+  } catch {
+    return null
+  }
 }
 
 export function liveFetchProxyPath(origin: string, targetUrl: string) {

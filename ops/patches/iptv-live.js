@@ -72,6 +72,14 @@
     return (s.charAt(0) || "?").toUpperCase();
   }
 
+  /** Player title: keep name, drop trailing channel numbers like " (7)" / " #1". */
+  function displayNameNoNumber(name) {
+    return String(name || "Channel")
+      .replace(/\s*[\(\[]\s*#?\d+\s*[\)\]]\s*$/g, "")
+      .replace(/\s+#\d+\s*$/g, "")
+      .trim() || "Channel";
+  }
+
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, "&amp;")
@@ -316,8 +324,11 @@
       avatar.textContent = initial(channel.name);
       avatar.style.background = avatarColor(channel.name);
     }
-    if (rank) rank.textContent = "#" + (index + 1);
-    if (name) name.textContent = channel.name || "Channel";
+    if (rank) {
+      rank.hidden = true;
+      rank.textContent = "";
+    }
+    if (name) name.textContent = displayNameNoNumber(channel.name);
     if (favBtn) favBtn.classList.toggle("is-on", isFav(channel.id));
 
     updatePlayerEpg(channel);

@@ -31,10 +31,25 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const token = requestUrl.searchParams.get("t")
   const rawUrl = requestUrl.searchParams.get("u")
-  const targetUrl = token ? resolveLiveFetchToken(token) : rawUrl
+
+  let targetUrl: string | null = null
+  if (token) {
+    targetUrl = resolveLiveFetchToken(token)
+    if (!targetUrl) {
+      return NextResponse.json(
+        { error: "Live fetch token invalid or expired." },
+        { status: 401, headers: CORS }
+      )
+    }
+  } else if (rawUrl) {
+    targetUrl = rawUrl
+  }
 
   if (!targetUrl || !isHttpUrl(targetUrl)) {
-    return NextResponse.json({ error: "Invalid live fetch target." }, { status: 400 })
+    return NextResponse.json(
+      { error: "Invalid live fetch target." },
+      { status: 400, headers: CORS }
+    )
   }
 
   const requestOrigin = resolveRequestOrigin(request)
@@ -44,7 +59,10 @@ export async function GET(request: Request) {
     const asset = await fetchLiveProxiedAsset(targetUrl, range)
 
     if (!asset) {
-      return NextResponse.json({ error: "Invalid live fetch target." }, { status: 400 })
+      return NextResponse.json(
+        { error: "Upstream live segment unavailable." },
+        { status: 502, headers: CORS }
+      )
     }
 
     if (asset.kind === "manifest") {
@@ -61,8 +79,17 @@ export async function GET(request: Request) {
     const result = binaryResponseFromAsset(asset)
     const headers = new Headers(CORS)
     if (result.contentType) headers.set("content-type", result.contentType)
+    // Help players with partial content when upstream honored Range.
+    if (result.status === 206) {
+      const contentRange = (result as { headers?: Headers }).headers?.get?.("content-range")
+      if (contentRange) headers.set("content-range", contentRange)
+      headers.set("accept-ranges", "bytes")
+    }
     return new NextResponse(result.body, { status: result.status, headers })
   } catch {
-    return NextResponse.json({ error: "Failed to fetch live stream segment." }, { status: 502 })
+    return NextResponse.json(
+      { error: "Failed to fetch live stream segment." },
+      { status: 502, headers: CORS }
+    )
   }
 }

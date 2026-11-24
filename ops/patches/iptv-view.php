@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=5">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=6">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -47,7 +47,6 @@ declare(strict_types=1);
     <aside class="huhu-sheet" aria-label="Player controls">
       <div class="huhu-sheet-head">
         <div id="iptvNowAvatar" class="huhu-avatar huhu-avatar-lg" aria-hidden="true">?</div>
-        <span id="iptvNowRank" class="huhu-rank-badge">#1</span>
         <strong id="iptvNowName" class="huhu-now-name">Channel</strong>
       </div>
 
@@ -121,4 +120,4 @@ declare(strict_types=1);
 </div>
 
 <script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=1" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=5" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=6" defer></script>
