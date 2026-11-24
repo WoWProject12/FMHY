@@ -1,0 +1,1 @@
+Skip stopImmediatePropagation for #iptvApp/.huhu-heart/#iptvFavPlayer in layout.php SPA tap handler.

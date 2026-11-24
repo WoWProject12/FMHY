@@ -1,0 +1,205 @@
+CLEAN=/var/www/chillflix.pw/scripts/segment-proxy.mjs.bak-vidrift-20261123030856
+--- /var/www/chillflix.pw/scripts/segment-proxy.mjs.bak-vidrift-20261123030856	2026-11-22 17:28:39.608512657 +0000
++++ /var/www/chillflix.pw/scripts/segment-proxy.mjs	2026-11-23 03:08:56.120625996 +0000
+@@ -122,6 +122,119 @@
+ }
+ 
+ 
++/* VIDRIFT_BOOT_FETCH_V2 */
++function isVidriftHostname(hostname) {
++    const host = String(hostname || "").toLowerCase()
++    return host === "vidrift.net" || host.endsWith(".vidrift.net")
++}
++function decodeDataParam(raw) {
++    if (!raw) return undefined
++    try {
++        const parsed = JSON.parse(decodeURIComponent(String(raw)))
++        if (typeof parsed?.url !== "string" || !parsed.url) return undefined
++        const headers =
++            parsed.headers && typeof parsed.headers === "object" && !Array.isArray(parsed.headers)
++                ? Object.fromEntries(
++                      Object.entries(parsed.headers).filter(([, v]) => typeof v === "string")
++                  )
++                : {}
++        return { url: parsed.url, headers }
++    } catch {
++        return undefined
++    }
++}
++function encodeDataParam(url, headers) {
++    return encodeURIComponent(JSON.stringify({ url, headers: headers || {} }))
++}
++function rewriteVidriftManifest(manifest, masterUrl, proxyHeaders, pt) {
++    const master = new URL(masterUrl)
++    return manifest
++        .split("\n")
++        .map((line) => {
++            const trimmed = line.trim()
++            if (!trimmed) return line
++            if (trimmed.startsWith("#")) {
++                return line.replace(/URI="([^"]+)"/g, (full, uri) => {
++                    try {
++                        const abs = new URL(uri, master).toString()
++                        const proxied =
++                            `/api/cinepro/proxy?data=${encodeDataParam(abs, proxyHeaders)}` +
++                            (pt ? `&pt=${encodeURIComponent(pt)}` : "")
++                        return `URI="${proxied}"`
++                    } catch {
++                        return full
++                    }
++                })
++            }
++            try {
++                const abs = new URL(trimmed, master).toString()
++                const proxied =
++                    `/api/cinepro/proxy?data=${encodeDataParam(abs, proxyHeaders)}` +
++                    (pt ? `&pt=${encodeURIComponent(pt)}` : "")
++                return line.replace(trimmed, proxied)
++            } catch {
++                return line
++            }
++        })
++        .join("\n")
++}
++function serveVidriftPlaylist(req, res, payload, pt) {
++    const method = req.method === "HEAD" ? "HEAD" : "GET"
++    const range = typeof req.headers.range === "string" ? req.headers.range : undefined
++    const headers = {
++        Accept: "*/*",
++        ...(payload.headers || {}),
++    }
++    if (range) headers.Range = range
++    const upstream = http.request(
++        {
++            hostname: "127.0.0.1",
++            port: Number(process.env.SEVENMOVIES_BOOT_PORT || 3887) || 3887,
++            path: `/fetch?url=${encodeURIComponent(payload.url)}`,
++            method: "GET",
++            headers,
++            timeout: 45_000,
++        },
++        (upstreamRes) => {
++            const chunks = []
++            upstreamRes.on("data", (c) => chunks.push(c))
++            upstreamRes.on("end", () => {
++                const status = upstreamRes.statusCode || 502
++                const body = Buffer.concat(chunks)
++                if (status >= 400) {
++                    writeJson(res, status, {
++                        error: "Vidrift fetch failed.",
++                        detail: body.toString("utf8").slice(0, 200),
++                    })
++                    return
++                }
++                const text = body.toString("utf8")
++                const rewritten = rewriteVidriftManifest(
++                    text,
++                    payload.url,
++                    payload.headers || {},
++                    pt
++                )
++                const out = Buffer.from(rewritten, "utf8")
++                res.writeHead(200, {
++                    "content-type": "application/vnd.apple.mpegurl",
++                    "content-length": out.length,
++                    "cache-control": "no-store",
++                    ...CORS,
++                })
++                if (method === "HEAD") res.end()
++                else res.end(out)
++            })
++        }
++    )
++    upstream.on("error", () => {
++        if (!res.headersSent) writeJson(res, 502, { error: "Vidrift boot fetch offline." })
++    })
++    upstream.end()
++}
++
++
++
+ 
+ function sleep(ms) {
+     return new Promise((resolve) => setTimeout(resolve, ms))
+@@ -675,21 +788,37 @@
+         for (const key of HOP) delete headers[key]
+         delete headers["content-length"]
+ 
+-        const lib = target.protocol === "https:" ? https : http
++        const useVidriftBoot = isVidriftHostname(target.hostname)
++        const lib = useVidriftBoot ? http : target.protocol === "https:" ? https : http
+         const useWarp =
+-            isCnoCdnHostname(target.hostname) ||
+-            isFilesunCdnHostname(target.hostname) /* vidmoly/vmnow/vmpx 403 .ts on Contabo DC */
++            !useVidriftBoot &&
++            (isCnoCdnHostname(target.hostname) ||
++                isFilesunCdnHostname(target.hostname)) /* vidmoly/vmnow/vmpx 403 .ts on Contabo DC */
++        const bootHeaders = { ...headers }
++        if (useVidriftBoot) {
++            delete bootHeaders.Host
++            delete bootHeaders.host
++        }
+         const upstream = lib.request(
+-            {
+-                protocol: target.protocol,
+-                hostname: target.hostname,
+-                port: target.port || (target.protocol === "https:" ? 443 : 80),
+-                path: `${target.pathname}${target.search}`,
+-                method,
+-                headers,
+-                timeout: 20_000,
+-                agent: useWarp ? getWarpAgent() : getDirectAgent(target.protocol),
+-            },
++            useVidriftBoot
++                ? {
++                      hostname: "127.0.0.1",
++                      port: Number(process.env.SEVENMOVIES_BOOT_PORT || 3887) || 3887,
++                      path: `/fetch?url=${encodeURIComponent(targetUrl)}`,
++                      method: method === "HEAD" ? "GET" : method,
++                      headers: bootHeaders,
++                      timeout: 45_000,
++                  }
++                : {
++                      protocol: target.protocol,
++                      hostname: target.hostname,
++                      port: target.port || (target.protocol === "https:" ? 443 : 80),
++                      path: `${target.pathname}${target.search}`,
++                      method,
++                      headers,
++                      timeout: 20_000,
++                      agent: useWarp ? getWarpAgent() : getDirectAgent(target.protocol),
++                  },
+             (upstreamRes) => {
+                 // Stale hop (redirect/retry already moved on).
+                 if (gen !== attemptGen || finished || res.headersSent) {
+@@ -946,6 +1075,7 @@
+     const px = streamed?.px || url.searchParams.get("px")
+     const pt = url.searchParams.get("pt") || streamed?.pt || ""
+     let payload = decodePx(px)
++    if (!payload) payload = decodeDataParam(url.searchParams.get("data"))
+     if (payload && streamed) {
+         payload = applyStreamFile(payload, streamed.file, streamed.media)
+     }
+@@ -956,6 +1086,22 @@
+     const obviousPlaylist = !payload || looksLikeObviousPlaylist(payload.url)
+ 
+     if (!allowed || obviousPlaylist) {
++        // Orion/Vidrift playlists need curl_cffi+WARP (boot /fetch). Next plain fetch 403s.
++        try {
++            const host = payload ? new URL(payload.url).hostname : ""
++            if (
++                payload &&
++                isVidriftHostname(host) &&
++                looksLikeObviousPlaylist(payload.url)
++            ) {
++                if (!verifyPlaybackToken(pt)) {
++                    writeJson(res, 403, { error: "Invalid or expired playback token." })
++                    return
++                }
++                serveVidriftPlaylist(req, res, payload, pt)
++                return
++            }
++        } catch {}
+         // Playlists are rewritten by Next, which reads the token from the query.
+         // Sibling video URLs keep the token in the path so it is not dropped.
+         if (streamed?.pt && !url.searchParams.get("pt")) {
