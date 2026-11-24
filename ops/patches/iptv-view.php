@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=29">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=31">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -70,17 +70,16 @@ declare(strict_types=1);
         <button type="button" id="iptvBackList" class="huhu-icon-btn" title="Channels" aria-label="Back to channels">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         </button>
-        <button type="button" id="iptvProfile" class="huhu-icon-btn" title="Account" aria-label="Account" hidden>
-          <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M18 7v4M20 9h-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        </button>
         <button type="button" id="iptvPip" class="huhu-icon-btn" title="Picture in picture" aria-label="Picture in picture">
           <svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="12" y="11" width="7" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
         </button>
         <button type="button" id="iptvFs" class="huhu-icon-btn" title="Fullscreen" aria-label="Fullscreen">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <button type="button" id="iptvClose" class="huhu-icon-btn" title="Close" aria-label="Close player">
-          <svg viewBox="0 0 24 24" width="22" height="22"><rect x="4" y="5" width="12" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M14 12h7m-3-3 3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <!-- Logged-in only — far right after fullscreen -->
+        <button type="button" id="iptvAccount" class="huhu-icon-btn huhu-account-btn" title="Account" aria-label="Account" hidden>
+          <span class="huhu-account-avatar" id="iptvAccountAvatar" aria-hidden="true"></span>
+          <svg class="huhu-account-fallback" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         </button>
       </div>
 
@@ -102,5 +101,5 @@ declare(strict_types=1);
   </button>
 </div>
 
-<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=29" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=29" defer></script>
+<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=31" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=31" defer></script>

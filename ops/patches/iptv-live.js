@@ -681,6 +681,7 @@
     setSiteDockHidden(true);
     if (listView) listView.hidden = true;
     if (playerView) playerView.hidden = false;
+    syncAccountBtn();
     showPlayerChrome(true);
 
     var avatar = document.getElementById("iptvNowAvatar");
@@ -1123,10 +1124,8 @@
   if (prevBtn) prevBtn.addEventListener("click", function () { zap(-1); });
   if (nextBtn) nextBtn.addEventListener("click", function () { zap(1); });
 
-  ["iptvBackList", "iptvClose"].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener("click", hidePlayer);
-  });
+  var backList = document.getElementById("iptvBackList");
+  if (backList) backList.addEventListener("click", hidePlayer);
 
   // Tap video area: show/hide controls (same in fullscreen)
   var stageEl = playerView
@@ -1219,33 +1218,85 @@
     return false;
   }
 
-  function syncProfileBtn() {
-    var btn = document.getElementById("iptvProfile");
-    if (!btn) return;
-    var on = isLoggedIn();
-    btn.hidden = !on;
-    btn.disabled = !on;
+  function loggedInName() {
+    try {
+      var u = document.body && document.body.getAttribute("data-auth-user");
+      if (u && String(u).trim()) return String(u).trim();
+    } catch (e) {}
+    try {
+      return String(localStorage.getItem("movy_new_user") || "").trim();
+    } catch (e2) {
+      return "";
+    }
   }
 
-  var profileBtn = document.getElementById("iptvProfile");
-  if (profileBtn) {
-    profileBtn.addEventListener("click", function () {
+  function loggedInAvatarUrl() {
+    try {
+      var raw = localStorage.getItem("movy_new_profile");
+      if (!raw) return "";
+      var p = JSON.parse(raw);
+      return (p && (p.avatar || p.image || p.picture || p.photo)) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function syncAccountBtn() {
+    var btn = document.getElementById("iptvAccount");
+    if (!btn) return;
+    var on = isLoggedIn();
+    if (on) {
+      btn.removeAttribute("hidden");
+      btn.hidden = false;
+      btn.disabled = false;
+      btn.style.removeProperty("display");
+    } else {
+      btn.setAttribute("hidden", "");
+      btn.hidden = true;
+      btn.disabled = true;
+      btn.classList.remove("has-avatar");
+      return;
+    }
+    var name = loggedInName();
+    var av = loggedInAvatarUrl();
+    var avEl = document.getElementById("iptvAccountAvatar");
+    if (av && avEl) {
+      avEl.style.backgroundImage = 'url("' + String(av).replace(/"/g, "") + '")';
+      avEl.textContent = "";
+      btn.classList.add("has-avatar");
+    } else if (avEl) {
+      avEl.style.backgroundImage = "";
+      avEl.textContent = (name.charAt(0) || "?").toUpperCase();
+      btn.classList.add("has-avatar");
+    }
+    if (name) {
+      btn.title = name;
+      btn.setAttribute("aria-label", "Account (" + name + ")");
+    }
+  }
+
+  var accountBtn = document.getElementById("iptvAccount");
+  if (accountBtn) {
+    accountBtn.addEventListener("click", function () {
       if (!isLoggedIn()) return;
-      // Same entry as dock Account
+      showPlayerChrome(true);
       var dock = document.getElementById("dockLogin");
       if (dock) {
         dock.click();
         return;
       }
       try {
-        window.location.href = (document.body.getAttribute("data-base") || "") + "/account";
+        window.location.href =
+          (document.body.getAttribute("data-base") || "") + "/account";
       } catch (e) {}
     });
   }
-  syncProfileBtn();
-  // Auth can hydrate after first paint
-  setTimeout(syncProfileBtn, 400);
-  setTimeout(syncProfileBtn, 1500);
+  syncAccountBtn();
+  setTimeout(syncAccountBtn, 400);
+  setTimeout(syncAccountBtn, 1500);
+  try {
+    window.addEventListener("storage", syncAccountBtn);
+  } catch (e3) {}
 
   loadChannels(false);
 })();

@@ -702,3 +702,25 @@ body.is-iptv-player .Dock-module-scss-module__qZDorW__dockPanel.dock-panel {
   overflow: hidden !important;
   transform: translateY(120%) !important;
 }
+
+
+.huhu-account-btn {
+  position: relative;
+  overflow: hidden;
+}
+.huhu-account-btn[hidden] { display: none !important; }
+.huhu-account-avatar {
+  display: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background-size: cover;
+  background-position: center;
+  background-color: rgba(228, 194, 122, 0.25);
+  color: #f4efe6;
+  font-size: 11px;
+  font-weight: 700;
+  place-items: center;
+}
+.huhu-account-btn.has-avatar .huhu-account-avatar { display: grid; }
+.huhu-account-btn.has-avatar .huhu-account-fallback { display: none; }
