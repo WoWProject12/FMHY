@@ -681,6 +681,7 @@
     setSiteDockHidden(true);
     if (listView) listView.hidden = true;
     if (playerView) playerView.hidden = false;
+    showPlayerChrome(true);
 
     var avatar = document.getElementById("iptvNowAvatar");
     var rank = document.getElementById("iptvNowRank");
@@ -711,7 +712,11 @@
   function hidePlayer() {
     root.classList.remove("is-player");
     setSiteDockHidden(false);
-    if (playerView) playerView.hidden = true;
+    if (playerView) {
+      playerView.hidden = true;
+      playerView.classList.remove("chrome-hidden");
+    }
+    clearChromeTimer();
     if (listView) listView.hidden = false;
     destroyPlayer();
     setPlayerError("");
@@ -720,7 +725,49 @@
       clearInterval(epgTimer);
       epgTimer = null;
     }
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function () {});
+    }
     renderList();
+  }
+
+  var chromeTimer = null;
+  var CHROME_HIDE_MS = 2000;
+
+  function clearChromeTimer() {
+    if (chromeTimer) {
+      clearTimeout(chromeTimer);
+      chromeTimer = null;
+    }
+  }
+
+  function showPlayerChrome(restartHide) {
+    if (!playerView) return;
+    playerView.classList.remove("chrome-hidden");
+    clearChromeTimer();
+    if (restartHide !== false) scheduleChromeHide();
+  }
+
+  function hidePlayerChrome() {
+    if (!playerView || playerView.hidden) return;
+    if (!root.classList.contains("is-player")) return;
+    playerView.classList.add("chrome-hidden");
+    clearChromeTimer();
+  }
+
+  function scheduleChromeHide() {
+    clearChromeTimer();
+    if (!root.classList.contains("is-player")) return;
+    chromeTimer = setTimeout(hidePlayerChrome, CHROME_HIDE_MS);
+  }
+
+  function togglePlayerChrome() {
+    if (!playerView) return;
+    if (playerView.classList.contains("chrome-hidden")) {
+      showPlayerChrome(true);
+    } else {
+      hidePlayerChrome();
+    }
   }
 
   function preferAudible() {
@@ -1081,18 +1128,53 @@
     if (el) el.addEventListener("click", hidePlayer);
   });
 
+  // Tap video area: show/hide controls (same in fullscreen)
+  var stageEl = playerView
+    ? playerView.querySelector(".huhu-stage")
+    : null;
+  if (stageEl) {
+    stageEl.addEventListener("click", function (ev) {
+      if (!root.classList.contains("is-player")) return;
+      // Ignore clicks on busy/error overlays buttons if any
+      togglePlayerChrome();
+    });
+  }
+
+  var sheetEl = document.getElementById("iptvSheet");
+  if (sheetEl) {
+    ["pointerdown", "touchstart", "click"].forEach(function (type) {
+      sheetEl.addEventListener(
+        type,
+        function () {
+          showPlayerChrome(true);
+        },
+        { passive: true }
+      );
+    });
+  }
+
   var fsBtn = document.getElementById("iptvFs");
-  if (fsBtn && video) {
+  if (fsBtn && playerView) {
     fsBtn.addEventListener("click", function () {
+      showPlayerChrome(true);
+      var fsRoot = playerView;
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(function () {});
-      } else if (video.requestFullscreen) {
-        video.requestFullscreen().catch(function () {});
-      } else if (video.webkitEnterFullscreen) {
+      } else if (fsRoot.requestFullscreen) {
+        fsRoot.requestFullscreen().catch(function () {
+          if (video && video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+        });
+      } else if (fsRoot.webkitRequestFullscreen) {
+        fsRoot.webkitRequestFullscreen();
+      } else if (video && video.webkitEnterFullscreen) {
         video.webkitEnterFullscreen();
       }
     });
   }
+
+  document.addEventListener("fullscreenchange", function () {
+    if (root.classList.contains("is-player")) showPlayerChrome(true);
+  });
 
   var pipBtn = document.getElementById("iptvPip");
   if (pipBtn && video) {

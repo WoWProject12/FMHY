@@ -480,13 +480,16 @@ body.page-iptv .page-wrap {
   background: #000;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .huhu-stage {
   position: relative;
   flex: 1 1 auto;
-  min-height: 42vh;
+  min-height: 100%;
+  height: 100%;
   background: #000;
+  cursor: pointer;
 }
 
 .huhu-video {
@@ -530,12 +533,38 @@ body.page-iptv .page-wrap {
 @keyframes huhu-spin { to { transform: rotate(360deg); } }
 
 .huhu-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   flex: 0 0 auto;
   background: #141311;
   border-radius: 22px 22px 0 0;
   padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.45);
   border-top: 1px solid rgba(228, 194, 122, 0.14);
+  transition: transform 0.28s ease, opacity 0.28s ease;
+  will-change: transform;
+  z-index: 5;
+}
+
+/* Idle: controls slide down off-screen (also in fullscreen) */
+.huhu-player-view.chrome-hidden .huhu-sheet {
+  transform: translateY(110%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.huhu-player-view:fullscreen,
+.huhu-player-view:-webkit-full-screen {
+  background: #000;
+}
+
+.huhu-player-view:fullscreen .huhu-stage,
+.huhu-player-view:-webkit-full-screen .huhu-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .huhu-sheet-head {
@@ -639,11 +668,18 @@ body.page-iptv .page-wrap {
   .huhu-player-view { flex-direction: row; }
   .huhu-stage { min-height: 100%; }
   .huhu-sheet {
+    left: auto;
+    right: 0;
+    top: 0;
+    bottom: 0;
     width: min(420px, 38vw);
     border-radius: 0;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
+  }
+  .huhu-player-view.chrome-hidden .huhu-sheet {
+    transform: translateX(110%);
   }
 }
 

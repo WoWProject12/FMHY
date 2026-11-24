@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=27">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=28">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -48,7 +48,7 @@ declare(strict_types=1);
       <div id="iptvPlayerError" class="huhu-player-error" hidden></div>
     </div>
 
-    <aside class="huhu-sheet" aria-label="Player controls">
+    <aside class="huhu-sheet" id="iptvSheet" aria-label="Player controls">
       <div class="huhu-sheet-head">
         <div id="iptvNowAvatar" class="huhu-avatar huhu-avatar-lg" aria-hidden="true">?</div>
         <strong id="iptvNowName" class="huhu-now-name">Channel</strong>
@@ -102,5 +102,5 @@ declare(strict_types=1);
   </button>
 </div>
 
-<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=27" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=27" defer></script>
+<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=28" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=28" defer></script>
