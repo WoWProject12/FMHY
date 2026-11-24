@@ -25,41 +25,176 @@
   var loadingMore = false;
   var totalAll = 0;
   var PAGE = 300;
-  var FAV_KEY = "chillflix:iptv-favs";
+  // v2 stores channel snapshots so Favorites works after refresh
+  var FAV_KEY = "chillflix_iptv_favs_v2";
+  var FAV_KEY_LEGACY = "chillflix:iptv-favs";
+  var FAV_COOKIE = "chillflix_iptv_favs";
   var epgTimer = null;
+  var activeChannel = null;
 
   var AVATAR_COLORS = [
     "#6b4a32", "#5a4630", "#4a3f2e", "#6b5238", "#5c4834",
     "#7a5a3a", "#4a4034", "#6b4638", "#554836", "#3f382c"
   ];
 
-  function favs() {
+  function readCookie(name) {
     try {
-      var raw = JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
-      return Array.isArray(raw) ? raw.map(String) : [];
+      var m = document.cookie.match(
+        new RegExp("(?:^|; )" + name.replace(/[$()*+.?[\\\]^{|}]/g, "\\$&") + "=([^;]*)")
+      );
+      return m ? decodeURIComponent(m[1]) : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function writeCookie(name, value) {
+    try {
+      document.cookie =
+        name +
+        "=" +
+        encodeURIComponent(value) +
+        "; path=/; max-age=31536000; SameSite=Lax";
+    } catch (e) {}
+  }
+
+  function normalizeFavEntry(item) {
+    if (item == null) return null;
+    if (typeof item === "string" || typeof item === "number") {
+      return { id: String(item), name: String(item), epg: [] };
+    }
+    if (typeof item !== "object") return null;
+    var id = item.id != null ? String(item.id) : "";
+    if (!id) return null;
+    return {
+      id: id,
+      name: item.name != null ? String(item.name) : id,
+      country: item.country != null ? String(item.country) : "",
+      playPageUrl: item.playPageUrl || item.play_page_url || "",
+      epg: Array.isArray(item.epg) ? item.epg : [],
+    };
+  }
+
+  function parseFavRaw(raw) {
+    if (!raw) return [];
+    try {
+      var data = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (!Array.isArray(data)) return [];
+      var out = [];
+      var seen = {};
+      for (var i = 0; i < data.length; i++) {
+        var e = normalizeFavEntry(data[i]);
+        if (!e || seen[e.id]) continue;
+        seen[e.id] = true;
+        out.push(e);
+      }
+      return out;
     } catch (e) {
       return [];
     }
   }
 
-  function setFavs(list) {
+  function loadFavEntries() {
+    var fromLs = "";
+    var fromLegacy = "";
     try {
-      localStorage.setItem(FAV_KEY, JSON.stringify(list));
+      fromLs = localStorage.getItem(FAV_KEY) || "";
     } catch (e) {}
+    try {
+      fromLegacy = localStorage.getItem(FAV_KEY_LEGACY) || "";
+    } catch (e2) {}
+    var fromCookie = readCookie(FAV_COOKIE);
+    var entries = parseFavRaw(fromLs);
+    if (!entries.length) entries = parseFavRaw(fromCookie);
+    if (!entries.length) entries = parseFavRaw(fromLegacy);
+    return entries;
+  }
+
+  function saveFavEntries(entries) {
+    var list = Array.isArray(entries) ? entries : [];
+    var payload = JSON.stringify(list);
+    var ok = false;
+    try {
+      localStorage.setItem(FAV_KEY, payload);
+      ok = localStorage.getItem(FAV_KEY) === payload;
+    } catch (e) {
+      ok = false;
+    }
+    // Always mirror to cookie so refresh still works if LS is flaky
+    writeCookie(FAV_COOKIE, payload);
+    // Keep legacy id list in sync for older builds
+    try {
+      localStorage.setItem(
+        FAV_KEY_LEGACY,
+        JSON.stringify(
+          list.map(function (e) {
+            return e.id;
+          })
+        )
+      );
+    } catch (e2) {}
+    return ok || !!readCookie(FAV_COOKIE);
+  }
+
+  function favEntries() {
+    return loadFavEntries();
+  }
+
+  function favIds() {
+    return favEntries().map(function (e) {
+      return e.id;
+    });
   }
 
   function isFav(id) {
-    return favs().indexOf(String(id)) !== -1;
+    id = String(id);
+    var list = favEntries();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) return true;
+    }
+    return false;
+  }
+
+  function findChannel(id) {
+    id = String(id);
+    if (activeChannel && String(activeChannel.id) === id) return activeChannel;
+    for (var i = 0; i < channels.length; i++) {
+      if (String(channels[i].id) === id) return channels[i];
+    }
+    var favsList = favEntries();
+    for (var j = 0; j < favsList.length; j++) {
+      if (favsList[j].id === id) return favsList[j];
+    }
+    return null;
+  }
+
+  function snapshotChannel(ch) {
+    if (!ch) return null;
+    return normalizeFavEntry(ch);
   }
 
   function toggleFav(id) {
     id = String(id);
-    var list = favs();
-    var i = list.indexOf(id);
-    if (i === -1) list.push(id);
-    else list.splice(i, 1);
-    setFavs(list);
-    return list.indexOf(id) !== -1;
+    var list = favEntries();
+    var idx = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1) {
+      var snap = snapshotChannel(findChannel(id)) || {
+        id: id,
+        name: id,
+        epg: [],
+      };
+      list.push(snap);
+    } else {
+      list.splice(idx, 1);
+    }
+    saveFavEntries(list);
+    return isFav(id);
   }
 
   var lastFavTapAt = 0;
@@ -88,18 +223,17 @@
     btn.innerHTML = heartSvg(!!on, player ? 22 : 20);
   }
 
-  /** Single tap only — ignore duplicate pointer/click within 450ms (mobile double-fire). */
+  /** Single tap only — ignore duplicate events within 700ms. */
   function favTap(id, btn) {
     id = String(id);
     var now = Date.now();
-    if (id === lastFavTapId && now - lastFavTapAt < 450) {
+    if (id === lastFavTapId && now - lastFavTapAt < 700) {
       return isFav(id);
     }
     lastFavTapAt = now;
     lastFavTapId = id;
     var on = toggleFav(id);
     applyHeartUI(btn, on);
-    // Keep list hearts in sync when toggled from player
     if (btn && btn.id === "iptvFavPlayer" && listEl) {
       var listBtn = listEl.querySelector('.huhu-heart[data-fav="' + id + '"]');
       if (listBtn) applyHeartUI(listBtn, on);
@@ -126,42 +260,14 @@
       (btn.id === "iptvFavPlayer" ? activeId : "");
     if (!id) return;
     favTap(id, btn);
-    if (tab === "favs" && btn.id !== "iptvFavPlayer") renderList();
+    if (tab === "favs") renderList();
   }
 
-  // Capture on window so site layout cannot swallow heart taps.
-  // Track pointer movement so scrolls over a heart do not favorite.
-  var favPtr = { x: 0, y: 0, ok: false };
-  window.addEventListener(
-    "pointerdown",
-    function (ev) {
-      var btn = favButtonFromEvent(ev);
-      if (!btn || !root.contains(btn)) {
-        favPtr.ok = false;
-        return;
-      }
-      favPtr.ok = true;
-      favPtr.x = ev.clientX || 0;
-      favPtr.y = ev.clientY || 0;
-    },
-    true
-  );
-  window.addEventListener(
-    "pointerup",
-    function (ev) {
-      if (!favPtr.ok) return;
-      favPtr.ok = false;
-      var dx = Math.abs((ev.clientX || 0) - favPtr.x);
-      var dy = Math.abs((ev.clientY || 0) - favPtr.y);
-      if (dx > 12 || dy > 12) return;
-      onFavGesture(ev);
-    },
-    true
-  );
+  // Click only (capture) — pointerup+click was double-firing and wiping saves
   window.addEventListener("click", onFavGesture, true);
 
   function wireHeartButtons() {
-    // no-op kept for call sites — global capture handlers own favorites
+    // no-op — window capture handler owns favorites
   }
 
   function avatarColor(name) {
@@ -294,8 +400,21 @@
 
   function visibleChannels() {
     if (tab !== "favs") return channels;
-    var f = favs();
-    return channels.filter(function (c) { return f.indexOf(String(c.id)) !== -1; });
+    // Prefer live channel objects when present; otherwise use saved snapshots
+    // so Favorites still lists channels after refresh.
+    var entries = favEntries();
+    var out = [];
+    for (var i = 0; i < entries.length; i++) {
+      var live = null;
+      for (var j = 0; j < channels.length; j++) {
+        if (String(channels[j].id) === entries[i].id) {
+          live = channels[j];
+          break;
+        }
+      }
+      out.push(live || entries[i]);
+    }
+    return out;
   }
 
   function renderCountries() {
@@ -494,6 +613,7 @@
 
   function showPlayer(channel, index) {
     activeId = String(channel.id);
+    activeChannel = channel || null;
     activeIndex = index;
     root.classList.add("is-player");
     setSiteDockHidden(true);
