@@ -1,14 +1,13 @@
 # Auto past unready VAPlayer → 7Movies
 
 ## Problem
-1. VAPlayer resolve returned CDN URLs that never became probe-ready; Auto treated “URLs survived settle” as first-win and stopped the Sources walk on “Checking VAPlayer”.
-2. `pickPreferredPlaybackSource` still locked onto demoted VAPlayer rows that still had URLs (`!requiresProbe` fast-path), so 7Movies never auto-started even after soft-fail.
-3. Deployed builds were invisible while nginx `.next-current` pointed at embed42 and `pcv` stayed on `20261124T1838Zcd1e`.
+1. VAPlayer CDN URLs first-won Auto and blocked 7Movies.
+2. Demoted VA rows still won `pickPreferred` via `!requiresProbe`.
+3. Probe overlay used PLACEHOLDER with `enabled:false` + gated on `streamSourcesLoading`, so the UI showed empty **Still searching...** with no VAPlayer/7Movies rows.
+4. Old `pcv` / `.next-current`→embed42 hid earlier deploys.
 
 ## Fix
-- `hooks/useMediaSources.ts`: only soft-demote **vaplayer** when settle ends without ready; other client-resolve (7Movies) first-wins on URLs.
-- `components/player/utils/playback.ts`: skip demoted providers even when they have URLs; while scanning, do not optimistic-pick VAPlayer.
-- Live: `.next-embed44`, `.next-current` → embed44, `pcv=20261124T1916Z7m`.
-
-## Note
-7Movies meta needs assist/boot (WARP). Transient boot 403/429 yields empty streams — retry; do not treat as “title missing”.
+- Soft-demote only vaplayer when settle is not ready; 7Movies first-wins on URLs.
+- Skip demoted providers in pickPreferred; wait on VA while scanning.
+- PLACEHOLDER keeps default enabled catalog; show probe list while stream-sources loads.
+- Live: `.next-embed45`, `pcv=20261124T1922Z7m`.

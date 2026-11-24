@@ -118,8 +118,10 @@ export function SourceLoadingOverlay({
         scanFailedProviderIds,
     })
 
+    // Show PLACEHOLDER/default rows immediately; do not hide the list while
+    // stream-sources is still loading (that was empty "Still searching...").
     const showProbeFlow =
-        active && !playbackStarted && !soapyOnlyFailure && !streamSourcesLoading && rows.length > 0
+        active && !playbackStarted && !soapyOnlyFailure && rows.length > 0
 
     const infrastructureMessage =
         sourceStatusMessage ?? findInfrastructurePlaybackMessage(diagnostics)
