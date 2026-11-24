@@ -704,23 +704,41 @@ body.is-iptv-player .Dock-module-scss-module__qZDorW__dockPanel.dock-panel {
 }
 
 
-.huhu-account-btn {
-  position: relative;
-  overflow: hidden;
+
+
+/* Logged-in badge — mirrors dock profile avatar, not clickable */
+.huhu-account-badge {
+  pointer-events: none !important;
+  cursor: default !important;
+  opacity: 1 !important;
 }
-.huhu-account-btn[hidden] { display: none !important; }
-.huhu-account-avatar {
-  display: none;
+.huhu-account-badge[hidden] { display: none !important; }
+.huhu-account-av {
+  position: relative;
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  background-size: cover;
-  background-position: center;
-  background-color: rgba(228, 194, 122, 0.25);
-  color: #f4efe6;
-  font-size: 11px;
-  font-weight: 700;
+  overflow: hidden;
+  display: grid;
   place-items: center;
 }
-.huhu-account-btn.has-avatar .huhu-account-avatar { display: grid; }
-.huhu-account-btn.has-avatar .huhu-account-fallback { display: none; }
+.huhu-account-av .dock-acct-img,
+.huhu-account-av img {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+}
+.huhu-account-av .dock-acct-letter {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(228, 194, 122, 0.28);
+  color: #f4efe6;
+}
+.huhu-account-av.has-avatar .dock-acct-fallback { display: none; }

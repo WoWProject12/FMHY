@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=31">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=32">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -76,11 +76,12 @@ declare(strict_types=1);
         <button type="button" id="iptvFs" class="huhu-icon-btn" title="Fullscreen" aria-label="Fullscreen">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <!-- Logged-in only — far right after fullscreen -->
-        <button type="button" id="iptvAccount" class="huhu-icon-btn huhu-account-btn" title="Account" aria-label="Account" hidden>
-          <span class="huhu-account-avatar" id="iptvAccountAvatar" aria-hidden="true"></span>
-          <svg class="huhu-account-fallback" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        </button>
+        <!-- Logged-in indicator only (not clickable) — uses site profile avatar -->
+        <span id="iptvAccount" class="huhu-icon-btn huhu-account-badge" title="Logged in" aria-label="Logged in" hidden>
+          <span class="huhu-account-av" data-acct-nav-av aria-hidden="true">
+            <svg class="dock-acct-fallback" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+          </span>
+        </span>
       </div>
 
       <div class="huhu-epg-block">
@@ -101,5 +102,5 @@ declare(strict_types=1);
   </button>
 </div>
 
-<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=31" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=31" defer></script>
+<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=32" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=32" defer></script>
