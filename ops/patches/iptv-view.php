@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=24">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=25">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -98,5 +98,5 @@ declare(strict_types=1);
   </button>
 </div>
 
-<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=24" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=24" defer></script>
+<script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=25" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=25" defer></script>
