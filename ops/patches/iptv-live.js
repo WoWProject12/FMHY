@@ -1426,16 +1426,23 @@
 
   var partyBtn = document.getElementById("iptvParty");
   if (partyBtn) {
+    // Prefer native <a href> navigation; force hard load if SPA intercepts.
     partyBtn.addEventListener("click", function (ev) {
-      ev.preventDefault();
       ev.stopPropagation();
-      try {
-        var base = "";
-        try { base = String(document.body.getAttribute("data-base") || ""); } catch (eB) {}
-        window.location.href = base + "/party";
-      } catch (eParty) {
-        window.location.href = "/party";
+      var href = partyBtn.getAttribute("href") || "";
+      if (!href) {
+        ev.preventDefault();
+        try {
+          var base = "";
+          try { base = String(document.body.getAttribute("data-base") || ""); } catch (eB) {}
+          href = base + "/party";
+        } catch (eParty) {
+          href = "/party";
+        }
       }
+      // Always hard-navigate so soft-nav cannot swallow /party.
+      ev.preventDefault();
+      window.location.assign(href);
     });
   }
 
