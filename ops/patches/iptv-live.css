@@ -66,23 +66,23 @@ body.page-iptv .page-wrap {
 
 .huhu * { box-sizing: border-box; }
 
-/* ~16–18px side margin like the photo — not squeezed */
+/* Photo gutters ~16px */
 .huhu-list-view {
   max-width: 720px;
   margin: 0 auto;
-  padding: 14px 16px 110px;
+  padding: 12px 16px 110px;
 }
 
 .huhu-top {
   display: grid;
-  gap: 12px;
-  margin-bottom: 6px;
+  gap: 10px;
+  margin-bottom: 4px;
 }
 
 .huhu-tabs {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   width: fit-content;
 }
 
@@ -90,9 +90,9 @@ body.page-iptv .page-wrap {
   border: 0;
   background: transparent;
   color: var(--huhu-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 8px 14px;
+  padding: 7px 12px;
   border-radius: 999px;
   cursor: pointer;
   line-height: 1.2;
@@ -107,14 +107,19 @@ body.page-iptv .page-wrap {
 .huhu-search {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 46px;
-  padding: 0 14px;
-  border-radius: 14px;
+  gap: 8px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 12px;
   background: var(--huhu-panel);
   color: var(--huhu-muted);
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.huhu-search svg {
+  width: 16px;
+  height: 16px;
 }
 
 .huhu-search input {
@@ -123,7 +128,7 @@ body.page-iptv .page-wrap {
   outline: none;
   background: transparent;
   color: var(--huhu-text);
-  font-size: 15px;
+  font-size: 13.5px;
   font-family: inherit;
 }
 
@@ -139,15 +144,15 @@ body.page-iptv .page-wrap {
 
 .huhu-select select {
   width: 100%;
-  height: 44px;
+  height: 40px;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--huhu-panel);
   color: var(--huhu-text);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 560;
   font-family: inherit;
-  padding: 0 34px 0 14px;
+  padding: 0 30px 0 12px;
   appearance: none;
   -webkit-appearance: none;
   outline: none;
@@ -172,23 +177,23 @@ body.page-iptv .page-wrap {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
-/* Photo-scale rows: ~50px letter box, comfortable padding */
+/* Compact rows — reference text/avatars are smaller than our old 15px/50px */
 .huhu-row {
   display: grid;
-  grid-template-columns: 24px 50px minmax(0, 1fr) 40px;
+  grid-template-columns: 20px 42px minmax(0, 1fr) 36px;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 12px 2px;
+  padding: 9px 2px;
   border: 0;
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .huhu-row:hover,
@@ -197,7 +202,7 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-idx {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: #8e96a5;
   text-align: center;
@@ -205,12 +210,12 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  font-size: 21px;
+  font-size: 17px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: -0.02em;
@@ -220,7 +225,7 @@ body.page-iptv .page-wrap {
   z-index: 1;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 4px 12px rgba(0, 0, 0, 0.5);
+    0 4px 10px rgba(0, 0, 0, 0.48);
 }
 
 .huhu-avatar img {
@@ -232,28 +237,30 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-avatar-lg {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .huhu-meta { min-width: 0; }
 
 .huhu-name {
   display: block;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 650;
   color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0.01em;
 }
 
 .huhu-epg-line {
   display: block;
-  margin-top: 3px;
-  font-size: 12px;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.3;
   color: var(--huhu-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -261,8 +268,8 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-mini-progress {
-  margin-top: 7px;
-  height: 3px;
+  margin-top: 6px;
+  height: 2.5px;
   border-radius: 99px;
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
@@ -279,8 +286,8 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-heart {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border: 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.78);
@@ -291,7 +298,7 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-heart.is-on { color: var(--huhu-accent); }
-.huhu-heart svg { pointer-events: none; }
+.huhu-heart svg { pointer-events: none; width: 18px; height: 18px; }
 
 .huhu-status {
   margin: 18px 0 0;
