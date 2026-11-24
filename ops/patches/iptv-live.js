@@ -669,6 +669,14 @@
     activeId = String(channel.id);
     activeChannel = channel || null;
     activeIndex = index;
+    // Channel open is a user gesture — unlock audio for unmuted playback
+    if (video) {
+      preferAudible();
+      try {
+        var unlock = video.play();
+        if (unlock && unlock.catch) unlock.catch(function () {});
+      } catch (eUnlock) {}
+    }
     root.classList.add("is-player");
     setSiteDockHidden(true);
     if (listView) listView.hidden = true;
@@ -715,19 +723,47 @@
     renderList();
   }
 
+  function preferAudible() {
+    if (!video) return;
+    try {
+      video.volume = 1;
+      video.muted = false;
+    } catch (e) {}
+  }
+
+  /** Play with sound on by default; only mute if the browser blocks autoplay. */
+  function playWithSound() {
+    if (!video) return Promise.resolve();
+    preferAudible();
+    return video.play().catch(function () {
+      // Autoplay policy blocked unmuted — start muted then unmute ASAP
+      video.muted = true;
+      return video
+        .play()
+        .then(function () {
+          preferAudible();
+          return video.play().catch(function () {
+            // Still blocked — leave muted; user can tap the speaker
+          });
+        })
+        .catch(function () {});
+    }).then(function () {
+      syncMute();
+    });
+  }
+
   function startStream(channel) {
     if (!video) return;
     setPlayerError("");
     setBusy(true);
     destroyPlayer();
-    video.muted = true;
+    preferAudible();
 
     var src = playUrl(channel);
 
     function ready() {
       setBusy(false);
-      video.play().catch(function () {});
-      syncMute();
+      playWithSound();
     }
 
     function fail(msg) {
