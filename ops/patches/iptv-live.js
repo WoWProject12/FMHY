@@ -34,7 +34,7 @@
   var searchTimer = null;
   var loadingMore = false;
   var totalAll = 0;
-  var PAGE = 60;
+  var PAGE = 40;
   // v2 stores channel snapshots so Favorites works after refresh
   var FAV_KEY = "chillflix_iptv_favs_v2";
   var FAV_KEY_LEGACY = "chillflix:iptv-favs";
@@ -43,6 +43,94 @@
   var activeChannel = null;
   var PLAY_KEY = "chillflix_iptv_play";
   var resumedPlay = false;
+  var LIST_CACHE_KEY = "chillflix_iptv_list_v2";
+  var paintedFromCache = false;
+
+  function listCacheKey() {
+    var q = searchEl && searchEl.value ? searchEl.value.trim() : "";
+    var country = countryEl ? countryEl.value : "";
+    var sort = sortEl ? sortEl.value : "trending";
+    return LIST_CACHE_KEY + ":" + sort + ":" + (country || "all") + ":" + (q || "");
+  }
+
+  function saveListCache(batch, total, countryCounts) {
+    try {
+      var q = searchEl && searchEl.value ? searchEl.value.trim() : "";
+      // Only cache default browse (no search) — keeps payload small/useful.
+      if (q) return;
+      sessionStorage.setItem(
+        listCacheKey(),
+        JSON.stringify({
+          at: Date.now(),
+          totalAll: total,
+          countryCounts: countryCounts || [],
+          channels: (batch || []).slice(0, 80),
+        })
+      );
+    } catch (e) {}
+  }
+
+  function readListCache() {
+    try {
+      var q = searchEl && searchEl.value ? searchEl.value.trim() : "";
+      if (q) return null;
+      var raw = sessionStorage.getItem(listCacheKey());
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.channels) || !data.channels.length) return null;
+      // 6 hours
+      if (Date.now() - Number(data.at || 0) > 6 * 60 * 60 * 1000) return null;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function renderSkeleton(n) {
+    if (!listEl || root.classList.contains("is-player")) return;
+    var rows = [];
+    n = n || 10;
+    for (var i = 0; i < n; i++) {
+      rows.push(
+        '<div class="huhu-row is-skel" aria-hidden="true">' +
+          '<span class="huhu-idx">' +
+          (i + 1) +
+          "</span>" +
+          '<span class="huhu-avatar skel-block"></span>' +
+          '<span class="huhu-meta">' +
+          '<span class="skel-line skel-line-lg"></span>' +
+          '<span class="skel-line skel-line-sm"></span>' +
+          "</span>" +
+          "</div>"
+      );
+    }
+    listEl.innerHTML = rows.join("");
+  }
+
+  function paintFromCache() {
+    if (root.classList.contains("is-player")) return false;
+    var cached = readListCache();
+    if (!cached) {
+      renderSkeleton(10);
+      setStatus("Loading…");
+      return false;
+    }
+    channels = cached.channels;
+    totalAll = Number(cached.totalAll || channels.length) || channels.length;
+    if (Array.isArray(cached.countryCounts) && cached.countryCounts.length) {
+      groups = cached.countryCounts
+        .map(function (c) {
+          return c.country;
+        })
+        .filter(Boolean);
+      renderCountries();
+    }
+    paintedFromCache = true;
+    renderList();
+    setStatus(channels.length + " channels");
+    return true;
+  }
+
 
   function playQueryId() {
     try {
@@ -490,7 +578,7 @@
   function loadLogoMap() {
     if (LOGO_MAP.ready) return Promise.resolve(LOGO_MAP);
     if (LOGO_MAP.loading) return LOGO_MAP.loading;
-    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=46", {
+    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=47", {
       credentials: "same-origin",
       cache: "force-cache",
     })
@@ -1296,7 +1384,12 @@
     } else {
       loadingMore = false;
       if (!root.classList.contains("is-player")) {
-        setStatus("Loading…");
+        if (!channels.length) {
+          setStatus("Loading…");
+          if (listEl && !listEl.innerHTML) renderSkeleton(10);
+        } else if (paintedFromCache) {
+          setStatus("Updating…");
+        }
       }
       if (loadAbort) {
         try {
@@ -1325,8 +1418,10 @@
       if (seq !== loadSeq) return;
       loadingMore = false;
       if (!append) {
-        channels = [];
-        if (listEl) listEl.innerHTML = "";
+        if (!paintedFromCache || !channels.length) {
+          channels = [];
+          if (listEl) listEl.innerHTML = "";
+        }
         setStatus(
           (err && err.message) || "Failed to load channels",
           true
@@ -1345,7 +1440,7 @@
       fetch("/api/iptv/channels?" + params.toString(), {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
-        cache: "no-store",
+        cache: paintedFromCache ? "no-store" : "default",
         signal: ctrl ? ctrl.signal : undefined,
       })
         .then(function (r) {
@@ -1389,6 +1484,8 @@
               ).sort();
             }
             renderCountries();
+            saveListCache(batch, totalAll, data.countryCounts || []);
+            paintedFromCache = false;
           }
           try { enrichActiveChannelFromList(); } catch (eEn) {}
           renderList();
@@ -1731,9 +1828,10 @@
   }
 
   optimisticResumeShell();
+  paintFromCache();
   loadChannels(false);
   // Defer logo map so first channel paint isn't competing with a 270KB JSON fetch.
   setTimeout(function () {
     loadLogoMap();
-  }, 50);
+  }, 120);
 })();
