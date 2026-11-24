@@ -2397,18 +2397,18 @@ const quietStallAttemptRef = useRef(0)
                     parsed
                         ? `${parsed.providerId}:${parsed.type}`
                         : playerSource.id
-                // Once settled, ignore URL fingerprint changes from VSEmbed
-                // re-unlock refreshes — those remounts black-flash a working stream.
-                // Also freeze client-resolve URLs during unlock — VA/7Movies token
-                // swaps used to remount mid Continue Watching (0 → startAt → 0 → startAt).
-                const urlFp = playbackStable
-                    ? "locked"
-                    : parsed &&
-                        isClientResolveProvider(parsed.providerId)
-                      ? "pending"
-                      : String(playerSource.url || "")
-                          .replace(/[?#].*$/, "")
-                          .slice(-48)
+                // Never put CDN URL (or pending→locked) in the React key for
+                // client-resolve. Continue Watching seeks currentTime past 0.5
+                // which flips playbackStable; pending→locked remounted the player
+                // (scrubber: startAt → 0:00 → startAt).
+                const urlFp =
+                    parsed && isClientResolveProvider(parsed.providerId)
+                        ? "cdn"
+                        : playbackStable
+                          ? "locked"
+                          : String(playerSource.url || "")
+                              .replace(/[?#].*$/, "")
+                              .slice(-48)
                 return embedMode
                     ? `embed:${mediaType}:${mediaId}:s${season ?? ""}:e${episode ?? ""}:${stable}:u${urlFp}:n${sourceSwitchNonce}`
                     : `${stable}:u${urlFp}:n${sourceSwitchNonce}`

@@ -1,15 +1,14 @@
 # Continue Watching: stop double remount flash
 
 ## Symptom
-Stream briefly seeks to the saved position, then appears to reload sources
-(scrubber snaps to 0:00), then seeks/plays at continue again.
+Stream seeks to saved time, scrubber snaps to 0:00, then seeks/plays again.
 
-## Cause
-1. Auto-commit bumped `sourceSwitchNonce` after MediaPlayer had already mounted
-   with Continue Watching — forced a full remount.
-2. Client-resolve URL fingerprint in the React `key` changed when VA/7Movies
-   unlock refreshed the CDN URL before `playbackStable`.
+## Causes fixed
+1. Auto-commit `sourceSwitchNonce` remount when `startAt` set — skipped.
+2. **Root cause of remaining flash:** React `key` used `urlFp = playbackStable ? "locked" : "pending"`.
+   Continue Watching seeks `currentTime` past 0.5 → `playbackStable` flips → key changes
+   `pending`→`locked` → full MediaPlayer remount (0:00 flash).
+3. Fix: client-resolve `urlFp` is always `"cdn"` (never flips with stable).
 
-## Fix (live `.next-embed41`, pcv `20261124T1756Zcd1e`)
-- Skip nonce remount on auto-commit when opening `startAt` is set.
-- Freeze `urlFp` to `"pending"` for client-resolve until playback is stable.
+## Live
+`.next-embed42` / pcv `20261124T1838Zcd1e`
