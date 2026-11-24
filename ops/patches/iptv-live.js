@@ -1003,7 +1003,9 @@
       loadingMore = true;
     } else {
       loadingMore = false;
-      setStatus("Loading…");
+      if (!root.classList.contains("is-player")) {
+        setStatus("Loading…");
+      }
       if (loadAbort) {
         try {
           loadAbort.abort();
@@ -1096,13 +1098,7 @@
             }
             renderCountries();
           }
-          if (!(root.classList.contains("is-player") && !append)) {
-            renderList();
-          } else if (!append) {
-            try {
-              renderCountries();
-            } catch (eC) {}
-          }
+          renderList();
           if (!append) {
             try {
               resumePlayIfNeeded();

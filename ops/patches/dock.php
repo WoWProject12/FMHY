@@ -72,7 +72,7 @@ $items = [
         </span>
         <span class="dock-label">Shows</span>
       </a>
-      <a aria-label="Live TV" href="<?= movy_e(movy_url('/iptv')) ?>" class="<?= $itemClass . ' dock-item-live' . ($nav === 'iptv' ? $activeClass : '') ?>" title="Live TV">
+      <a aria-label="Live TV" href="<?= movy_e(movy_url('/iptv')) ?>" data-no-spa="1" class="<?= $itemClass . ' dock-item-live' . ($nav === 'iptv' ? $activeClass : '') ?>" title="Live TV">
         <span class="Dock-module-scss-module__qZDorW__dockIcon" aria-hidden="true">
           <span class="dock-new-badge">NEW</span>
           <svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="20"><path d="m8 3 4 4 4-4"/><rect width="20" height="13" x="2" y="7" rx="2"/><circle cx="12" cy="13.5" r="2.25"/><path d="M7 20h10"/></svg>

@@ -473,6 +473,11 @@ body.page-iptv .page-wrap {
 .huhu.is-player .huhu-side-handle { display: none; }
 
 /* PLAYER */
+.huhu-list-view[hidden],
+.huhu-player-view[hidden] {
+  display: none !important;
+}
+
 .huhu-player-view {
   position: fixed;
   inset: 0;
