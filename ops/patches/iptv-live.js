@@ -486,7 +486,7 @@
   function loadLogoMap() {
     if (LOGO_MAP.ready) return Promise.resolve(LOGO_MAP);
     if (LOGO_MAP.loading) return LOGO_MAP.loading;
-    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=42", {
+    LOGO_MAP.loading = fetch("/assets/data/iptv-tvg-logos.json?v=43", {
       credentials: "same-origin",
       cache: "force-cache",
     })
@@ -524,8 +524,10 @@
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
-    if (/^canal\s*\+/.test(n) || /^canal\s*plus/.test(n) || /^canal\s*sport/.test(n) || n === "canal +") return "canal+";
+    if (/^canal\s*\+/.test(n) || /^canal\s*plus/.test(n) || /^canal\s*sport/.test(n) || /^canal\s*action/.test(n) || /^canal\s*ligue/.test(n) || /^canal\s*360/.test(n) || n.indexOf("canal +") === 0 || n === "canal +") return "canal+";
+    if (/^a\s*\+\s*ivoire/.test(n)) return "a+ ivoire";
     if (/^a\s*\+/.test(n)) return "a+";
+    if (/^a\s*la\s*carte/.test(n)) return "a la carte";
     if (/^infosport/.test(n)) return "infosport";
     if (/^nollywood/.test(n)) return "nollywood";
     if (/^13\s*eme\s*rue|^13ème\s*rue|^13emerue/.test(n)) return "13eme rue";
@@ -534,9 +536,13 @@
     if (/^cinedome/.test(n)) return "cinedome";
     if (/^tf1\b/.test(n)) return "tf1";
     if (/^france\s*24/.test(n)) return "france 24";
+    if (/^rtl\s*2\b|^rtl2\b/.test(n)) return "rtl2";
     if (/^rtl\b/.test(n)) return "rtl";
     if (/^mangas\b/.test(n)) return "mangas";
     if (/^cine\s*\+|^cineplus/.test(n)) return "cine+";
+    if (/^dazn\b/.test(n)) return "dazn";
+    if (/amazon|prime\s*video/.test(n)) return "amazon prime";
+    if (/^blue\s*tv|^bluetv|^blutv/.test(n)) return "bluetv";
     return n;
   }
 
