@@ -29,7 +29,7 @@ FETCH_CONCURRENCY = max(
 )
 # Hard cap how long one /fetch may hold a slot (curl timeout is 45s).
 FETCH_SLOT_MAX_SEC = float(
-    __import__("os").environ.get("SEVENMOVIES_FETCH_SLOT_MAX_SEC", "55")
+    __import__("os").environ.get("SEVENMOVIES_FETCH_SLOT_MAX_SEC", "25")
 )
 # Reject/ truncate full-file downloads that would wedge RAM + slots.
 FETCH_MAX_BODY = int(
@@ -246,6 +246,15 @@ def _allowed_fetch_url(raw: str) -> str | None:
     return None
 
 
+def _looks_like_media_url(url: str) -> bool:
+    path = (urlparse(url).path or "").lower()
+    if any(path.endswith(ext) for ext in (".mp4", ".m4s", ".ts", ".m4a", ".aac")):
+        return True
+    if "/api/orion/" in path or "/pl/" in path:
+        return True
+    return False
+
+
 def fetch_cdn(
     url: str, req_headers: dict | None = None, method: str = "GET"
 ) -> tuple[int, dict, bytes]:
@@ -271,10 +280,19 @@ def fetch_cdn(
             if lk == "range":
                 has_range = True
             headers[k] = v
+    # CRITICAL: without Range, curl_cffi buffers the ENTIRE movie into RAM and
+    # holds a fetch slot for minutes → fetchFree stays 0 for everyone.
+    forced_range = False
+    if not has_range and _looks_like_media_url(url):
+        headers["Range"] = f"bytes=0-{FETCH_MAX_BODY - 1}"
+        has_range = True
+        forced_range = True
     last_err = "fetch failed"
     body = b""
     status = 502
     out_headers: dict = {}
+    # Range slices should finish quickly; full playlist JSON stays short too.
+    timeout = 20 if has_range else 30
     for proxies in (_warp_proxies(), None):
         try:
             r = crequests.request(
@@ -283,30 +301,28 @@ def fetch_cdn(
                 headers=headers,
                 proxies=proxies,
                 impersonate="chrome131",
-                timeout=45,
+                timeout=timeout,
                 allow_redirects=True,
             )
             status = int(r.status_code or 0)
             body = r.content or b""
-            # Cap runaway full-file buffers (slot + RAM wedge).
-            if not has_range and len(body) > FETCH_MAX_BODY:
+            if len(body) > FETCH_MAX_BODY:
                 body = body[:FETCH_MAX_BODY]
-                out_headers = {
-                    "content-type": r.headers.get("content-type")
-                    or "application/octet-stream",
-                    "cache-control": "no-store",
-                    "x-boot-truncated": "1",
-                }
-                return 206 if status == 200 else status, out_headers, body
             out_headers = {
                 "content-type": r.headers.get("content-type")
                 or "application/octet-stream",
                 "cache-control": "no-store",
+                "accept-ranges": r.headers.get("accept-ranges") or "bytes",
             }
             if r.headers.get("content-range"):
                 out_headers["content-range"] = r.headers.get("content-range")
-            if r.headers.get("accept-ranges"):
-                out_headers["accept-ranges"] = r.headers.get("accept-ranges")
+            elif forced_range and status in (200, 206):
+                out_headers["content-range"] = (
+                    f"bytes 0-{max(0, len(body) - 1)}/*"
+                )
+                status = 206
+            if forced_range:
+                out_headers["x-boot-forced-range"] = "1"
             if status == 403 and b"Just a moment" in body[:2000]:
                 last_err = "cf challenge"
                 continue
