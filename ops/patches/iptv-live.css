@@ -2,8 +2,6 @@
 
 /* Chillflix site chrome OFF — Live TV has its own dock */
 body.page-iptv #siteHeader,
-body.page-iptv .toflix-mobile-dock,
-body.page-iptv nav[aria-label="Mobile navigation"],
 body.page-iptv nav[aria-label="Main"],
 body.page-iptv .header-fade,
 body.page-iptv footer,
@@ -14,10 +12,20 @@ body.page-iptv [data-sale-offer],
 body.page-iptv .sale-offer,
 body.page-iptv .aurora-leaves,
 body.page-iptv canvas.aurora-leaves,
-body.page-iptv .aurora-snow {
+body.page-iptv .aurora-snow,
+body.page-iptv .huhu-dock {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
+}
+
+/* Chillflix floating dock stays visible on Live TV */
+body.page-iptv nav.toflix-mobile-dock,
+body.page-iptv nav[aria-label="Mobile navigation"] {
+  display: block !important;
+  visibility: visible !important;
+  pointer-events: none !important; /* outer is pointer-events none; panel re-enables */
+  opacity: 1 !important;
 }
 
 /* Flat charcoal like the reference (aurora wash stays dim underneath) */
@@ -55,7 +63,7 @@ body.page-iptv .page-wrap {
   background: var(--huhu-bg);
   color: var(--huhu-text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px));
   position: relative;
   z-index: 2;
 }
@@ -63,9 +71,18 @@ body.page-iptv .page-wrap {
 .huhu * { box-sizing: border-box; }
 
 .huhu-list-view {
-  max-width: 720px;
+  /* Narrower content column — more side gutter like the reference */
+  max-width: 420px;
   margin: 0 auto;
-  padding: 16px 16px 28px;
+  padding: 14px 26px 110px;
+}
+
+@media (min-width: 480px) {
+  .huhu-list-view {
+    max-width: 460px;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
 }
 
 .huhu-top {
@@ -170,11 +187,11 @@ body.page-iptv .page-wrap {
 
 .huhu-row {
   display: grid;
-  grid-template-columns: 26px 50px minmax(0, 1fr) 40px;
+  grid-template-columns: 22px 48px minmax(0, 1fr) 36px;
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 14px 2px;
+  padding: 13px 0;
   border: 0;
   background: transparent;
   color: inherit;
@@ -197,24 +214,32 @@ body.page-iptv .page-wrap {
 }
 
 .huhu-avatar {
-  width: 50px;
-  height: 50px;
+  width: 48px;
+  height: 48px;
   border-radius: 14px;
   display: grid;
   place-items: center;
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.94);
   letter-spacing: -0.02em;
-  overflow: hidden;
+  /* overflow must stay visible so the outer shadow isn't clipped */
+  overflow: visible;
   flex: 0 0 auto;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+  z-index: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 6px 16px rgba(0, 0, 0, 0.55),
+    0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
 .huhu-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: inherit;
+  display: block;
 }
 
 .huhu-avatar-lg {
@@ -463,21 +488,27 @@ body.page-iptv .page-wrap {
   text-overflow: ellipsis;
 }
 
-/* Live TV bottom dock (NOT Chillflix site navbar) */
+/* Floating capsule dock — inset, not full-bleed site navbar */
 .huhu-dock {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 14px;
+  right: 14px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   z-index: 70;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 2px;
-  padding: 8px 6px calc(10px + env(safe-area-inset-bottom, 0px));
-  background: var(--huhu-dock);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(12px);
-  border-radius: 18px 18px 0 0;
+  gap: 0;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 8px 8px 10px;
+  background: rgba(28, 32, 40, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 28px;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .huhu.is-player .huhu-dock { display: none; }
@@ -487,16 +518,17 @@ body.page-iptv .page-wrap {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   border: 0;
   background: transparent;
   color: #9aa3b2;
   text-decoration: none;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  min-height: 52px;
+  min-height: 48px;
   cursor: pointer;
   font-family: inherit;
+  border-radius: 18px;
 }
 
 .huhu-dock-item.is-on {
@@ -507,16 +539,28 @@ body.page-iptv .page-wrap {
 .huhu-dock-active {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 36px;
-  border-radius: 12px;
+  width: 40px;
+  height: 32px;
+  border-radius: 999px;
   color: var(--huhu-accent);
-  background: radial-gradient(circle at center, rgba(235, 43, 88, 0.28) 0%, rgba(235, 43, 88, 0.08) 55%, transparent 75%);
-  box-shadow: 0 0 18px rgba(235, 43, 88, 0.35);
+  background: radial-gradient(circle at center, rgba(235, 43, 88, 0.32) 0%, rgba(235, 43, 88, 0.1) 50%, transparent 72%);
+  box-shadow: 0 0 16px rgba(235, 43, 88, 0.4);
+}
+
+@media (min-width: 480px) {
+  .huhu-dock {
+    max-width: 480px;
+    left: 0;
+    right: 0;
+  }
 }
 
 @media (min-width: 900px) {
-  .huhu-list-view { max-width: 820px; padding-top: 22px; }
+  .huhu-list-view {
+    max-width: 520px;
+    padding-top: 22px;
+  }
+  .huhu-dock { max-width: 520px; }
   .huhu-player-view { flex-direction: row; }
   .huhu-stage { min-height: 100%; }
   .huhu-sheet {
