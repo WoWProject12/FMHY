@@ -1,20 +1,15 @@
-# VSEmbed mid-play stall lock (chillflix.pw)
+# VSEmbed mid-play flicker / loading-list (chillflix.pw)
 
-## Problem
-On www.chillflix.pw, VSEmbed unlocks and plays, then brief HLS stalls triggered
-`quietBackgroundStallCheck` which re-unlocked + remounted the player
-(black flash → "finds source" again). Other titles looked fine when their CDN
-did not stall.
+## Symptom
+Plays → black flicker → source probe / loading list again, even though it was already playing.
 
-## Fix (live on pw)
-File: `/var/www/chillflix.pw/components/cinepro-watch-player.tsx`
-Build: `.next-embed36` (restarted `chillflix-embed`, `chillflix-player`, `chillflix-player-b`)
+## Cause
+1. Buffer/proxy stall recovery remounted MediaPlayer (`bumpSourceSwitch` / re-unlock).
+2. On remount, `isLoading` + `currentTime≈0` made `SourceStatusOverlay` show the probe list again.
 
-- Skip quiet stall remount when `playbackStable` / `playbackActive`
-- Freeze MediaPlayer key urlFp to `"locked"` once settled
-- Latch playing URL via `lockedPlaybackUrlRef`
-- Block stuckOnScrape upgrades after >=2s real progress
+## Fix (live on pw `.next-embed36`)
+- `cinepro-watch-player.tsx`: skip quiet stall / proxy remount after ≥0.5s progress; `bumpSourceSwitch` refuses after progress; early `playbackStable` lock.
+- `MediaPlayer.tsx`: never call parent `onBufferStall` after first paint; keep `hasPlayedOnce` for overlay progress.
+- `SourceStatusOverlay.tsx`: latch probe panel off once a source has played.
 
-## Verify
-Hard-refresh embed, play VSEmbed, confirm no mid-play remount loop.
-Unlock API still: `http://127.0.0.1:3017/unlock` via `/api/vsembed/unlock`.
+Hard-refresh the embed (cache-bust) before retesting.

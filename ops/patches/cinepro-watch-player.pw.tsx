@@ -307,6 +307,12 @@ export function CineProWatchPlayer({
         }
         if (Number.isFinite(timeSec) && timeSec >= 0) {
             livePlaybackTimeRef.current = timeSec
+            // Lock early so stall/error recovery cannot remount once video moves.
+            if (timeSec >= 0.5 && !playbackStableRef.current) {
+                playbackStableRef.current = true
+                setPlaybackStable(true)
+                setPlaybackActive(true)
+            }
         }
     }, [])
     const [playbackActive, setPlaybackActive] = useState(false)
@@ -726,6 +732,11 @@ export function CineProWatchPlayer({
 
     const bumpSourceSwitch = useCallback(() => {
         if (!playbackRecoveryLimiterRef.current.canSwitch()) {
+            return false
+        }
+        // Mid-watch remounts are the flicker + loading-list bug. Manual source
+        // taps clear progress via handleSelectSource before calling bump.
+        if (livePlaybackTimeRef.current >= 0.5 || playbackStableRef.current) {
             return false
         }
         lockedPlaybackUrlRef.current = null
@@ -1637,9 +1648,12 @@ export function CineProWatchPlayer({
 
     const handleSelectSource = (id: string, optionOverride?: PlaybackOption) => {
         setRuntimeError(undefined)
+        const priorTime = livePlaybackTimeRef.current
         playbackStableRef.current = false
         setPlaybackStable(false)
         lockedPlaybackUrlRef.current = null
+        // Allow recovery remounts only for intentional taps (bump refuses after progress).
+        livePlaybackTimeRef.current = 0
 
         const option =
             optionOverride ?? playbackOptions.find((item) => item.id === id)
@@ -1648,7 +1662,7 @@ export function CineProWatchPlayer({
         )
         // VAPlayer/Videasy/Movy CDN remounts that inherit mid-title seek stall
         // with empty Quality. Force start@0 for those; keep hold for others.
-        const resumeAt = playbackPositionForRecovery(livePlaybackTimeRef.current)
+        const resumeAt = playbackPositionForRecovery(priorTime)
         if (optionIsClientResolve) {
             setUpgradeResumeTime(0)
             livePlaybackTimeRef.current = 0
@@ -1958,9 +1972,14 @@ export function CineProWatchPlayer({
 const quietStallAttemptRef = useRef(0)
 
     const quietBackgroundStallCheck = useCallback(async () => {
-        // Settled VSEmbed/VAPlayer: MediaPlayer already soft-reloads HLS in place.
-        // Re-unlock + remount here is the mid-play black → "finds source" loop.
-        if (playbackStableRef.current || playbackActive) {
+        // Once the stream has delivered any real progress, NEVER remount/re-unlock
+        // from a buffer stall. Soft HLS reload in MediaPlayer is enough — remounting
+        // flashes black + the source probe list while audio was already playing.
+        if (
+            playbackStableRef.current ||
+            playbackActive ||
+            livePlaybackTimeRef.current >= 0.5
+        ) {
             return false
         }
 
@@ -2239,6 +2258,14 @@ const quietStallAttemptRef = useRef(0)
         }
 
         if (isProxyTokenPlaybackError(message) && !sourcesLoadingMore) {
+            // Mid-play proxy blips must not remount — that reopens the source list.
+            if (
+                playbackStableRef.current ||
+                playbackActive ||
+                livePlaybackTimeRef.current >= 0.5
+            ) {
+                return
+            }
             // Manual FileSuN tap used to hop to VAPlayer on the first proxy blip.
             void refetchAndResumeSource(Boolean(manualSelectionRef.current))
             return
