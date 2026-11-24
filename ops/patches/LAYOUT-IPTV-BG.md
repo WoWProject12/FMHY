@@ -1,5 +1,5 @@
 # layout.php IPTV background
 
-On `page-iptv` / `page-watch` main class, use `bg-[#12151a]` (Orti charcoal) instead of `bg-[#1a1f26]`.
+On `page-iptv` / `page-watch` main class, use `bg-[#0c0b09]` (Chillflix cinema black).
 
-Applied live in `/var/www/chillflix-lol-toflix/public/new/views/layout.php` around the `main#main` class ternary.
+Live TV CSS keeps the aurora backdrop and uses cinema tokens (`--accent-hi: #e4c27a`, ivory text, warm surfaces).
