@@ -29,8 +29,8 @@
   var epgTimer = null;
 
   var AVATAR_COLORS = [
-    "#6b4a32", "#5a4630", "#4a3f2e", "#6b5238", "#5c4834",
-    "#3f382c", "#7a5a3a", "#4a4034", "#6b4638", "#554836"
+    "#6b4a3a", "#5a4570", "#3f6b52", "#2f6b6b", "#4a5d78",
+    "#6b3f55", "#5c5a3a", "#3a4f6b", "#6b5238", "#44556b"
   ];
 
   function favs() {
@@ -102,27 +102,34 @@
     var list = channel && Array.isArray(channel.epg) ? channel.epg : [];
     if (!list.length) return null;
     var now = Date.now();
+    var lastPast = null;
     for (var i = 0; i < list.length; i++) {
       var start = Date.parse(list[i].start);
       var end = Date.parse(list[i].end);
-      if (!isNaN(start) && !isNaN(end) && start <= now && now < end) {
-        return { entry: list[i], index: i, start: start, end: end };
+      if (isNaN(start) || isNaN(end)) continue;
+      if (start <= now && now < end) {
+        return { entry: list[i], index: i, start: start, end: end, live: true };
       }
+      if (end <= now) lastPast = { entry: list[i], index: i, start: start, end: end, live: false };
     }
+    if (lastPast) return lastPast;
     var first = list[0];
     return {
       entry: first,
       index: 0,
       start: Date.parse(first.start),
       end: Date.parse(first.end),
+      live: false,
     };
   }
 
   function progressPct(epg) {
-    if (!epg || isNaN(epg.start) || isNaN(epg.end) || epg.end <= epg.start) return 0;
+    if (!epg || isNaN(epg.start) || isNaN(epg.end) || epg.end <= epg.start) return 8;
+    if (epg.live === false && Date.now() >= epg.end) return 100;
     var now = Date.now();
     var pct = ((now - epg.start) / (epg.end - epg.start)) * 100;
-    return Math.max(0, Math.min(100, pct));
+    // Keep a visible pink fill on live rows (never look "missing")
+    return Math.max(epg.live ? 4 : 0, Math.min(100, pct));
   }
 
   function minutesLeft(epg) {
@@ -518,6 +525,16 @@
   if (sortEl) sortEl.addEventListener("change", function () { loadChannels(false); });
 
   var dockSearch = document.getElementById("iptvDockSearch");
+  var sideHandle = document.getElementById("iptvSideHandle");
+  if (sideHandle) {
+    sideHandle.addEventListener("click", function () {
+      if (searchEl) {
+        searchEl.focus();
+        try { searchEl.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+      }
+    });
+  }
+
   if (dockSearch && searchEl) {
     dockSearch.addEventListener("click", function () {
       searchEl.focus();

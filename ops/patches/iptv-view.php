@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=7">
+<link rel="stylesheet" href="<?= movy_e(movy_asset('css/iptv-live.css')) ?>?v=8">
 
 <div id="iptvApp" class="huhu" data-iptv-root>
   <!-- LIST -->
@@ -99,7 +99,7 @@ declare(strict_types=1);
       <span>Home</span>
     </a>
     <a class="huhu-dock-item" href="<?= movy_e(movy_url('/browse/movie')) ?>">
-      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 5h16v14H4zM8 5v14M16 5v14M4 12h16" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 4h5v16H4zM10 6h5v14h-5zM16 5h4v15h-4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
       <span>Library</span>
     </a>
     <button type="button" class="huhu-dock-item is-on" data-dock="channels">
@@ -117,7 +117,11 @@ declare(strict_types=1);
       <span>Settings</span>
     </a>
   </nav>
+
+  <button type="button" class="huhu-side-handle" id="iptvSideHandle" title="Sources" aria-label="Sources">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="6" cy="12" r="2.2" fill="currentColor"/><circle cx="16" cy="6" r="2.2" fill="currentColor"/><circle cx="16" cy="18" r="2.2" fill="currentColor"/><path d="M8 12h6M14 7.5 8.8 11M14 16.5 8.8 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+  </button>
 </div>
 
 <script src="<?= movy_e(movy_asset('js/hls.min.js')) ?>?v=1" defer></script>
-<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=7" defer></script>
+<script src="<?= movy_e(movy_asset('js/iptv-live.js')) ?>?v=8" defer></script>
