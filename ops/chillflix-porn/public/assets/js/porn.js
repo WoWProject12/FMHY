@@ -1012,7 +1012,6 @@
 
   var stage = root.querySelector(".cfp-player-stage") || root;
   var bigPlay = document.getElementById("cfpBigPlay");
-  var playBtn = document.getElementById("cfpPlayBtn");
   var muteBtn = document.getElementById("cfpMuteBtn");
   var fsBtn = document.getElementById("cfpFsBtn");
   var camBtn = document.getElementById("cfpCamBtn");
@@ -1035,34 +1034,38 @@
     return h > 0 ? h + ":" + mm + ":" + ss : mm.padStart(2, "0") + ":" + ss;
   }
 
+  function syncFrameAspect() {
+    if (!frame || !video.videoWidth || !video.videoHeight) return;
+    var ratio = video.videoWidth / video.videoHeight;
+    var fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (fs) {
+      var maxW = window.innerWidth;
+      var maxH = window.innerHeight;
+      var w = maxW;
+      var h = w / ratio;
+      if (h > maxH) {
+        h = maxH;
+        w = h * ratio;
+      }
+      frame.style.width = Math.round(w) + "px";
+      frame.style.height = Math.round(h) + "px";
+      frame.style.aspectRatio = "auto";
+      frame.style.maxHeight = "none";
+    } else {
+      // Keep chrome glued to the real picture box (not a forced 16:9 shell)
+      frame.style.width = "";
+      frame.style.height = "";
+      frame.style.aspectRatio = String(ratio);
+      frame.style.maxHeight = "";
+    }
+  }
+
   function syncFsUi() {
     if (!stage) return;
     var fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
     stage.classList.toggle("is-fs", fs);
     if (fsBtn) fsBtn.setAttribute("aria-label", fs ? "Exit fullscreen" : "Fullscreen");
-    // Size frame to the real video aspect in fullscreen so chrome hugs the picture
-    if (frame) {
-      if (fs && video.videoWidth > 0 && video.videoHeight > 0) {
-        var ratio = video.videoWidth / video.videoHeight;
-        var maxW = window.innerWidth;
-        var maxH = window.innerHeight;
-        var w = maxW;
-        var h = w / ratio;
-        if (h > maxH) {
-          h = maxH;
-          w = h * ratio;
-        }
-        frame.style.width = Math.round(w) + "px";
-        frame.style.height = Math.round(h) + "px";
-        frame.style.aspectRatio = "auto";
-        frame.style.maxHeight = "none";
-      } else {
-        frame.style.width = "";
-        frame.style.height = "";
-        frame.style.aspectRatio = "";
-        frame.style.maxHeight = "";
-      }
-    }
+    syncFrameAspect();
   }
 
   function syncPlayUi() {
@@ -1072,7 +1075,6 @@
     stage.classList.toggle("is-muted", !!video.muted || video.volume === 0);
     if (muteBtn) muteBtn.setAttribute("aria-label", video.muted || video.volume === 0 ? "Unmute" : "Mute");
     if (bigPlay) bigPlay.setAttribute("aria-label", video.paused ? "Play" : "Pause");
-    if (playBtn) playBtn.setAttribute("aria-label", video.paused ? "Play" : "Pause");
   }
 
   function syncSeekUi() {
@@ -1165,14 +1167,6 @@
       showChrome(false);
     });
   }
-  if (playBtn) {
-    playBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      togglePlay();
-      showChrome(false);
-    });
-  }
   if (muteBtn) {
     muteBtn.addEventListener("click", function (e) {
       e.preventDefault();
@@ -1213,7 +1207,7 @@
     if (stage && stage.classList.contains("is-fs")) syncFsUi();
   });
   video.addEventListener("loadedmetadata", function () {
-    if (stage && stage.classList.contains("is-fs")) syncFsUi();
+    syncFrameAspect();
   });
   if (camBtn) {
     camBtn.addEventListener("click", function (e) {
