@@ -477,6 +477,18 @@ try {
         $ok = cfp_trigger_scrape_async();
         header('Location: ' . cfp_url('/admin?' . ($ok ? 'running=1' : 'runerr=1')), true, 302);
         exit;
+    } elseif ($path === '/admin/scraper/auto') {
+        if (!cfp_admin_ok()) {
+            header('Location: ' . cfp_url('/admin'), true, 302);
+            exit;
+        }
+        $on = !isset($_GET['on']) || (string) $_GET['on'] === '1' || (string) $_GET['on'] === 'true';
+        if (isset($_GET['on']) && ((string) $_GET['on'] === '0' || (string) $_GET['on'] === 'off')) {
+            $on = false;
+        }
+        cfp_scraper_set_auto($pdo, $on);
+        header('Location: ' . cfp_url('/admin?auto=' . ($on ? '1' : '0')), true, 302);
+        exit;
     } elseif ($path === '/admin') {
         $pageTitle = 'Admin — ' . CFP_SITE_NAME;
         $bodyClass = 'page-porn page-porn-admin';
@@ -498,6 +510,11 @@ try {
             }
             if (isset($_GET['runerr'])) {
                 $flashErr = 'Could not start the importer.';
+            }
+            if (isset($_GET['auto'])) {
+                $flash = ((string) $_GET['auto'] === '1')
+                    ? 'Auto-import ON — cron runs every 5 minutes.'
+                    : 'Auto-import OFF — only Run now will import.';
             }
             $view = 'admin';
             $viewData = compact('stats', 'settings', 'scrapeState', 'presets', 'flash', 'flashErr');

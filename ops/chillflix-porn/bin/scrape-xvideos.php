@@ -26,6 +26,15 @@ if (!flock($fh, LOCK_EX | LOCK_NB)) {
     exit(0);
 }
 
+$settings = cfp_scraper_settings($pdo);
+$force = in_array('--force', $argv ?? [], true) || getenv('CFP_SCRAPE_FORCE') === '1';
+if (!$force && empty($settings['auto'])) {
+    echo "auto_disabled\n";
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    exit(0);
+}
+
 cfp_scrape_set_running($pdo, true);
 register_shutdown_function(static function () use ($pdo): void {
     try {
@@ -35,7 +44,6 @@ register_shutdown_function(static function () use ($pdo): void {
     }
 });
 
-$settings = cfp_scraper_settings($pdo);
 $nichesPerRun = (int) $settings['niches_per_run'];
 $limitPerNiche = (int) $settings['limit_per_niche'];
 $enrichPerRun = (int) $settings['enrich_per_run'];

@@ -14,6 +14,7 @@ $flash = $flash ?? null;
 $flashErr = $flashErr ?? null;
 $speed = (string) ($settings['speed'] ?? 'fast');
 $running = function_exists('cfp_scrape_is_running') ? cfp_scrape_is_running(cfp_pdo()) : false;
+$autoOn = !empty($settings['auto']);
 
 $presetLabels = [
     'slow' => 'Slow',
@@ -52,6 +53,7 @@ if ($lastRun !== '' && ($ts = strtotime($lastRun)) !== false) {
 }
 
 $statusRows = [
+    ['Auto import', $autoOn ? 'Every 5 min' : 'Off'],
     ['Speed', $presetLabels[$speed] ?? ucfirst($speed)],
     ['Categories / run', (string) (int) ($settings['niches_per_run'] ?? 0)],
     ['Videos / category', (string) (int) ($settings['limit_per_niche'] ?? 0)],
@@ -103,11 +105,22 @@ $statusRows = [
             Scraper
             <span class="sh-status-pill<?= $running ? ' is-on' : '' ?>"><?= $running ? 'Running' : 'Idle' ?></span>
           </h2>
-          <p class="sh-muted">Green = importing now · Red = idle</p>
+          <p class="sh-muted">Green = importing now · Red = idle between runs</p>
         </div>
         <a class="sh-btn sh-btn-outline sh-btn-sm" href="<?= cfp_e(cfp_url('/admin')) ?>">Refresh</a>
       </div>
       <div class="sh-card-body sh-card-body-tight">
+        <div class="sh-auto">
+          <div class="sh-auto-text">
+            <strong>Auto import</strong>
+            <span>Server cron every 5 minutes<?= $autoOn ? ' (active)' : ' (paused)' ?></span>
+          </div>
+          <?php if ($autoOn): ?>
+            <a class="sh-btn sh-btn-outline sh-btn-sm" href="<?= cfp_e(cfp_url('/admin/scraper/auto?on=0')) ?>">Turn off</a>
+          <?php else: ?>
+            <a class="sh-btn sh-btn-sm" href="<?= cfp_e(cfp_url('/admin/scraper/auto?on=1')) ?>">Turn on</a>
+          <?php endif; ?>
+        </div>
         <dl class="sh-rows">
           <?php foreach ($statusRows as [$k, $v]): ?>
             <div class="sh-row">

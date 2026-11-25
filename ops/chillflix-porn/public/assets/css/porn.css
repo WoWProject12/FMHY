@@ -1295,6 +1295,33 @@ a.sh-btn {
   line-height: 1.4;
 }
 .sh-help strong { color: var(--sh-fg); font-weight: 650; }
+.sh-auto {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.35rem;
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r);
+  background: rgba(255,255,255,0.03);
+}
+.sh-auto-text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.sh-auto-text strong {
+  font-size: 0.8125rem;
+  color: var(--sh-fg);
+}
+.sh-auto-text span {
+  font-size: 0.72rem;
+  color: var(--sh-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .sh-tabs {
   display: flex;

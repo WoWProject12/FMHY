@@ -60,7 +60,12 @@ function cfp_admin_logout(): void
     session_destroy();
 }
 
-/** @return array{niches_per_run:int,limit_per_niche:int,enrich_per_run:int,max_page:int,speed:string} */
+/**
+ * @return array{
+ *   niches_per_run:int,limit_per_niche:int,enrich_per_run:int,max_page:int,
+ *   speed:string,auto:bool
+ * }
+ */
 function cfp_scraper_settings(PDO $pdo): array
 {
     $defaults = [
@@ -69,6 +74,7 @@ function cfp_scraper_settings(PDO $pdo): array
         'enrich_per_run' => 60,
         'max_page' => 50,
         'speed' => 'fast',
+        'auto' => true,
     ];
     try {
         $st = $pdo->prepare('SELECT v FROM scrape_state WHERE k = ?');
@@ -88,6 +94,7 @@ function cfp_scraper_settings(PDO $pdo): array
     $defaults['enrich_per_run'] = max(0, min(200, (int) $defaults['enrich_per_run']));
     $defaults['max_page'] = max(5, min(120, (int) $defaults['max_page']));
     $defaults['speed'] = (string) ($defaults['speed'] ?? 'fast');
+    $defaults['auto'] = !empty($defaults['auto']);
     return $defaults;
 }
 
@@ -104,24 +111,46 @@ function cfp_scraper_presets(): array
 
 function cfp_save_scraper_settings(PDO $pdo, array $settings): array
 {
+    $current = cfp_scraper_settings($pdo);
     $presets = cfp_scraper_presets();
-    $speed = (string) ($settings['speed'] ?? 'fast');
+    $speed = (string) ($settings['speed'] ?? $current['speed'] ?? 'fast');
     if (isset($presets[$speed])) {
-        $settings = array_merge($presets[$speed], ['speed' => $speed]);
-    } else {
-        $speed = 'custom';
-        $settings['speed'] = 'custom';
+        $settings = array_merge($presets[$speed], [
+            'speed' => $speed,
+            'auto' => array_key_exists('auto', $settings) ? $settings['auto'] : $current['auto'],
+        ]);
+    } elseif (($settings['speed'] ?? '') === 'custom' || !isset($presets[$speed])) {
+        if (($settings['speed'] ?? '') !== 'custom' && !isset($settings['niches_per_run'])) {
+            // keep current numbers when only toggling auto
+            $settings = array_merge($current, $settings);
+        }
+        $speed = (string) ($settings['speed'] ?? 'custom');
+        if ($speed !== 'custom' && !isset($presets[$speed])) {
+            $speed = 'custom';
+        }
+        $settings['speed'] = $speed;
     }
+    $auto = array_key_exists('auto', $settings) ? !empty($settings['auto']) : !empty($current['auto']);
     $out = [
-        'niches_per_run' => max(1, min(20, (int) ($settings['niches_per_run'] ?? 8))),
-        'limit_per_niche' => max(6, min(80, (int) ($settings['limit_per_niche'] ?? 40))),
-        'enrich_per_run' => max(0, min(200, (int) ($settings['enrich_per_run'] ?? 60))),
-        'max_page' => max(5, min(120, (int) ($settings['max_page'] ?? 50))),
-        'speed' => $speed,
+        'niches_per_run' => max(1, min(20, (int) ($settings['niches_per_run'] ?? $current['niches_per_run']))),
+        'limit_per_niche' => max(6, min(80, (int) ($settings['limit_per_niche'] ?? $current['limit_per_niche']))),
+        'enrich_per_run' => max(0, min(200, (int) ($settings['enrich_per_run'] ?? $current['enrich_per_run']))),
+        'max_page' => max(5, min(120, (int) ($settings['max_page'] ?? $current['max_page']))),
+        'speed' => (string) ($settings['speed'] ?? $current['speed']),
+        'auto' => $auto,
     ];
     $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
     $up->execute(['scraper_settings', json_encode($out, JSON_UNESCAPED_SLASHES)]);
     return $out;
+}
+
+function cfp_scraper_set_auto(PDO $pdo, bool $on): array
+{
+    $cur = cfp_scraper_settings($pdo);
+    $cur['auto'] = $on;
+    $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
+    $up->execute(['scraper_settings', json_encode($cur, JSON_UNESCAPED_SLASHES)]);
+    return $cur;
 }
 
 function cfp_scrape_lock_path(): string
@@ -253,7 +282,8 @@ function cfp_trigger_scrape_async(): bool
         // continue
     }
     $log = '/tmp/cfp-scrape-manual.log';
-    $cmd = 'nohup /usr/bin/php ' . escapeshellarg($bin) . ' >> ' . escapeshellarg($log) . ' 2>&1 &';
+    // --force bypasses auto-off so "Run now" always works
+    $cmd = 'CFP_SCRAPE_FORCE=1 nohup /usr/bin/php ' . escapeshellarg($bin) . ' --force >> ' . escapeshellarg($log) . ' 2>&1 &';
     exec($cmd);
     return true;
 }
