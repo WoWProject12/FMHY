@@ -7,13 +7,13 @@ declare(strict_types=1);
 $tab = $tab ?? 'history';
 $counts = $counts ?? [];
 $labels = [
-    'history' => 'History',
+    'history' => 'Continue watching',
     'saved' => 'Saved',
     'liked' => 'Liked',
     'downloaded' => 'Downloads',
 ];
 $hints = [
-    'history' => 'Recently watched',
+    'history' => 'Pick up where you left off',
     'saved' => 'Saved for later',
     'liked' => 'Videos you liked',
     'downloaded' => 'Downloaded videos',
@@ -22,12 +22,19 @@ if (!isset($labels[$tab])) {
     $tab = 'history';
 }
 $initial = strtoupper(substr((string) $user['username'], 0, 1));
+$avatarUrl = function_exists('cfp_user_avatar_url') ? cfp_user_avatar_url($user) : null;
 $isAdminUser = ((string) $user['username'] === 'admin') || (function_exists('cfp_admin_ok') && cfp_admin_ok());
 ?>
 <section class="sh">
   <div class="sh-head">
     <div class="sh-user">
-      <span class="sh-avatar" aria-hidden="true"><?= cfp_e($initial) ?></span>
+      <span class="sh-avatar<?= $avatarUrl ? ' has-avatar' : '' ?>" aria-hidden="true">
+        <?php if ($avatarUrl): ?>
+          <img src="<?= cfp_e($avatarUrl) ?>" alt="" width="36" height="36" decoding="async" referrerpolicy="no-referrer">
+        <?php else: ?>
+          <?= cfp_e($initial) ?>
+        <?php endif; ?>
+      </span>
       <div class="sh-user-text">
         <div class="sh-user-row">
           <h1 class="sh-h1"><?= cfp_e((string) $user['username']) ?></h1>

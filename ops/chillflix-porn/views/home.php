@@ -4,13 +4,11 @@ declare(strict_types=1);
 /** @var array $popular */
 /** @var array $cats */
 /** @var array $filters */
-/** @var list<array> $continueWatch */
 /** @var list<array> $suggested */
 $filters = $filters ?? cfp_filters_from_request();
 $density = $filters['density'] ?? 'cozy';
 $resultsTotal = (int) ($latest['total'] ?? 0);
 $actionPath = '/';
-$continueWatch = $continueWatch ?? [];
 $suggested = $suggested ?? [];
 $activeCatSlugs = $filters['categories'] ?? cfp_parse_category_slugs($filters['category'] ?? '');
 $activeCatNames = [];
@@ -41,23 +39,11 @@ $showDiscovery = !$isFiltered && ($filters['page'] ?? 1) <= 1;
 
 <?php
 // xvideos-style discovery stack (clean homepage only):
-// 1) Continue watching from history
-// 2) Suggested for you (history → related niches; cold start → popular)
-// 3) Best of the week (geo/popularity style)
-// 4) Newest grid
+// 1) Suggested for you (history → related niches; cold start → popular)
+// 2) Best of the week
+// 3) Newest grid
+// Continue watching lives in profile/library history.
 ?>
-<?php if ($showDiscovery && $continueWatch): ?>
-<section class="cfp-section cfp-section-tight">
-  <div class="cfp-section-head">
-    <h2>Continue watching</h2>
-    <?php if (!empty($cfpUser)): ?>
-      <a href="<?= cfp_e(cfp_url('/library?tab=history')) ?>">History</a>
-    <?php endif; ?>
-  </div>
-  <?php $items = array_slice($continueWatch, 0, 12); require __DIR__ . '/_rail.php'; ?>
-</section>
-<?php endif; ?>
-
 <?php if ($showDiscovery && $suggested): ?>
 <section class="cfp-section cfp-section-tight">
   <div class="cfp-section-head">

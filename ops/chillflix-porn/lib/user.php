@@ -373,3 +373,81 @@ function cfp_library_flags(PDO $pdo, int $userId, string $partnerVideoId): array
     }
     return $out;
 }
+
+/**
+ * Stable profile avatar from popular actor thumbs (same style as movie cast icons).
+ * Prefers an actor from the user's recent watch history when available.
+ */
+function cfp_user_avatar_url(?array $user, ?PDO $pdo = null): ?string
+{
+    if (!$user || empty($user['id'])) {
+        return null;
+    }
+    $uid = (int) $user['id'];
+    static $cache = [];
+    if (array_key_exists($uid, $cache)) {
+        return $cache[$uid];
+    }
+    try {
+        $pdo = $pdo ?: cfp_pdo();
+        // Prefer actor thumb from recent history
+        $st = $pdo->prepare(
+            "SELECT (
+                SELECT v2.thumb FROM videos v2
+                INNER JOIN video_actors va2 ON va2.video_id = v2.id
+                WHERE va2.actor_id = a.id AND v2.thumb IS NOT NULL AND v2.thumb <> ''
+                ORDER BY GREATEST(COALESCE(v2.source_views,0), COALESCE(v2.views,0)) DESC
+                LIMIT 1
+             ) AS thumb
+             FROM user_library ul
+             INNER JOIN video_actors va ON va.video_id = ul.video_id
+             INNER JOIN actors a ON a.id = va.actor_id
+             WHERE ul.user_id = ? AND ul.kind = 'history' AND va.role = 'model'
+             ORDER BY ul.updated_at DESC
+             LIMIT 16"
+        );
+        $st->execute([$uid]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $thumb) {
+            $thumb = trim((string) $thumb);
+            if ($thumb !== '') {
+                $cache[$uid] = $thumb;
+                return $thumb;
+            }
+        }
+        // Fallback: deterministic pick from popular actors with thumbs
+        static $pool = null;
+        if ($pool === null) {
+            $pool = [];
+            $q = $pdo->query(
+                "SELECT (
+                    SELECT v2.thumb FROM videos v2
+                    INNER JOIN video_actors va2 ON va2.video_id = v2.id
+                    WHERE va2.actor_id = a.id AND v2.thumb IS NOT NULL AND v2.thumb <> ''
+                    ORDER BY GREATEST(COALESCE(v2.source_views,0), COALESCE(v2.views,0)) DESC
+                    LIMIT 1
+                 ) AS thumb
+                 FROM actors a
+                 INNER JOIN video_actors va ON va.actor_id = a.id AND va.role = 'model'
+                 LEFT JOIN videos v ON v.id = va.video_id
+                 GROUP BY a.id
+                 HAVING thumb IS NOT NULL AND thumb <> ''
+                 ORDER BY COALESCE(SUM(GREATEST(COALESCE(v.source_views,0), COALESCE(v.views,0))), 0) DESC
+                 LIMIT 48"
+            );
+            foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $thumb) {
+                $thumb = trim((string) $thumb);
+                if ($thumb !== '') {
+                    $pool[] = $thumb;
+                }
+            }
+        }
+        if ($pool) {
+            $cache[$uid] = $pool[$uid % count($pool)];
+            return $cache[$uid];
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+    $cache[$uid] = null;
+    return null;
+}
