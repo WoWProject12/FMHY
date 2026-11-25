@@ -736,13 +736,14 @@ a.cfp-dd-option { color: var(--cfp-text); }
   background: #5a5a5a; color: #fff;
 }
 .cfp-badge-q {
-  background: #c62828; color: #fff;
+  background: var(--cfp-accent); color: #1a1208;
 }
 .cfp-badge-q[hidden] { display: none !important; }
 .cfp-xv-people {
   display: flex; flex-wrap: wrap; gap: 0.35rem;
   margin: 0 0 0.4rem; max-width: 100%;
 }
+.cfp-xv-people-top { margin: 0 0 0.55rem; }
 .cfp-xv-chip {
   display: inline-flex; align-items: stretch; gap: 0;
   border-radius: 4px;
@@ -756,8 +757,13 @@ a.cfp-dd-option { color: var(--cfp-text); }
   border: 1px solid rgba(255,255,255,0.22);
 }
 .cfp-xv-chip-model {
-  background: #c62828;
+  background: var(--cfp-accent);
+  color: #1a1208;
   border: 1px solid transparent;
+}
+.cfp-xv-chip-model .cfp-xv-ico { color: #1a1208; }
+.cfp-xv-chip-model .cfp-xv-count {
+  background: rgba(26, 18, 8, 0.18); color: #1a1208;
 }
 .cfp-xv-ico {
   display: inline-flex; align-items: center; justify-content: center;
@@ -786,8 +792,8 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-xv-chip:hover { filter: brightness(1.08); }
 .cfp-player {
-  border-radius: 12px; overflow: hidden; background: #000;
-  border: 1px solid var(--cfp-border);
+  border-radius: 0; overflow: hidden; background: #000;
+  border: 0;
   width: 100%;
   max-width: 100%;
 }
@@ -797,6 +803,9 @@ a.cfp-dd-option { color: var(--cfp-text); }
   width: 100%;
   background: #000;
   overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .cfp-player-stage video,
 #cfpPlayer {
@@ -815,12 +824,118 @@ a.cfp-dd-option { color: var(--cfp-text); }
   margin: 0;
 }
 .cfp-player-status {
-  position: absolute; left: 0; right: 0; bottom: 0; padding: 0.5rem 0.75rem;
-  background: linear-gradient(transparent, rgba(0,0,0,.75));
-  color: #ddd; font-size: 0.8rem; pointer-events: none;
-  z-index: 2;
+  position: absolute; left: 0; right: 0; top: 0.55rem; padding: 0 0.75rem;
+  color: #ddd; font-size: 0.78rem; pointer-events: none;
+  z-index: 2; text-align: center;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
 .cfp-player-status.is-ready { opacity: 0; transition: opacity .4s ease; }
+
+/* xvideos-style custom chrome — gold accents */
+.cfp-player-bigplay {
+  position: absolute; inset: 0; z-index: 5;
+  display: grid; place-items: center;
+  border: 0; background: transparent; cursor: pointer;
+  padding: 0; color: #fff;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.cfp-player-stage.is-chrome .cfp-player-bigplay,
+.cfp-player-stage.is-paused .cfp-player-bigplay {
+  opacity: 1; pointer-events: auto;
+}
+.cfp-player-stage.is-playing:not(.is-chrome) .cfp-player-bigplay {
+  opacity: 0; pointer-events: none;
+}
+.cfp-player-top {
+  position: absolute; top: 0.45rem; right: 0.45rem; z-index: 7;
+  display: flex; gap: 0.35rem;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.cfp-player-stage.is-chrome .cfp-player-top,
+.cfp-player-top:focus-within {
+  opacity: 1; pointer-events: auto;
+}
+.cfp-player-chrome {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+  padding: 1.6rem 0.55rem 0.35rem;
+  background: linear-gradient(transparent, rgba(0,0,0,0.78));
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.cfp-player-stage.is-chrome .cfp-player-chrome,
+.cfp-player-stage.is-paused .cfp-player-chrome {
+  opacity: 1; pointer-events: auto;
+}
+.cfp-seek {
+  position: relative;
+  height: 14px;
+  display: flex; align-items: center;
+  margin: 0 0 0.15rem;
+  touch-action: none;
+  cursor: pointer;
+}
+.cfp-seek-track {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.28);
+}
+.cfp-seek-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 0%;
+  border-radius: 2px;
+  background: var(--cfp-accent);
+}
+.cfp-seek-knob {
+  position: absolute; top: 50%;
+  left: 0%;
+  width: 12px; height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: var(--cfp-accent);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.25);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.cfp-seek:hover .cfp-seek-knob,
+.cfp-seek.is-dragging .cfp-seek-knob,
+.cfp-player-stage.is-chrome .cfp-seek-knob {
+  opacity: 1;
+}
+.cfp-seek:hover .cfp-seek-track,
+.cfp-seek.is-dragging .cfp-seek-track {
+  height: 4px;
+}
+.cfp-player-bar {
+  display: flex; align-items: center; gap: 0.35rem;
+  min-height: 1.7rem;
+}
+.cfp-ctrl-btn {
+  display: inline-grid; place-items: center;
+  width: 2rem; height: 2rem; padding: 0;
+  border: 0; border-radius: 4px;
+  background: transparent; color: #fff;
+  cursor: pointer;
+}
+.cfp-ctrl-btn:hover { background: rgba(255,255,255,0.1); }
+.cfp-player-time {
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.cfp-player-spacer { flex: 1 1 auto; }
+.cfp-player-stage.is-muted .cfp-ico-vol { display: none; }
+.cfp-player-stage:not(.is-muted) .cfp-ico-mute { display: none !important; }
+.cfp-player-stage.is-muted .cfp-ico-mute { display: block !important; }
+@media (min-width: 900px) {
+  .cfp-player { border-radius: 8px; border: 1px solid var(--cfp-border); }
+}
 .cfp-watch-meta {
   display: flex; flex-wrap: wrap; gap: 0.75rem;
   color: var(--cfp-muted); margin: 0 0 0.45rem; font-size: 0.8rem;
@@ -877,22 +992,12 @@ a.cfp-dd-option { color: var(--cfp-text); }
   font-style: normal; color: var(--cfp-muted); font-size: 0.62rem; font-weight: 600;
 }
 
-/* Gear + in-player quality dropdown — only with player chrome (controls) */
-.cfp-player-gear {
-  position: absolute; top: 0.5rem; right: 0.5rem; z-index: 6;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.18s ease;
-}
-.cfp-player-stage.is-chrome .cfp-player-gear,
-.cfp-player-gear:focus-within {
-  opacity: 1;
-  pointer-events: auto;
-}
+/* Gear + in-player quality dropdown */
+.cfp-player-gear { position: relative; }
 .cfp-gear-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 2.35rem; height: 2.35rem; padding: 0; border-radius: 999px;
-  border: 0; background: rgba(0,0,0,0.55); color: #fff;
+  width: 2.2rem; height: 2.2rem; padding: 0; border-radius: 999px;
+  border: 0; background: rgba(0,0,0,0.5); color: #fff;
   cursor: pointer; backdrop-filter: blur(4px);
   -webkit-appearance: none; appearance: none;
 }
@@ -947,77 +1052,144 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-quality-btn:hover { background: rgba(255,255,255,0.08); }
 .cfp-quality-btn.is-on {
-  background: rgba(255,255,255,0.12); color: #fff;
+  background: rgba(228, 194, 122, 0.16); color: #fff;
 }
 .cfp-quality-btn.is-on::before {
-  border-color: #3ea6ff; background: #3ea6ff;
+  border-color: var(--cfp-accent); background: var(--cfp-accent);
   box-shadow: inset 0 0 0 2px #141414;
 }
 
-/* YouTube-style block under player */
-.cfp-watch-head-below { margin-top: 0.15rem; }
+/* Watch meta + xvideos-style action strip */
+.cfp-watch-head-below { margin-top: 0.35rem; }
 .cfp-watch-head-below .cfp-watch-title {
-  margin: 0 0 0.25rem; font-size: clamp(1.05rem, 3.8vw, 1.25rem);
+  margin: 0 0 0.45rem; font-size: clamp(1rem, 3.6vw, 1.2rem);
 }
-.cfp-yt-meta {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.4rem;
-  margin: 0 0 0.65rem; color: #aaa; font-size: 0.78rem;
+.cfp-xv-actions {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0 0 0.7rem;
+  max-width: 100%;
 }
-.cfp-yt-meta a { color: #aaa; text-decoration: none; font-weight: 600; }
-.cfp-yt-meta a:hover { color: #fff; }
-.cfp-yt-meta .cfp-badge { margin-left: 0.15rem; }
-.cfp-yt-channel {
-  display: flex; align-items: center; gap: 0.55rem;
-  margin: 0 0 0.65rem;
+.cfp-xv-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.1rem;
 }
-.cfp-yt-avatar {
-  width: 2.25rem; height: 2.25rem; border-radius: 50%;
-  display: grid; place-items: center;
-  background: #3ea6ff; color: #0f0f0f;
-  font-weight: 800; font-size: 0.95rem; text-decoration: none;
+.cfp-xv-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #ddd;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+.cfp-xv-views svg { opacity: 0.85; }
+.cfp-xv-votes {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 0.65rem;
+  row-gap: 0.2rem;
+  align-items: center;
+}
+.cfp-xv-vote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border: 0;
+  background: transparent;
+  color: #ddd;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.1rem 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.cfp-xv-vote.is-on { color: var(--cfp-accent-hi); }
+.cfp-xv-vote svg { display: block; }
+.cfp-xv-ratio {
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.18);
+  overflow: hidden;
+  min-width: 5.5rem;
+}
+.cfp-xv-ratio i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--cfp-accent);
+}
+.cfp-xv-tools {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.15rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.1rem;
+}
+.cfp-xv-tool {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.2rem;
+  min-width: 3.6rem;
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  background: transparent;
+  color: #ddd;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
   flex: 0 0 auto;
 }
-.cfp-yt-sub {
-  display: inline-flex; align-items: center;
-  padding: 0.45rem 0.95rem; border-radius: 999px;
-  background: #f1f1f1; color: #0f0f0f;
-  text-decoration: none; font-size: 0.84rem; font-weight: 700;
+.cfp-xv-tool[disabled] { opacity: 0.55; cursor: default; }
+.cfp-xv-tool:hover:not([disabled]),
+.cfp-xv-tool.is-on { color: #fff; }
+.cfp-xv-tool-ico {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
 }
-.cfp-yt-sub:hover { background: #fff; }
-
-/* Single action row — compact so Download stays fully visible (no horizontal scroll) */
-.cfp-yt { margin: 0 0 0.65rem; max-width: 100%; }
-.cfp-yt-row {
-  display: flex; flex-wrap: nowrap; align-items: center; gap: 0.3rem;
-  overflow: visible; padding: 0.05rem 0 0.1rem;
-  width: 100%;
+.cfp-xv-badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.55rem;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--cfp-accent);
+  color: #1a1208;
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-style: normal;
+  line-height: 0.95rem;
+  text-align: center;
 }
-.cfp-yt-seg {
-  display: inline-flex; align-items: stretch; flex: 0 0 auto;
-  border-radius: 999px; overflow: hidden;
-  background: #272727;
+.cfp-chip-hot {
+  background: var(--cfp-accent) !important;
+  border-color: transparent !important;
+  color: #1a1208 !important;
+  font-weight: 700;
+  border-radius: 4px !important;
 }
-.cfp-yt-btn, .cfp-yt-pill {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.28rem;
-  border: 0; background: #272727; color: #f1f1f1;
-  font: inherit; font-size: 0.75rem; font-weight: 600;
-  cursor: pointer; line-height: 1; text-decoration: none;
-  -webkit-appearance: none; appearance: none;
-  padding: 0.42rem 0.62rem; white-space: nowrap; flex: 0 0 auto;
+.cfp-chips-watch .cfp-chip {
+  border-radius: 4px;
+  background: #2a2a2a;
+  border-color: transparent;
 }
-.cfp-yt-btn { min-height: 2.1rem; }
-.cfp-yt-like { padding-right: 0.55rem; }
-.cfp-yt-dislike {
-  padding-left: 0.55rem; padding-right: 0.62rem;
-  border-left: 1px solid rgba(255,255,255,0.12);
-}
-.cfp-yt-pill { border-radius: 999px; }
-.cfp-yt-download { flex: 0 0 auto; }
-.cfp-yt-btn:hover, .cfp-yt-pill:hover { background: #3f3f3f; }
-.cfp-yt-seg:hover .cfp-yt-btn { background: #3f3f3f; }
-.cfp-yt-btn.is-on { color: #fff; }
-.cfp-yt-pill.is-on { background: #3f3f3f; color: #fff; }
-.cfp-yt-btn svg, .cfp-yt-pill svg { display: block; flex: 0 0 auto; }
 
 .cfp-sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
