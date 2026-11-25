@@ -276,24 +276,29 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-rail-card { scroll-snap-align: start; }
 .cfp-rail-card .cfp-card-title { font-size: 0.82rem; -webkit-line-clamp: 2; }
 
-/* Grid — mobile-first: one column, widen on desktop */
+/* Grid — compact thumbs (2-up on phones, denser on desktop) */
 .cfp-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 0.55rem;
 }
 .cfp-grid-compact, body.is-compact .cfp-grid {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.45rem;
 }
-@media (min-width: 901px) {
+@media (min-width: 600px) {
   .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-    gap: 0.75rem 0.7rem;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.75rem 0.65rem;
   }
   .cfp-grid-compact, body.is-compact .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
     gap: 0.55rem;
+  }
+}
+@media (min-width: 1100px) {
+  .cfp-grid {
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
   }
 }
 .cfp-card,
@@ -625,9 +630,9 @@ a.cfp-dd-option { color: var(--cfp-text); }
   .cfp-toolbar { top: 92px; }
   .cfp-dd-value { max-width: 110px; }
   .cfp-toolbar-meta { width: 100%; margin-left: 0; order: 8; }
-  /* Best-of rail: one full-width card at a time */
+  /* Best-of rail: compact thumbs with a peek of the next card */
   .cfp-rail-track {
-    grid-auto-columns: 100% !important;
+    grid-auto-columns: minmax(140px, 46%) !important;
     gap: 0.55rem;
   }
 }
