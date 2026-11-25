@@ -10,12 +10,21 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/lib/bootstrap.php';
 
 $pdo = cfp_pdo();
-$lockFile = sys_get_temp_dir() . '/cfp-xvideos-scrape.lock';
+$lockFile = cfp_scrape_lock_path();
 $fh = fopen($lockFile, 'c');
 if (!$fh || !flock($fh, LOCK_EX | LOCK_NB)) {
     echo "locked\n";
     exit(0);
 }
+
+cfp_scrape_set_running($pdo, true);
+register_shutdown_function(static function () use ($pdo): void {
+    try {
+        cfp_scrape_set_running($pdo, false);
+    } catch (Throwable $e) {
+        // ignore
+    }
+});
 
 $settings = cfp_scraper_settings($pdo);
 $nichesPerRun = (int) $settings['niches_per_run'];
@@ -86,6 +95,7 @@ $newState = [
 ];
 $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
 $up->execute(['xvideos_bulk', json_encode($newState, JSON_UNESCAPED_SLASHES)]);
+cfp_scrape_set_running($pdo, false);
 echo 'done total=' . $total . ' enriched=' . $enriched . ' state=' . json_encode($newState, JSON_UNESCAPED_SLASHES) . "\n";
 
 flock($fh, LOCK_UN);

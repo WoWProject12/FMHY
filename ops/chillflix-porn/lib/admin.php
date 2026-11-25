@@ -64,10 +64,10 @@ function cfp_admin_logout(): void
 function cfp_scraper_settings(PDO $pdo): array
 {
     $defaults = [
-        'niches_per_run' => 4,
-        'limit_per_niche' => 30,
-        'enrich_per_run' => 30,
-        'max_page' => 30,
+        'niches_per_run' => 8,
+        'limit_per_niche' => 40,
+        'enrich_per_run' => 60,
+        'max_page' => 50,
         'speed' => 'fast',
     ];
     try {
@@ -83,10 +83,10 @@ function cfp_scraper_settings(PDO $pdo): array
     } catch (Throwable $e) {
         // ignore
     }
-    $defaults['niches_per_run'] = max(1, min(12, (int) $defaults['niches_per_run']));
-    $defaults['limit_per_niche'] = max(6, min(48, (int) $defaults['limit_per_niche']));
-    $defaults['enrich_per_run'] = max(0, min(80, (int) $defaults['enrich_per_run']));
-    $defaults['max_page'] = max(5, min(60, (int) $defaults['max_page']));
+    $defaults['niches_per_run'] = max(1, min(20, (int) $defaults['niches_per_run']));
+    $defaults['limit_per_niche'] = max(6, min(80, (int) $defaults['limit_per_niche']));
+    $defaults['enrich_per_run'] = max(0, min(200, (int) $defaults['enrich_per_run']));
+    $defaults['max_page'] = max(5, min(120, (int) $defaults['max_page']));
     $defaults['speed'] = (string) ($defaults['speed'] ?? 'fast');
     return $defaults;
 }
@@ -95,9 +95,10 @@ function cfp_scraper_presets(): array
 {
     return [
         'slow' => ['niches_per_run' => 1, 'limit_per_niche' => 12, 'enrich_per_run' => 8, 'max_page' => 15],
-        'normal' => ['niches_per_run' => 2, 'limit_per_niche' => 24, 'enrich_per_run' => 15, 'max_page' => 20],
-        'fast' => ['niches_per_run' => 4, 'limit_per_niche' => 30, 'enrich_per_run' => 30, 'max_page' => 30],
-        'turbo' => ['niches_per_run' => 6, 'limit_per_niche' => 36, 'enrich_per_run' => 50, 'max_page' => 40],
+        'normal' => ['niches_per_run' => 3, 'limit_per_niche' => 24, 'enrich_per_run' => 20, 'max_page' => 25],
+        'fast' => ['niches_per_run' => 8, 'limit_per_niche' => 40, 'enrich_per_run' => 60, 'max_page' => 50],
+        'turbo' => ['niches_per_run' => 12, 'limit_per_niche' => 48, 'enrich_per_run' => 100, 'max_page' => 80],
+        'max' => ['niches_per_run' => 16, 'limit_per_niche' => 60, 'enrich_per_run' => 150, 'max_page' => 100],
     ];
 }
 
@@ -112,15 +113,74 @@ function cfp_save_scraper_settings(PDO $pdo, array $settings): array
         $settings['speed'] = 'custom';
     }
     $out = [
-        'niches_per_run' => max(1, min(12, (int) ($settings['niches_per_run'] ?? 4))),
-        'limit_per_niche' => max(6, min(48, (int) ($settings['limit_per_niche'] ?? 30))),
-        'enrich_per_run' => max(0, min(80, (int) ($settings['enrich_per_run'] ?? 30))),
-        'max_page' => max(5, min(60, (int) ($settings['max_page'] ?? 30))),
+        'niches_per_run' => max(1, min(20, (int) ($settings['niches_per_run'] ?? 8))),
+        'limit_per_niche' => max(6, min(80, (int) ($settings['limit_per_niche'] ?? 40))),
+        'enrich_per_run' => max(0, min(200, (int) ($settings['enrich_per_run'] ?? 60))),
+        'max_page' => max(5, min(120, (int) ($settings['max_page'] ?? 50))),
         'speed' => $speed,
     ];
     $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
     $up->execute(['scraper_settings', json_encode($out, JSON_UNESCAPED_SLASHES)]);
     return $out;
+}
+
+function cfp_scrape_lock_path(): string
+{
+    return sys_get_temp_dir() . '/cfp-xvideos-scrape.lock';
+}
+
+function cfp_scrape_set_running(PDO $pdo, bool $on): void
+{
+    try {
+        $payload = $on
+            ? json_encode(['running' => 1, 'started_at' => date('c')], JSON_UNESCAPED_SLASHES)
+            : json_encode(['running' => 0, 'stopped_at' => date('c')], JSON_UNESCAPED_SLASHES);
+        $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
+        $up->execute(['scrape_running', $payload]);
+    } catch (Throwable $e) {
+        // ignore
+    }
+}
+
+function cfp_scrape_is_running(PDO $pdo = null): bool
+{
+    // Live lock file is the source of truth while a scrape holds it
+    $lock = cfp_scrape_lock_path();
+    if (is_file($lock)) {
+        $fh = @fopen($lock, 'c');
+        if ($fh) {
+            $busy = !flock($fh, LOCK_EX | LOCK_NB);
+            if (!$busy) {
+                flock($fh, LOCK_UN);
+            }
+            fclose($fh);
+            if ($busy) {
+                return true;
+            }
+        }
+    }
+    try {
+        $pdo = $pdo ?: cfp_pdo();
+        $st = $pdo->prepare('SELECT v FROM scrape_state WHERE k = ?');
+        $st->execute(['scrape_running']);
+        $raw = $st->fetchColumn();
+        if (!is_string($raw) || $raw === '') {
+            return false;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || empty($decoded['running'])) {
+            return false;
+        }
+        $started = isset($decoded['started_at']) ? strtotime((string) $decoded['started_at']) : false;
+        // Stale flag after 15 minutes
+        if ($started !== false && (time() - $started) > 900) {
+            cfp_scrape_set_running($pdo, false);
+            return false;
+        }
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 /** Convenience: apply a named preset. */
@@ -182,6 +242,11 @@ function cfp_trigger_scrape_async(): bool
     $bin = dirname(__DIR__) . '/bin/scrape-xvideos.php';
     if (!is_file($bin)) {
         return false;
+    }
+    try {
+        cfp_scrape_set_running(cfp_pdo(), true);
+    } catch (Throwable $e) {
+        // continue
     }
     $log = '/tmp/cfp-scrape-manual.log';
     $cmd = 'nohup /usr/bin/php ' . escapeshellarg($bin) . ' >> ' . escapeshellarg($log) . ' 2>&1 &';

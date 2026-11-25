@@ -491,13 +491,13 @@ try {
             $flash = null;
             $flashErr = null;
             if (isset($_GET['saved'])) {
-                $flash = 'Scraper speed saved (' . (string) ($_GET['speed'] ?? $settings['speed']) . ').';
+                $flash = 'Import speed saved (' . (string) ($_GET['speed'] ?? $settings['speed']) . ').';
             }
             if (isset($_GET['running'])) {
-                $flash = 'Scrape started in the background.';
+                $flash = 'Importer started — green dot means it is running.';
             }
             if (isset($_GET['runerr'])) {
-                $flashErr = 'Could not start scrape.';
+                $flashErr = 'Could not start the importer.';
             }
             $view = 'admin';
             $viewData = compact('stats', 'settings', 'scrapeState', 'presets', 'flash', 'flashErr');

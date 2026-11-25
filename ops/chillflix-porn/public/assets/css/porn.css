@@ -1235,6 +1235,66 @@ a.sh-btn {
 }
 .sh-btn-ghost:hover { background: rgba(255,255,255,0.05); color: var(--sh-fg); filter: none; }
 .sh-btn-block { width: 100%; height: 2.25rem; }
+.sh-btn-sm { height: 1.75rem; padding: 0 0.55rem; font-size: 0.75rem; }
+.sh-btn.is-busy {
+  opacity: 0.85;
+  pointer-events: none;
+  background: rgba(228, 194, 122, 0.35);
+  color: var(--sh-fg);
+}
+
+.sh-status-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.sh-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.25);
+}
+.sh-dot.is-on {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+  animation: sh-pulse 1.4s ease-in-out infinite;
+}
+.sh-dot.is-off {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+@keyframes sh-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.75; }
+}
+.sh-status-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 1.2rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ffb4b4;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sh-status-pill.is-on {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+.sh-help {
+  margin: 0;
+  color: var(--sh-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+.sh-help strong { color: var(--sh-fg); font-weight: 650; }
 
 .sh-tabs {
   display: flex;
