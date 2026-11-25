@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 /**
- * Compact filter bar — every control is a dropdown (no pill spam).
+ * Compact filter bar — single-line scrollable chips (no tall stacked kickers).
  * @var array $filters
  * @var array $cats
  * @var string $actionPath
@@ -28,8 +28,21 @@ $durationLabels = [
     'medium' => 'Medium (10–20)',
     'long' => 'Long (20+ min)',
 ];
+$durationChip = [
+    'any' => 'Duration',
+    'short' => '<10 min',
+    'medium' => '10–20 min',
+    'long' => '20+ min',
+];
 $periodLabels = [
     'any' => 'All time',
+    'day' => 'Last day',
+    'week' => 'This week',
+    'month' => 'This month',
+    'year' => 'This year',
+];
+$periodChip = [
+    'any' => 'Date',
     'day' => 'Last day',
     'week' => 'This week',
     'month' => 'This month',
@@ -39,8 +52,13 @@ $densityLabels = [
     'cozy' => 'Comfortable',
     'compact' => 'Compact grid',
 ];
+$densityChip = [
+    'cozy' => 'Display',
+    'compact' => 'Compact',
+];
 
 $catLabel = $activeCatName ?: ($activeCatSlug !== '' ? $activeCatSlug : 'All categories');
+$catChip = $activeCatSlug !== '' ? $catLabel : 'Category';
 $clearHref = cfp_url($actionPath);
 if ($actionPath === '/search' && $q !== '') {
     $clearHref = cfp_url('/search?q=' . rawurlencode($q));
@@ -51,6 +69,10 @@ $hasFilters = $activeCatSlug !== ''
     || ($filters['period'] ?? 'any') !== 'any'
     || ($filters['density'] ?? 'cozy') !== 'cozy'
     || (int) ($filters['per'] ?? 24) !== 24;
+$sortVal = (string) ($filters['sort'] ?? 'new');
+$periodVal = (string) ($filters['period'] ?? 'any');
+$durationVal = (string) ($filters['duration'] ?? 'any');
+$densityVal = (string) ($filters['density'] ?? 'cozy');
 ?>
 <div class="cfp-filters-wrap">
 <form class="cfp-toolbar" method="get" action="<?= cfp_e(cfp_url($actionPath)) ?>" data-cfp-toolbar>
@@ -58,17 +80,28 @@ $hasFilters = $activeCatSlug !== ''
     <input type="hidden" name="q" value="<?= cfp_e($q) ?>">
   <?php endif; ?>
   <input type="hidden" name="category" value="<?= cfp_e($activeCatSlug) ?>" data-cfp-field="category">
-  <input type="hidden" name="sort" value="<?= cfp_e($filters['sort']) ?>" data-cfp-field="sort">
-  <input type="hidden" name="duration" value="<?= cfp_e($filters['duration']) ?>" data-cfp-field="duration">
-  <input type="hidden" name="period" value="<?= cfp_e($filters['period']) ?>" data-cfp-field="period">
-  <input type="hidden" name="density" value="<?= cfp_e($filters['density']) ?>" data-cfp-field="density">
+  <input type="hidden" name="sort" value="<?= cfp_e($sortVal) ?>" data-cfp-field="sort">
+  <input type="hidden" name="duration" value="<?= cfp_e($durationVal) ?>" data-cfp-field="duration">
+  <input type="hidden" name="period" value="<?= cfp_e($periodVal) ?>" data-cfp-field="period">
+  <input type="hidden" name="density" value="<?= cfp_e($densityVal) ?>" data-cfp-field="density">
   <input type="hidden" name="per" value="<?= (int) $filters['per'] ?>" data-cfp-field="per">
+
+  <div class="cfp-toolbar-top">
+    <?php if (isset($resultsTotal)): ?>
+      <span class="cfp-toolbar-count"><?= number_format((int) $resultsTotal) ?></span>
+    <?php else: ?>
+      <span class="cfp-toolbar-count cfp-toolbar-count-empty">Filters</span>
+    <?php endif; ?>
+    <?php if ($hasFilters): ?>
+      <a class="cfp-clear" href="<?= cfp_e($clearHref) ?>">Reset</a>
+    <?php endif; ?>
+  </div>
 
   <div class="cfp-toolbar-row">
     <div class="cfp-dd" data-cfp-dd>
-      <button type="button" class="cfp-dd-btn<?= $activeCatSlug !== '' ? ' is-active' : '' ?>" aria-expanded="false" aria-haspopup="listbox">
+      <button type="button" class="cfp-dd-btn<?= $activeCatSlug !== '' ? ' is-active' : '' ?>" aria-expanded="false" aria-haspopup="listbox" aria-label="Category">
         <span class="cfp-dd-kicker">Category</span>
-        <span class="cfp-dd-value"><?= cfp_e($catLabel) ?></span>
+        <span class="cfp-dd-value"><?= cfp_e($catChip) ?></span>
         <span class="cfp-dd-caret" aria-hidden="true"></span>
       </button>
       <div class="cfp-dd-menu" hidden>
@@ -89,60 +122,60 @@ $hasFilters = $activeCatSlug !== ''
     </div>
 
     <div class="cfp-dd" data-cfp-dd>
-      <button type="button" class="cfp-dd-btn<?= ($filters['sort'] ?? 'new') !== 'new' ? ' is-active' : '' ?>" aria-expanded="false">
+      <button type="button" class="cfp-dd-btn<?= $sortVal !== 'new' ? ' is-active' : '' ?>" aria-expanded="false" aria-label="Sort">
         <span class="cfp-dd-kicker">Sort</span>
-        <span class="cfp-dd-value"><?= cfp_e($sortLabels[$filters['sort']] ?? 'Newest') ?></span>
+        <span class="cfp-dd-value"><?= cfp_e($sortLabels[$sortVal] ?? 'Newest') ?></span>
         <span class="cfp-dd-caret" aria-hidden="true"></span>
       </button>
       <div class="cfp-dd-menu cfp-dd-menu-sm" hidden>
         <div class="cfp-dd-list" role="listbox">
           <?php foreach ($sortLabels as $val => $label): ?>
-            <button type="button" class="cfp-dd-option<?= $filters['sort'] === $val ? ' is-on' : '' ?>" data-cfp-set="sort" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
+            <button type="button" class="cfp-dd-option<?= $sortVal === $val ? ' is-on' : '' ?>" data-cfp-set="sort" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
           <?php endforeach; ?>
         </div>
       </div>
     </div>
 
     <div class="cfp-dd" data-cfp-dd>
-      <button type="button" class="cfp-dd-btn<?= ($filters['period'] ?? 'any') !== 'any' ? ' is-active' : '' ?>" aria-expanded="false">
+      <button type="button" class="cfp-dd-btn<?= $periodVal !== 'any' ? ' is-active' : '' ?>" aria-expanded="false" aria-label="Date">
         <span class="cfp-dd-kicker">Date</span>
-        <span class="cfp-dd-value"><?= cfp_e($periodLabels[$filters['period']] ?? 'All time') ?></span>
+        <span class="cfp-dd-value"><?= cfp_e($periodChip[$periodVal] ?? 'Date') ?></span>
         <span class="cfp-dd-caret" aria-hidden="true"></span>
       </button>
       <div class="cfp-dd-menu cfp-dd-menu-sm" hidden>
         <div class="cfp-dd-list" role="listbox">
           <?php foreach ($periodLabels as $val => $label): ?>
-            <button type="button" class="cfp-dd-option<?= $filters['period'] === $val ? ' is-on' : '' ?>" data-cfp-set="period" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
+            <button type="button" class="cfp-dd-option<?= $periodVal === $val ? ' is-on' : '' ?>" data-cfp-set="period" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
           <?php endforeach; ?>
         </div>
       </div>
     </div>
 
     <div class="cfp-dd" data-cfp-dd>
-      <button type="button" class="cfp-dd-btn<?= ($filters['duration'] ?? 'any') !== 'any' ? ' is-active' : '' ?>" aria-expanded="false">
+      <button type="button" class="cfp-dd-btn<?= $durationVal !== 'any' ? ' is-active' : '' ?>" aria-expanded="false" aria-label="Duration">
         <span class="cfp-dd-kicker">Duration</span>
-        <span class="cfp-dd-value"><?= cfp_e($durationLabels[$filters['duration']] ?? 'Any duration') ?></span>
+        <span class="cfp-dd-value"><?= cfp_e($durationChip[$durationVal] ?? 'Duration') ?></span>
         <span class="cfp-dd-caret" aria-hidden="true"></span>
       </button>
       <div class="cfp-dd-menu cfp-dd-menu-sm" hidden>
         <div class="cfp-dd-list" role="listbox">
           <?php foreach ($durationLabels as $val => $label): ?>
-            <button type="button" class="cfp-dd-option<?= $filters['duration'] === $val ? ' is-on' : '' ?>" data-cfp-set="duration" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
+            <button type="button" class="cfp-dd-option<?= $durationVal === $val ? ' is-on' : '' ?>" data-cfp-set="duration" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
           <?php endforeach; ?>
         </div>
       </div>
     </div>
 
     <div class="cfp-dd" data-cfp-dd>
-      <button type="button" class="cfp-dd-btn<?= ($filters['density'] ?? 'cozy') !== 'cozy' || (int) $filters['per'] !== 24 ? ' is-active' : '' ?>" aria-expanded="false">
+      <button type="button" class="cfp-dd-btn<?= $densityVal !== 'cozy' || (int) $filters['per'] !== 24 ? ' is-active' : '' ?>" aria-expanded="false" aria-label="Display">
         <span class="cfp-dd-kicker">Display</span>
-        <span class="cfp-dd-value"><?= cfp_e($densityLabels[$filters['density']] ?? 'Comfortable') ?></span>
+        <span class="cfp-dd-value"><?= cfp_e($densityChip[$densityVal] ?? 'Display') ?></span>
         <span class="cfp-dd-caret" aria-hidden="true"></span>
       </button>
       <div class="cfp-dd-menu cfp-dd-menu-sm" hidden>
         <div class="cfp-dd-list" role="listbox">
           <?php foreach ($densityLabels as $val => $label): ?>
-            <button type="button" class="cfp-dd-option<?= $filters['density'] === $val ? ' is-on' : '' ?>" data-cfp-set="density" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
+            <button type="button" class="cfp-dd-option<?= $densityVal === $val ? ' is-on' : '' ?>" data-cfp-set="density" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
           <?php endforeach; ?>
           <div class="cfp-dd-sep">Per page</div>
           <?php foreach ([12, 24, 36, 48] as $n): ?>
@@ -150,16 +183,6 @@ $hasFilters = $activeCatSlug !== ''
           <?php endforeach; ?>
         </div>
       </div>
-    </div>
-
-    <?php if ($hasFilters): ?>
-      <a class="cfp-clear" href="<?= cfp_e($clearHref) ?>">Reset</a>
-    <?php endif; ?>
-
-    <div class="cfp-toolbar-meta">
-      <?php if (isset($resultsTotal)): ?>
-        <span><?= number_format((int) $resultsTotal) ?></span>
-      <?php endif; ?>
     </div>
   </div>
 </form>
