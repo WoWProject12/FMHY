@@ -1,0 +1,131 @@
+CREATE DATABASE IF NOT EXISTS chillflix_porn CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE chillflix_porn;
+
+CREATE TABLE IF NOT EXISTS videos (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  video_id VARCHAR(32) NOT NULL,
+  slug VARCHAR(220) NOT NULL,
+  title VARCHAR(400) NOT NULL,
+  thumb VARCHAR(600) DEFAULT NULL,
+  duration VARCHAR(32) DEFAULT NULL,
+  duration_sec INT UNSIGNED NOT NULL DEFAULT 0,
+  partner VARCHAR(40) NOT NULL DEFAULT 'xvideos',
+  tracking_url VARCHAR(800) DEFAULT NULL,
+  embed TEXT,
+  views INT UNSIGNED NOT NULL DEFAULT 0,
+  source_views INT UNSIGNED NOT NULL DEFAULT 0,
+  quality VARCHAR(16) NULL DEFAULT NULL,
+  has_cc TINYINT(1) NOT NULL DEFAULT 0,
+  channel_name VARCHAR(200) NULL DEFAULT NULL,
+  likes INT UNSIGNED NOT NULL DEFAULT 0,
+  dislikes INT UNSIGNED NOT NULL DEFAULT 0,
+  enriched_at DATETIME NULL DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_partner_video (partner, video_id),
+  KEY idx_created (created_at),
+  KEY idx_views (views),
+  KEY idx_slug (slug),
+  KEY idx_enriched (enriched_at),
+  FULLTEXT KEY ft_title (title)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS categories (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  slug VARCHAR(120) NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_cat_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS video_categories (
+  video_id BIGINT UNSIGNED NOT NULL,
+  category_id INT UNSIGNED NOT NULL,
+  PRIMARY KEY (video_id, category_id),
+  KEY idx_cat (category_id),
+  CONSTRAINT fk_vc_video FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
+  CONSTRAINT fk_vc_cat FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tags (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  slug VARCHAR(120) NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_tag_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS video_tags (
+  video_id BIGINT UNSIGNED NOT NULL,
+  tag_id INT UNSIGNED NOT NULL,
+  PRIMARY KEY (video_id, tag_id),
+  KEY idx_tag (tag_id),
+  CONSTRAINT fk_vt_video FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
+  CONSTRAINT fk_vt_tag FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS actors (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  slug VARCHAR(160) NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_actor_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS video_actors (
+  video_id BIGINT UNSIGNED NOT NULL,
+  actor_id INT UNSIGNED NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'model',
+  PRIMARY KEY (video_id, actor_id),
+  KEY idx_actor (actor_id),
+  CONSTRAINT fk_va_video FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
+  CONSTRAINT fk_va_actor FOREIGN KEY (actor_id) REFERENCES actors(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS video_votes (
+  video_id BIGINT UNSIGNED NOT NULL,
+  voter_key VARCHAR(64) NOT NULL,
+  vote TINYINT NOT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (video_id, voter_key),
+  KEY idx_vote (video_id, vote),
+  CONSTRAINT fk_vv_video FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS scrape_state (
+  k VARCHAR(64) NOT NULL,
+  v TEXT NOT NULL,
+  PRIMARY KEY (k)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS stream_cache (
+  video_id VARCHAR(32) NOT NULL,
+  payload_json MEDIUMTEXT NOT NULL,
+  expires_at DATETIME NOT NULL,
+  PRIMARY KEY (video_id),
+  KEY idx_exp (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS users (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL,
+  email VARCHAR(190) NULL DEFAULT NULL,
+  pass_hash VARCHAR(255) NOT NULL,
+  avatar_url VARCHAR(500) NULL DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_username (username),
+  UNIQUE KEY uq_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_library (
+  user_id INT UNSIGNED NOT NULL,
+  video_id BIGINT UNSIGNED NOT NULL,
+  kind VARCHAR(20) NOT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, video_id, kind),
+  KEY idx_user_kind (user_id, kind, updated_at),
+  CONSTRAINT fk_ul_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ul_video FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
