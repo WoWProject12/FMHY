@@ -1,13 +1,12 @@
 <?php
 declare(strict_types=1);
 /**
- * xvideos-style compact filter bar: all controls are dropdowns.
+ * Compact filter bar — every control is a dropdown (no pill spam).
  * @var array $filters
  * @var array $cats
  * @var string $actionPath
  * @var string|null $activeCatName
  * @var int|null $resultsTotal
- * @var bool $showCatQuick  homepage quick tags strip
  */
 $filters = $filters ?? cfp_filters_from_request();
 $cats = $cats ?? [];
@@ -15,7 +14,6 @@ $actionPath = $actionPath ?? '/';
 $activeCatName = $activeCatName ?? null;
 $activeCatSlug = (string) ($filters['category'] ?? '');
 $q = (string) ($filters['q'] ?? ($q ?? ''));
-$showCatQuick = !empty($showCatQuick);
 
 $sortLabels = [
     'new' => 'Newest',
@@ -42,7 +40,7 @@ $densityLabels = [
     'compact' => 'Compact grid',
 ];
 
-$catLabel = $activeCatName ?: ($activeCatSlug !== '' ? $activeCatSlug : 'Categories');
+$catLabel = $activeCatName ?: ($activeCatSlug !== '' ? $activeCatSlug : 'All categories');
 $clearHref = cfp_url($actionPath);
 if ($actionPath === '/search' && $q !== '') {
     $clearHref = cfp_url('/search?q=' . rawurlencode($q));
@@ -51,37 +49,10 @@ $hasFilters = $activeCatSlug !== ''
     || ($filters['sort'] ?? 'new') !== 'new'
     || ($filters['duration'] ?? 'any') !== 'any'
     || ($filters['period'] ?? 'any') !== 'any'
-    || ($filters['density'] ?? 'cozy') !== 'cozy';
+    || ($filters['density'] ?? 'cozy') !== 'cozy'
+    || (int) ($filters['per'] ?? 24) !== 24;
 ?>
-<?php if ($showCatQuick && $cats): ?>
-<nav class="cfp-quickcats" aria-label="Popular categories">
-  <a class="cfp-quickcat<?= $activeCatSlug === '' ? ' is-on' : '' ?>" href="<?= cfp_e(cfp_url('/')) ?>">All</a>
-  <?php foreach (array_slice($cats, 0, 10) as $c): ?>
-    <a class="cfp-quickcat<?= $activeCatSlug === $c['slug'] ? ' is-on' : '' ?>" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>"><?= cfp_e($c['name']) ?></a>
-  <?php endforeach; ?>
-  <div class="cfp-dd cfp-quickcat-dd" data-cfp-dd>
-    <button type="button" class="cfp-dd-btn cfp-quickcat cfp-quickcat-more" aria-expanded="false">
-      <span class="cfp-dd-value">More…</span>
-      <span class="cfp-dd-caret" aria-hidden="true"></span>
-    </button>
-    <div class="cfp-dd-menu" hidden>
-      <div class="cfp-dd-search">
-        <input type="search" placeholder="Find a category…" data-cfp-dd-filter autocomplete="off">
-      </div>
-      <div class="cfp-dd-list" role="listbox">
-        <?php foreach (array_slice($cats, 10) as $c): ?>
-          <a class="cfp-dd-option" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>" data-label="<?= cfp_e(strtolower($c['name'])) ?>">
-            <span><?= cfp_e($c['name']) ?></span>
-            <em><?= (int) $c['n'] ?></em>
-          </a>
-        <?php endforeach; ?>
-      </div>
-      <div class="cfp-dd-foot"><a href="<?= cfp_e(cfp_url('/categories')) ?>">A–Z category list</a></div>
-    </div>
-  </div>
-</nav>
-<?php endif; ?>
-
+<div class="cfp-filters-wrap">
 <form class="cfp-toolbar" method="get" action="<?= cfp_e(cfp_url($actionPath)) ?>" data-cfp-toolbar>
   <?php if ($q !== '' && $actionPath === '/search'): ?>
     <input type="hidden" name="q" value="<?= cfp_e($q) ?>">
@@ -105,7 +76,7 @@ $hasFilters = $activeCatSlug !== ''
           <input type="search" placeholder="Find a category…" data-cfp-dd-filter autocomplete="off">
         </div>
         <div class="cfp-dd-list" role="listbox">
-          <button type="button" class="cfp-dd-option<?= $activeCatSlug === '' ? ' is-on' : '' ?>" data-cfp-set="category" data-value="">All categories</button>
+          <button type="button" class="cfp-dd-option<?= $activeCatSlug === '' ? ' is-on' : '' ?>" data-cfp-set="category" data-value="" data-label="all categories">All categories</button>
           <?php foreach ($cats as $c): ?>
             <button type="button" class="cfp-dd-option<?= $activeCatSlug === $c['slug'] ? ' is-on' : '' ?>" data-cfp-set="category" data-value="<?= cfp_e($c['slug']) ?>" data-label="<?= cfp_e(strtolower($c['name'])) ?>">
               <span><?= cfp_e($c['name']) ?></span>
@@ -113,7 +84,7 @@ $hasFilters = $activeCatSlug !== ''
             </button>
           <?php endforeach; ?>
         </div>
-        <div class="cfp-dd-foot"><a href="<?= cfp_e(cfp_url('/categories')) ?>">Full category list</a></div>
+        <div class="cfp-dd-foot"><a href="<?= cfp_e(cfp_url('/categories')) ?>">A–Z category list</a></div>
       </div>
     </div>
 
@@ -192,3 +163,4 @@ $hasFilters = $activeCatSlug !== ''
     </div>
   </div>
 </form>
+</div>

@@ -19,20 +19,23 @@ html.cfp-app, body.page-porn {
 }
 body.page-porn { margin: 0; padding-bottom: 76px; }
 
-/* Aurora FX on main Chillflix sits at z-index ~12200 and was covering menus.
-   Keep FX decorative but under all porn UI chrome. */
-body.page-porn .aurora-bg,
+/* Leaves/snow look noisy behind filters on /porn — hide them here. */
 body.page-porn .aurora-leaves,
 body.page-porn .aurora-snow {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+body.page-porn .aurora-bg {
   z-index: 0 !important;
   pointer-events: none !important;
+  opacity: 0.35;
 }
 
 /* Header */
 .cfp-header {
   position: sticky; top: 0; z-index: 13000;
-  backdrop-filter: blur(14px);
-  background: rgba(12, 11, 9, 0.82);
+  background: #0c0b09;
   border-bottom: 1px solid var(--cfp-border);
 }
 .cfp-header-inner {
@@ -76,6 +79,7 @@ body.page-porn .aurora-snow {
   position: relative; z-index: 2;
   max-width: 1320px; margin: 0 auto;
   padding: 0.85rem 0.9rem 1.5rem;
+  background: transparent;
 }
 .cfp-nav { position: relative; }
 .cfp-nav-dd { position: relative; }
@@ -134,15 +138,26 @@ body.page-porn .aurora-snow {
 .cfp-btn-primary { background: var(--cfp-accent); color: #1a1208; }
 .cfp-btn-ghost { background: transparent; color: var(--cfp-text); border-color: var(--cfp-border); }
 
-/* Toolbar / dropdowns — z-index must beat aurora FX */
+/* Toolbar / dropdowns — solid panel so FX never shows through */
 .cfp-toolbar {
   position: sticky; top: 52px; z-index: 12900;
   margin: 0 0 0.85rem; padding: 0.45rem;
   border-radius: 12px;
-  background: rgba(20, 19, 17, 0.92);
+  background: #141311;
   border: 1px solid var(--cfp-border);
-  backdrop-filter: blur(10px);
   overflow: visible;
+}
+.cfp-filters-wrap {
+  position: relative; z-index: 12900;
+  margin: 0 0 0.85rem;
+  padding: 0.55rem;
+  border-radius: 14px;
+  background: #12100e;
+  border: 1px solid var(--cfp-border);
+}
+.cfp-filters-wrap .cfp-toolbar {
+  position: static; margin: 0; padding: 0;
+  border: 0; border-radius: 0; background: transparent;
 }
 .cfp-toolbar-row {
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
@@ -183,7 +198,7 @@ body.page-porn .aurora-snow {
 /* Class-only visibility with !important so UA [hidden] and parent CSS cannot trap menus */
 .cfp-dd-menu {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 13100;
-  min-width: 240px; max-height: min(360px, 70vh);
+  min-width: 260px; max-height: min(420px, 70vh);
   display: none !important;
   flex-direction: column;
   background: #16130f; border: 1px solid var(--cfp-border);
@@ -200,14 +215,25 @@ body.page-porn .aurora-snow {
   font-size: 0.68rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em;
 }
-.cfp-dd-search { padding: 0.5rem; border-bottom: 1px solid var(--cfp-border); }
+.cfp-dd-search {
+  flex: 0 0 auto;
+  padding: 0.5rem; border-bottom: 1px solid var(--cfp-border);
+}
 .cfp-dd-search input {
   width: 100%; box-sizing: border-box; border-radius: 8px;
   border: 1px solid var(--cfp-border); background: #0f0d0a;
   color: var(--cfp-text); padding: 0.45rem 0.6rem; font: inherit; font-size: 0.85rem;
   outline: none;
 }
-.cfp-dd-list { overflow: auto; padding: 0.3rem; }
+/* Critical: min-height:0 so the list scrolls inside the flex menu instead of clipping to the footer */
+.cfp-dd-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.3rem;
+}
+.cfp-dd-foot { flex: 0 0 auto; }
 .cfp-dd-option {
   width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
   border: 0; background: transparent; color: var(--cfp-text);
@@ -223,37 +249,6 @@ body.page-porn .aurora-snow {
 }
 .cfp-dd-foot a { color: var(--cfp-accent); text-decoration: none; font-weight: 700; }
 
-/* Quick category strip (xvideos-style top tags) */
-.cfp-quickcats {
-  display: flex; gap: 0.35rem; overflow-x: auto;
-  margin: 0 0 0.65rem; padding-bottom: 0.15rem;
-  scrollbar-width: thin;
-}
-.cfp-quickcat {
-  flex: 0 0 auto;
-  padding: 0.32rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid var(--cfp-border);
-  background: var(--cfp-surface);
-  color: var(--cfp-muted);
-  text-decoration: none;
-  font-size: 0.78rem; font-weight: 700;
-  white-space: nowrap;
-}
-.cfp-quickcat:hover { color: var(--cfp-text); border-color: rgba(228,194,122,.35); }
-.cfp-quickcat.is-on {
-  color: #1a1208; background: var(--cfp-accent); border-color: var(--cfp-accent);
-}
-.cfp-quickcat-more { color: var(--cfp-accent); }
-.cfp-quickcat-dd { flex: 0 0 auto; }
-.cfp-quickcat-dd > .cfp-dd-btn.cfp-quickcat {
-  display: inline-flex; align-items: center; gap: 0.25rem;
-  font: inherit; cursor: pointer;
-}
-.cfp-quickcat-dd > .cfp-dd-btn .cfp-dd-value {
-  max-width: none; font-size: 0.78rem; font-weight: 700; color: inherit;
-}
-.cfp-quickcat-dd .cfp-dd-menu { left: auto; right: 0; }
 .cfp-dd-option { text-decoration: none; box-sizing: border-box; }
 a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-cat-head { margin: 0 0 0.55rem; }
@@ -471,5 +466,15 @@ a.cfp-dd-option { color: var(--cfp-text); }
   .cfp-strip { grid-template-columns: 1fr; }
   .cfp-strip-media { max-width: 220px; }
   .cfp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
-  .cfp-dd-menu { position: fixed; left: 0.75rem; right: 0.75rem; top: auto; bottom: 4.5rem; min-width: 0; max-height: 55vh; }
+  /* Full-width bottom sheet so long category lists are fully scrollable */
+  .cfp-dd-menu.is-open {
+    position: fixed !important;
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    top: auto !important;
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)) !important;
+    min-width: 0 !important;
+    width: auto !important;
+    max-height: min(68vh, 560px) !important;
+  }
 }

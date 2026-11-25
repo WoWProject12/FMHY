@@ -38,9 +38,14 @@
       setMenuOpen(dd, willOpen);
       if (willOpen) {
         var filter = menu.querySelector("[data-cfp-dd-filter]");
-        if (filter && window.matchMedia("(pointer: fine)").matches) {
+        var list = menu.querySelector(".cfp-dd-list");
+        if (filter) {
           filter.value = "";
           filter.dispatchEvent(new Event("input"));
+        }
+        if (list) list.scrollTop = 0;
+        // Focus search only on fine pointers so mobile keyboards don't crush the sheet
+        if (filter && window.matchMedia("(pointer: fine)").matches) {
           setTimeout(function () {
             try { filter.focus(); } catch (err) {}
           }, 0);

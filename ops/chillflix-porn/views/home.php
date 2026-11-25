@@ -23,7 +23,6 @@ $isFiltered = $activeCatSlug !== ''
     || ($filters['duration'] ?? 'any') !== 'any'
     || ($filters['period'] ?? 'any') !== 'any';
 $heading = $activeCatName ?: ($isFiltered ? 'Results' : 'Newest videos');
-$showCatQuick = true;
 ?>
 <?php if ($activeCatName): ?>
   <header class="cfp-cat-head">

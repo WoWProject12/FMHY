@@ -17,33 +17,17 @@ declare(strict_types=1);
   <meta name="rating" content="adult">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/cinema.css?v=97fxovertoast1')) ?>">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/bridge.css?v=20261123notif22acctontop1phoneplayer5noshrink2nospa1fxuser5nocardfx1maylike1settingsback1')) ?>">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=4ui2')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=5fx')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
 </head>
 <body class="<?= cfp_e($bodyClass) ?>">
-<div class="aurora-bg" aria-hidden="true"><div class="aurora-bg-wash"></div><div class="aurora-bg-grain"></div></div>
-<canvas class="aurora-leaves" aria-hidden="true"></canvas>
-<canvas class="aurora-snow" aria-hidden="true"></canvas>
+<div class="aurora-bg" aria-hidden="true" hidden><div class="aurora-bg-wash"></div><div class="aurora-bg-grain"></div></div>
 <script>
 (function(){
   try {
-    window.__movySiteFx = {water:true,leaves:true,snow:true};
-    var root = document.documentElement;
-    var u = {water:true,leaves:true,snow:true};
-    try {
-      var raw = JSON.parse(localStorage.getItem('movy_fx_user') || 'null');
-      if (raw && typeof raw === 'object') {
-        if ('water' in raw) u.water = !!raw.water;
-        if ('leaves' in raw) u.leaves = !!raw.leaves;
-        if ('snow' in raw) u.snow = !!raw.snow;
-      }
-    } catch (e) {}
-    var fx = {water:!!u.water, leaves:!!u.leaves, snow:!!u.snow};
-    root.classList.toggle('movy-fx-off-leaves', !fx.leaves);
-    root.classList.toggle('movy-fx-off-snow', !fx.snow);
-    document.querySelectorAll('.aurora-leaves').forEach(function(el){ el.hidden = !fx.leaves; });
-    document.querySelectorAll('.aurora-snow').forEach(function(el){ el.hidden = !fx.snow; });
-    document.querySelectorAll('.aurora-bg').forEach(function(el){ el.hidden = !fx.water; });
+    // /porn keeps a clean dark stage — no leaves/snow FX behind filters
+    window.__movySiteFx = {water:false,leaves:false,snow:false};
+    document.documentElement.classList.add('movy-fx-off-leaves', 'movy-fx-off-snow');
   } catch (err) {}
 })();
 </script>
@@ -106,8 +90,6 @@ declare(strict_types=1);
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_main_asset('js/leaves.js?v=29fxuser')) ?>" defer></script>
-<script src="<?= cfp_e(cfp_main_asset('js/snow.js?v=5fxuser')) ?>" defer></script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=4ui2')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=5fx')) ?>" defer></script>
 </body>
 </html>
