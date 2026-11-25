@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=62xv')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=63center')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -43,8 +43,10 @@ declare(strict_types=1);
     .cfp-card{min-width:0;max-width:100%;gap:.35rem}
     .cfp-card-media{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:0;border:0}
     .cfp-card-media>img,.cfp-card-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-    .cfp-card-title{font-size:.98rem;line-height:1.3;font-weight:600;-webkit-line-clamp:2;color:#fff}
-    .cfp-card-sub{display:flex!important;align-items:center;justify-content:space-between;gap:.5rem;color:#bdbdbd;font-size:.82rem}
+    .cfp-card-meta{align-items:center;text-align:center}
+    .cfp-card-title{font-size:.95rem;line-height:1.3;font-weight:500;-webkit-line-clamp:2;color:#fff;text-align:center}
+    .cfp-card-sub{display:inline-flex!important;flex-wrap:wrap;align-items:center;justify-content:center;gap:.35rem;color:#bdbdbd;font-size:.8rem;text-align:center}
+    .cfp-card-sub-main{justify-content:center;max-width:100%}
     .cfp-card-tags{position:absolute;top:6px;right:6px;z-index:3;display:inline-flex;gap:4px}
     .cfp-card-quality,.cfp-card-cc{background:rgba(0,0,0,.72);color:#fff;padding:.16rem .42rem;border-radius:2px;font-size:.78rem;font-weight:700}
     .cfp-card-dur{background:#3a3a3a;color:#f2f2f2;padding:.16rem .48rem;border-radius:3px;font-size:.72rem;font-weight:600}

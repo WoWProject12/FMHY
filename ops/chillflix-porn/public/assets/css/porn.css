@@ -550,26 +550,40 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-card-quality[hidden] { display: none !important; }
 .cfp-card-cc { font-size: 0.66rem; padding: 0.16rem 0.34rem; }
-.cfp-card-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.22rem; padding: 0 0.05rem; }
+.cfp-card-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.15rem 0.35rem 0.1rem;
+  text-align: center;
+}
 .cfp-card-title {
-  margin: 0; font-size: 0.92rem; line-height: 1.3; font-weight: 600; color: #fff;
+  margin: 0; width: 100%;
+  font-size: 0.92rem; line-height: 1.3; font-weight: 500; color: #fff;
+  text-align: center;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .cfp-grid-compact .cfp-card-title, body.is-compact .cfp-card-title { font-size: 0.8rem; }
+/* One centered second row: channel - views [dur] (not left/right split) */
 .cfp-card-sub {
   margin: 0;
-  display: flex;
+  display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.35rem;
   color: #bdbdbd;
   font-size: 0.78rem;
   line-height: 1.25;
-  min-width: 0;
+  max-width: 100%;
+  text-align: center;
 }
 .cfp-card-sub-main {
-  display: inline-flex; align-items: center; gap: 0;
-  min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0;
+  min-width: 0; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cfp-card-channel {
   color: #bdbdbd;
@@ -577,11 +591,11 @@ a.cfp-dd-option { color: var(--cfp-text); }
   text-underline-offset: 2px;
   font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  max-width: 11rem;
+  max-width: 12rem;
 }
 .cfp-card-channel:hover { color: #fff; }
 .cfp-card-sep { opacity: 0.85; flex: 0 0 auto; white-space: pre; }
-.cfp-card-views { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.cfp-card-views { flex: 0 1 auto; white-space: nowrap; }
 .cfp-card-dur {
   flex: 0 0 auto;
   padding: 0.14rem 0.42rem;
@@ -594,16 +608,16 @@ a.cfp-dd-option { color: var(--cfp-text); }
   white-space: nowrap;
 }
 @media (max-width: 699px) {
-  .cfp-card-title { -webkit-line-clamp: 2; font-size: 0.98rem; font-weight: 600; }
-  .cfp-card-sub { display: flex; font-size: 0.82rem; }
-  .cfp-card-dur { font-size: 0.72rem; padding: 0.16rem 0.48rem; }
+  .cfp-card-title { -webkit-line-clamp: 2; font-size: 0.95rem; font-weight: 500; text-align: center; }
+  .cfp-card-sub { display: inline-flex; justify-content: center; font-size: 0.8rem; }
+  .cfp-card-dur { font-size: 0.7rem; padding: 0.14rem 0.45rem; }
   .cfp-card-quality, .cfp-card-cc { font-size: 0.78rem; }
   .cfp-card-media { aspect-ratio: 16 / 9 !important; border-radius: 0; }
 }
 @media (min-width: 700px) {
   .cfp-card-media { border-radius: 2px; }
-  .cfp-card-title { font-size: 0.82rem; }
-  .cfp-card-sub { font-size: 0.7rem; }
+  .cfp-card-title { font-size: 0.8rem; }
+  .cfp-card-sub { font-size: 0.68rem; gap: 0.28rem; }
 }
 
 .cfp-pager {
