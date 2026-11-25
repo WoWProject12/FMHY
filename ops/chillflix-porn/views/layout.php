@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=71xvplayer3')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=72fsfix')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -35,8 +35,11 @@ declare(strict_types=1);
     html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
     *,*:before,*:after{box-sizing:border-box}
     .cfp-header-inner,.cfp-main,.cfp-watch,.cfp-player,.cfp-watch-head,.cfp-section,.cfp-footer{width:100%;max-width:100%;min-width:0}
-    .cfp-player,.cfp-player-stage,#cfpPlayer{width:100%!important;max-width:100%!important;margin:0!important;left:auto!important;right:auto!important;transform:none!important}
-    #cfpPlayer{display:block!important;position:static!important;height:auto!important;aspect-ratio:16/9;background:#000;object-fit:contain}
+    .cfp-player,.cfp-player-stage{width:100%!important;max-width:100%!important;margin:0!important;left:auto!important;right:auto!important;transform:none!important}
+    .cfp-player-frame{width:100%;max-width:100%;position:relative;background:#000}
+    #cfpPlayer{display:block!important;background:#000;object-fit:contain}
+    .cfp-player-stage:not(.is-fs):not(:fullscreen):not(:-webkit-full-screen) .cfp-player-frame{aspect-ratio:16/9;max-height:70vh}
+    .cfp-player-stage:not(.is-fs):not(:fullscreen):not(:-webkit-full-screen) #cfpPlayer{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-height:none!important;aspect-ratio:auto!important}
     .cfp-watch-title{font-size:1.05rem!important;line-height:1.25;margin:0 0 .35rem}
     .cfp-watch-meta{margin:0 0 .35rem;font-size:.78rem}
     .cfp-xv-people{display:flex!important;flex-wrap:wrap!important;gap:.3rem;margin:0 0 .35rem;max-width:100%}
@@ -263,6 +266,6 @@ declare(strict_types=1);
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username'], 'avatar' => $cfpAvatarUrl] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=71xvplayer3')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=72fsfix')) ?>" defer></script>
 </body>
 </html>

@@ -819,7 +819,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
   width: 100%;
   max-width: 100%;
 }
-/* Simple in-flow video — absolute/max-height hacks were blacking out mobile */
+/* Stage = outer shell; frame = video+overlays sized to the picture */
 .cfp-player-stage {
   position: relative;
   width: 100%;
@@ -828,22 +828,66 @@ a.cfp-dd-option { color: var(--cfp-text); }
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cfp-player-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  background: #000;
+  /* Keep overlays glued to the video box (not the fullscreen viewport) */
+  aspect-ratio: 16 / 9;
+  max-height: 70vh;
 }
 .cfp-player-stage video,
 #cfpPlayer {
-  position: static;
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  height: auto;
-  max-width: 100%;
-  max-height: 70vh;
-  aspect-ratio: 16 / 9;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  aspect-ratio: auto;
   object-fit: contain;
   background: #000;
   border: 0;
   transform: none;
-  left: auto;
   margin: 0;
+}
+/* Fullscreen: fill viewport, frame fits video, chrome on the frame — no giant black gap */
+.cfp-player-stage:fullscreen,
+.cfp-player-stage:-webkit-full-screen,
+.cfp-player-stage.is-fs {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: none !important;
+  background: #000;
+}
+.cfp-player-stage:fullscreen .cfp-player-frame,
+.cfp-player-stage:-webkit-full-screen .cfp-player-frame,
+.cfp-player-stage.is-fs .cfp-player-frame {
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: min(100vh, calc(100vw * 9 / 16));
+  max-width: 100vw;
+  max-height: 100vh;
+  aspect-ratio: auto;
+}
+.cfp-player-stage:fullscreen video,
+.cfp-player-stage:-webkit-full-screen video,
+.cfp-player-stage.is-fs video,
+.cfp-player-stage:fullscreen #cfpPlayer,
+.cfp-player-stage:-webkit-full-screen #cfpPlayer,
+.cfp-player-stage.is-fs #cfpPlayer {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  object-fit: contain !important;
 }
 .cfp-player-status {
   position: absolute; left: 0; right: 0; top: 0.55rem; padding: 0 0.75rem;
@@ -982,9 +1026,17 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-player-stage.is-muted .cfp-ico-vol { display: none; }
 .cfp-player-stage:not(.is-muted) .cfp-ico-mute { display: none !important; }
 .cfp-player-stage.is-muted .cfp-ico-mute { display: block !important; }
+.cfp-player-stage.is-playing .cfp-ico-play { display: none !important; }
+.cfp-player-stage.is-paused .cfp-ico-pause { display: none !important; }
+.cfp-player-stage.is-playing .cfp-ico-pause { display: block !important; }
+.cfp-player-stage.is-paused .cfp-ico-play { display: block !important; }
+.cfp-player-stage.is-fs .cfp-ico-fs { display: none !important; }
+.cfp-player-stage:not(.is-fs) .cfp-ico-fs-exit { display: none !important; }
+.cfp-player-stage.is-fs .cfp-ico-fs-exit { display: block !important; }
 @media (min-width: 900px) {
   .cfp-player { border-radius: 6px; border: 1px solid var(--cfp-border); }
   .cfp-player-bigplay-box { width: 92px; height: 92px; border-radius: 14px; }
+  .cfp-player-frame { max-height: min(70vh, 720px); }
 }
 .cfp-watch-meta {
   display: flex; flex-wrap: wrap; gap: 0.75rem;

@@ -1012,9 +1012,11 @@
 
   var stage = root.querySelector(".cfp-player-stage") || root;
   var bigPlay = document.getElementById("cfpBigPlay");
+  var playBtn = document.getElementById("cfpPlayBtn");
   var muteBtn = document.getElementById("cfpMuteBtn");
   var fsBtn = document.getElementById("cfpFsBtn");
   var camBtn = document.getElementById("cfpCamBtn");
+  var frame = root.querySelector(".cfp-player-frame");
   var timeEl = document.getElementById("cfpPlayerTime");
   var seekEl = document.getElementById("cfpSeek");
   var seekFill = document.getElementById("cfpSeekFill");
@@ -1033,6 +1035,36 @@
     return h > 0 ? h + ":" + mm + ":" + ss : mm.padStart(2, "0") + ":" + ss;
   }
 
+  function syncFsUi() {
+    if (!stage) return;
+    var fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    stage.classList.toggle("is-fs", fs);
+    if (fsBtn) fsBtn.setAttribute("aria-label", fs ? "Exit fullscreen" : "Fullscreen");
+    // Size frame to the real video aspect in fullscreen so chrome hugs the picture
+    if (frame) {
+      if (fs && video.videoWidth > 0 && video.videoHeight > 0) {
+        var ratio = video.videoWidth / video.videoHeight;
+        var maxW = window.innerWidth;
+        var maxH = window.innerHeight;
+        var w = maxW;
+        var h = w / ratio;
+        if (h > maxH) {
+          h = maxH;
+          w = h * ratio;
+        }
+        frame.style.width = Math.round(w) + "px";
+        frame.style.height = Math.round(h) + "px";
+        frame.style.aspectRatio = "auto";
+        frame.style.maxHeight = "none";
+      } else {
+        frame.style.width = "";
+        frame.style.height = "";
+        frame.style.aspectRatio = "";
+        frame.style.maxHeight = "";
+      }
+    }
+  }
+
   function syncPlayUi() {
     if (!stage) return;
     stage.classList.toggle("is-paused", !!video.paused);
@@ -1040,6 +1072,7 @@
     stage.classList.toggle("is-muted", !!video.muted || video.volume === 0);
     if (muteBtn) muteBtn.setAttribute("aria-label", video.muted || video.volume === 0 ? "Unmute" : "Mute");
     if (bigPlay) bigPlay.setAttribute("aria-label", video.paused ? "Play" : "Pause");
+    if (playBtn) playBtn.setAttribute("aria-label", video.paused ? "Play" : "Pause");
   }
 
   function syncSeekUi() {
@@ -1132,6 +1165,14 @@
       showChrome(false);
     });
   }
+  if (playBtn) {
+    playBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      togglePlay();
+      showChrome(false);
+    });
+  }
   if (muteBtn) {
     muteBtn.addEventListener("click", function (e) {
       e.preventDefault();
@@ -1155,12 +1196,25 @@
         } else if (target.webkitRequestFullscreen) {
           target.webkitRequestFullscreen();
         } else if (video.webkitEnterFullscreen) {
+          // iOS native FS — no custom chrome there
           video.webkitEnterFullscreen();
         }
       } catch (eFs) {}
-      showChrome(false);
+      showChrome(true);
     });
   }
+  ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) {
+    document.addEventListener(ev, function () {
+      syncFsUi();
+      showChrome(true);
+    });
+  });
+  window.addEventListener("resize", function () {
+    if (stage && stage.classList.contains("is-fs")) syncFsUi();
+  });
+  video.addEventListener("loadedmetadata", function () {
+    if (stage && stage.classList.contains("is-fs")) syncFsUi();
+  });
   if (camBtn) {
     camBtn.addEventListener("click", function (e) {
       e.preventDefault();
@@ -1233,6 +1287,7 @@
   showChrome(true);
   syncPlayUi();
   syncSeekUi();
+  syncFsUi();
 
   function setStatus(msg, ready) {
     if (!status) return;
