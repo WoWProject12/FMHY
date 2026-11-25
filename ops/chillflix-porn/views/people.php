@@ -60,9 +60,12 @@ $buildPeopleUrl = static function (array $overrides = []) use ($peopleQ, $people
     <?php if ($peopleRole !== 'model'): ?>
       <input type="hidden" name="role" value="<?= cfp_e($peopleRole) ?>">
     <?php endif; ?>
-    <label class="cfp-cats-search">
+    <label class="cfp-cats-search cfp-people-search">
       <span class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Find people</span>
-      <input type="search" name="q" placeholder="Find a person…" value="<?= cfp_e($peopleQ) ?>" autocomplete="off">
+      <span class="cfp-people-search-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      </span>
+      <input type="search" name="q" placeholder="Search people or channels…" value="<?= cfp_e($peopleQ) ?>" autocomplete="off" enterkeyhint="search">
     </label>
     <?php if ($peopleQ !== '' || $peopleSort !== 'popular' || $peopleRole !== 'model'): ?>
       <a class="cfp-chip" href="<?= cfp_e(cfp_url('/people')) ?>">Clear</a>

@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=81user')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=82search')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -80,8 +80,13 @@ declare(strict_types=1);
       <span class="cfp-brand-text">Chillflix <em>Porn</em></span>
     </a>
     <form class="cfp-search" action="<?= cfp_e(cfp_url('/search')) ?>" method="get" role="search">
-      <input type="search" name="q" placeholder="Search…" value="<?= cfp_e((string) ($q ?? ($filters['q'] ?? ''))) ?>" autocomplete="off">
-      <button type="submit" aria-label="Search">Go</button>
+      <span class="cfp-search-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      </span>
+      <input type="search" name="q" placeholder="Search videos, people…" value="<?= cfp_e((string) ($q ?? ($filters['q'] ?? ''))) ?>" autocomplete="off" enterkeyhint="search">
+      <button type="submit" aria-label="Search">
+        <span>Search</span>
+      </button>
     </form>
     <nav class="cfp-nav" aria-label="Primary">
       <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
@@ -270,5 +275,5 @@ declare(strict_types=1);
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username'], 'avatar' => $cfpAvatarUrl] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=81user')) ?>" defer></script></body>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=82search')) ?>" defer></script></body>
 </html>
