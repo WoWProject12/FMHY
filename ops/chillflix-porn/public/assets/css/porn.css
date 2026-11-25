@@ -928,10 +928,10 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-player-stage.is-playing .cfp-player-bigplay {
   opacity: 0 !important; pointer-events: none !important;
 }
-/* Top-right: circular gear + camera */
+/* Top-right: ONE merged dark pill for gear + camera (xvideos) */
 .cfp-player-top {
   position: absolute; top: 8px; right: 8px; z-index: 7;
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center;
   opacity: 0; pointer-events: none;
   transition: opacity 0.12s ease;
 }
@@ -940,34 +940,43 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-player-top:focus-within {
   opacity: 1; pointer-events: auto;
 }
+.cfp-player-top-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: rgba(40, 40, 40, 0.72);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
 .cfp-overlay-btn {
   display: inline-grid; place-items: center;
-  width: 36px; height: 36px; padding: 0;
+  width: 32px; height: 32px; padding: 0;
   border: 0; border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
+  background: transparent;
   color: #fff;
   cursor: pointer;
   -webkit-appearance: none; appearance: none;
 }
 .cfp-overlay-btn:hover,
 .cfp-overlay-btn[aria-expanded="true"] {
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(255, 255, 255, 0.12);
 }
 .cfp-player-gear { position: relative; }
 /*
-  Bottom chrome (xvideos):
-  [○ mute] 00:00 / 11:21 ………… [○ fs]
-  ════════════════════════════════ seek (flush bottom, gold)
+  Bottom chrome (xvideos + gold):
+  [vol | time pill] ………… [fs]   ← same compact row
+  [======== thin seek ========]  ← flush bottom edge
 */
 .cfp-player-chrome {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
-  padding: 28px 6px 0;
-  background: linear-gradient(transparent 0%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.85) 100%);
+  padding: 20px 8px 0;
+  background: linear-gradient(transparent 0%, rgba(0,0,0,0.5) 55%, rgba(0,0,0,0.85) 100%);
   opacity: 0; pointer-events: none;
   transition: opacity 0.12s ease;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   box-sizing: border-box;
 }
 .cfp-player-stage.is-chrome .cfp-player-chrome,
@@ -975,51 +984,75 @@ a.cfp-dd-option { color: var(--cfp-text); }
   opacity: 1; pointer-events: auto;
 }
 .cfp-player-bar {
-  display: flex; align-items: center; gap: 6px;
-  min-height: 36px;
+  display: flex; align-items: center; gap: 8px;
+  min-height: 30px;
   width: 100%;
-  padding: 0 2px 2px;
+  padding: 0 2px;
 }
 .cfp-player-spacer { flex: 1 1 auto; min-width: 8px; }
-/* Mute / FS: same circular dark pills as top overlays */
+.cfp-vol-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex: 0 1 auto;
+  max-width: calc(100% - 44px);
+  padding: 3px 10px 3px 4px;
+  border-radius: 999px;
+  background: rgba(40, 40, 40, 0.72);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+.cfp-vol-divider {
+  width: 1px;
+  height: 14px;
+  margin: 0 7px 0 2px;
+  background: rgba(255, 255, 255, 0.35);
+  flex: 0 0 auto;
+}
 .cfp-ctrl-btn {
   display: inline-grid; place-items: center;
-  width: 34px; height: 34px; padding: 0;
+  width: 28px; height: 28px; padding: 0;
   border: 0; border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
+  background: transparent;
   color: #fff;
   cursor: pointer; flex: 0 0 auto;
   -webkit-appearance: none; appearance: none;
 }
-.cfp-ctrl-btn:hover { background: rgba(0, 0, 0, 0.7); }
+.cfp-ctrl-btn:hover { background: rgba(255, 255, 255, 0.1); }
 .cfp-ctrl-btn svg { display: block; }
+.cfp-ctrl-fs {
+  width: 30px; height: 30px;
+  flex: 0 0 auto;
+}
 .cfp-player-time {
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
   white-space: nowrap;
-  flex: 0 0 auto;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.65);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1;
 }
+/* Thin full-width seek under the control row (xvideos) */
 .cfp-seek {
   position: relative;
   width: 100%;
-  height: 16px;
+  height: 14px;
   display: flex; align-items: flex-end;
   touch-action: none;
   cursor: pointer;
   flex: 0 0 auto;
   margin: 0;
-  padding: 0 0 3px;
+  padding: 0 0 4px;
   box-sizing: border-box;
 }
 .cfp-seek-track {
   position: relative;
   width: 100%;
-  height: 3px;
+  height: 2.5px;
   border-radius: 0;
   background: rgba(255,255,255,0.28);
 }
@@ -1032,15 +1065,15 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-seek-knob {
   position: absolute; top: 50%;
   left: 0%;
-  width: 12px; height: 12px;
-  margin: -6px 0 0 -6px;
+  width: 11px; height: 11px;
+  margin: -5.5px 0 0 -5.5px;
   border-radius: 50%;
   background: var(--cfp-accent);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.5);
   opacity: 1;
 }
 .cfp-seek:hover .cfp-seek-track,
-.cfp-seek.is-dragging .cfp-seek-track { height: 4px; }
+.cfp-seek.is-dragging .cfp-seek-track { height: 3.5px; }
 .cfp-player-stage.is-muted .cfp-ico-vol { display: none; }
 .cfp-player-stage:not(.is-muted) .cfp-ico-mute { display: none !important; }
 .cfp-player-stage.is-muted .cfp-ico-mute { display: block !important; }
@@ -1052,6 +1085,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
   .cfp-player-bigplay-box { width: 84px; height: 84px; }
   .cfp-player-bigplay-box svg { width: 36px; height: 36px; }
   .cfp-player-frame { max-height: min(70vh, 720px); }
+  .cfp-vol-pill { max-width: none; }
 }
 .cfp-watch-meta {
   display: flex; flex-wrap: wrap; gap: 0.75rem;

@@ -100,34 +100,42 @@ $viewsLabel = cfp_fmt_views((int) ($video['source_views'] ?? $video['views'] ?? 
         </button>
 
         <div class="cfp-player-top">
-          <div class="cfp-player-gear">
-            <button type="button" class="cfp-overlay-btn" id="cfpGearBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Settings">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.2 7.2 0 0 0-1.62-.94l-.36-2.54A.48.48 0 0 0 14 2h-4a.48.48 0 0 0-.48.41l-.36 2.54c-.58.23-1.12.54-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.65 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.3.59.22l2.39-.96c.5.4 1.04.72 1.62.94l.36 2.54c.05.24.25.41.48.41h4c.24 0 .44-.17.48-.41l.36-2.54c.58-.23 1.12-.54 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
-            </button>
-            <div class="cfp-qdrop" id="cfpQualityMenu" hidden role="menu" aria-label="Quality">
-              <div class="cfp-qdrop-head">
-                <strong>Quality</strong>
-                <span id="cfpGearLabel"></span>
+          <div class="cfp-player-top-pill">
+            <div class="cfp-player-gear">
+              <button type="button" class="cfp-overlay-btn" id="cfpGearBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Settings">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.2 7.2 0 0 0-1.62-.94l-.36-2.54A.48.48 0 0 0 14 2h-4a.48.48 0 0 0-.48.41l-.36 2.54c-.58.23-1.12.54-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.65 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.3.59.22l2.39-.96c.5.4 1.04.72 1.62.94l.36 2.54c.05.24.25.41.48.41h4c.24 0 .44-.17.48-.41l.36-2.54c.58-.23 1.12-.54 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+              </button>
+              <div class="cfp-qdrop" id="cfpQualityMenu" hidden role="menu" aria-label="Quality">
+                <div class="cfp-qdrop-head">
+                  <strong>Quality</strong>
+                  <span id="cfpGearLabel"></span>
+                </div>
+                <div class="cfp-quality-opts" id="cfpQuality" role="group"></div>
               </div>
-              <div class="cfp-quality-opts" id="cfpQuality" role="group"></div>
             </div>
+            <button type="button" class="cfp-overlay-btn" id="cfpCamBtn" aria-label="Screenshot">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M12 15.2A3.2 3.2 0 1 0 12 8.8a3.2 3.2 0 0 0 0 6.4zM9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z"/></svg>
+            </button>
           </div>
-          <button type="button" class="cfp-overlay-btn" id="cfpCamBtn" aria-label="Screenshot">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 15.2A3.2 3.2 0 1 0 12 8.8a3.2 3.2 0 0 0 0 6.4zM9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z"/></svg>
-          </button>
         </div>
 
         <div class="cfp-player-chrome" id="cfpPlayerChrome">
           <div class="cfp-player-bar">
-            <button type="button" class="cfp-ctrl-btn" id="cfpMuteBtn" aria-label="Mute">
-              <svg class="cfp-ico-vol" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-              <svg class="cfp-ico-mute" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" hidden><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v4h4l5 4v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg>
-            </button>
-            <span class="cfp-player-time" id="cfpPlayerTime">00:00 / <?= cfp_e($durationLabel !== '' ? $durationLabel : '00:00') ?></span>
+            <div class="cfp-vol-pill">
+              <button type="button" class="cfp-ctrl-btn cfp-ctrl-mute" id="cfpMuteBtn" aria-label="Mute">
+                <svg class="cfp-ico-vol" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                <svg class="cfp-ico-mute" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" hidden>
+                  <path fill="currentColor" d="M3 10v4h4l5 4V6L7 10H3z"/>
+                  <path fill="none" stroke="var(--cfp-accent)" stroke-width="2.2" stroke-linecap="round" d="M16 9.5 20.5 14.5M20.5 9.5 16 14.5"/>
+                </svg>
+              </button>
+              <span class="cfp-vol-divider" aria-hidden="true"></span>
+              <span class="cfp-player-time" id="cfpPlayerTime">00:00 / <?= cfp_e($durationLabel !== '' ? $durationLabel : '00:00') ?></span>
+            </div>
             <span class="cfp-player-spacer" aria-hidden="true"></span>
-            <button type="button" class="cfp-ctrl-btn" id="cfpFsBtn" aria-label="Fullscreen">
-              <svg class="cfp-ico-fs" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-              <svg class="cfp-ico-fs-exit" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" hidden><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+            <button type="button" class="cfp-ctrl-btn cfp-ctrl-fs" id="cfpFsBtn" aria-label="Fullscreen">
+              <svg class="cfp-ico-fs" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+              <svg class="cfp-ico-fs-exit" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" hidden><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
             </button>
           </div>
           <div class="cfp-seek" id="cfpSeek" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
