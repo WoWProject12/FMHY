@@ -51,27 +51,47 @@ function cfp_user_set_auth_cookie(int $userId): void
 {
     $sig = hash_hmac('sha256', (string) $userId, cfp_user_cookie_secret());
     $val = $userId . '.' . $sig;
-    $path = CFP_BASE !== '' ? rtrim(CFP_BASE, '/') . '/' : '/';
-    setcookie('cfp_auth', $val, [
+    // Path / so cookie survives /porn and /porn/ equally
+    $opts = [
         'expires' => time() + 60 * 60 * 24 * 60,
-        'path' => $path,
+        'path' => '/',
         'secure' => true,
         'httponly' => true,
         'samesite' => 'Lax',
-    ]);
+    ];
+    setcookie('cfp_auth', $val, $opts);
+    // Clear any older cookie scoped to /porn/
+    if (CFP_BASE !== '') {
+        setcookie('cfp_auth', '', [
+            'expires' => time() - 3600,
+            'path' => rtrim(CFP_BASE, '/') . '/',
+            'secure' => true,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
     $_COOKIE['cfp_auth'] = $val;
 }
 
 function cfp_user_clear_auth_cookie(): void
 {
-    $path = CFP_BASE !== '' ? rtrim(CFP_BASE, '/') . '/' : '/';
-    setcookie('cfp_auth', '', [
+    $opts = [
         'expires' => time() - 3600,
-        'path' => $path,
+        'path' => '/',
         'secure' => true,
         'httponly' => true,
         'samesite' => 'Lax',
-    ]);
+    ];
+    setcookie('cfp_auth', '', $opts);
+    if (CFP_BASE !== '') {
+        setcookie('cfp_auth', '', [
+            'expires' => time() - 3600,
+            'path' => rtrim(CFP_BASE, '/') . '/',
+            'secure' => true,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
     unset($_COOKIE['cfp_auth']);
 }
 
@@ -118,15 +138,18 @@ function cfp_current_user(PDO $pdo = null): ?array
 function cfp_user_login(PDO $pdo, string $username, string $password): array
 {
     cfp_ensure_user_schema($pdo);
-    $username = trim($username);
+    $username = strtolower(trim($username));
     if ($username === '' || $password === '') {
         return ['ok' => false, 'error' => 'Missing username or password'];
     }
-    $st = $pdo->prepare('SELECT id, username, email, pass_hash FROM users WHERE username = ? OR email = ? LIMIT 1');
+    $st = $pdo->prepare(
+        'SELECT id, username, email, pass_hash FROM users
+         WHERE username = ? OR LOWER(COALESCE(email, \'\')) = ? LIMIT 1'
+    );
     $st->execute([$username, $username]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row || !password_verify($password, (string) $row['pass_hash'])) {
-        return ['ok' => false, 'error' => 'Wrong username or password'];
+        return ['ok' => false, 'error' => 'Wrong username or password. Create an account if you are new here.'];
     }
     cfp_user_set_auth_cookie((int) $row['id']);
     return [

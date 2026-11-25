@@ -195,7 +195,8 @@ if ($path === '/api/preview' && $method === 'GET') {
 $needsAge = !cfp_age_ok()
     && !str_starts_with($path, '/api/')
     && $path !== '/age-confirm'
-    && !str_starts_with($path, '/admin');
+    && !str_starts_with($path, '/admin')
+    && !in_array($path, ['/login', '/register', '/auth/login', '/auth/register', '/auth/logout'], true);
 
 $pageTitle = CFP_SITE_NAME;
 $pageDescription = 'Watch free adult videos on Chillflix.';
@@ -351,45 +352,65 @@ try {
         if (!str_starts_with($next, cfp_url('/'))) {
             $next = cfp_url('/library');
         }
+        $flashErr = null;
+        if (isset($_GET['err'])) {
+            $flashErr = 'Wrong username or password. Create an account if you are new here.';
+        }
+        $prefillUser = (string) ($_GET['user'] ?? '');
         $view = 'login';
-        $viewData = ['flashErr' => null, 'next' => $next];
+        $viewData = ['flashErr' => $flashErr, 'next' => $next, 'prefillUser' => $prefillUser];
         $pageTitle = 'Sign in — ' . CFP_SITE_NAME;
     } elseif ($path === '/register') {
         if (cfp_current_user($pdo)) {
             header('Location: ' . cfp_url('/library'), true, 302);
             exit;
         }
+        $flashErr = isset($_GET['err']) ? (string) ($_GET['err']) : null;
+        if ($flashErr === '1') {
+            $flashErr = 'Could not create account. Try a different username.';
+        }
+        $prefillUser = (string) ($_GET['user'] ?? '');
         $view = 'register';
-        $viewData = ['flashErr' => null];
+        $viewData = ['flashErr' => $flashErr, 'prefillUser' => $prefillUser];
         $pageTitle = 'Create account — ' . CFP_SITE_NAME;
     } elseif ($path === '/auth/login') {
-        // GET preferred — Cloudflare often challenges POSTs
-        $user = (string) ($_GET['user'] ?? $_POST['user'] ?? '');
-        $pass = (string) ($_GET['pass'] ?? $_POST['pass'] ?? '');
-        $next = (string) ($_GET['next'] ?? $_POST['next'] ?? cfp_url('/library'));
+        // Prefer POST (password not in URL). GET kept as fallback.
+        $user = (string) ($_POST['user'] ?? $_GET['user'] ?? '');
+        $pass = (string) ($_POST['pass'] ?? $_GET['pass'] ?? '');
+        $next = (string) ($_POST['next'] ?? $_GET['next'] ?? cfp_url('/library'));
         if (!str_starts_with($next, cfp_url('/'))) {
             $next = cfp_url('/library');
         }
         $res = cfp_user_login($pdo, $user, $pass);
         if (!empty($res['ok'])) {
+            // Also mark age confirmed so library isn't blocked
+            cfp_set_age_ok();
             header('Location: ' . $next, true, 302);
             exit;
         }
-        $view = 'login';
-        $viewData = ['flashErr' => (string) ($res['error'] ?? 'Login failed'), 'next' => $next];
-        $pageTitle = 'Sign in — ' . CFP_SITE_NAME;
+        $q = http_build_query([
+            'err' => '1',
+            'user' => strtolower(trim($user)),
+            'next' => $next,
+        ]);
+        header('Location: ' . cfp_url('/login?' . $q), true, 302);
+        exit;
     } elseif ($path === '/auth/register') {
-        $user = (string) ($_GET['user'] ?? $_POST['user'] ?? '');
-        $pass = (string) ($_GET['pass'] ?? $_POST['pass'] ?? '');
-        $email = trim((string) ($_GET['email'] ?? $_POST['email'] ?? ''));
+        $user = (string) ($_POST['user'] ?? $_GET['user'] ?? '');
+        $pass = (string) ($_POST['pass'] ?? $_GET['pass'] ?? '');
+        $email = trim((string) ($_POST['email'] ?? $_GET['email'] ?? ''));
         $res = cfp_user_register($pdo, $user, $pass, $email !== '' ? $email : null);
         if (!empty($res['ok'])) {
+            cfp_set_age_ok();
             header('Location: ' . cfp_url('/library'), true, 302);
             exit;
         }
-        $view = 'register';
-        $viewData = ['flashErr' => (string) ($res['error'] ?? 'Could not create account')];
-        $pageTitle = 'Create account — ' . CFP_SITE_NAME;
+        $q = http_build_query([
+            'err' => (string) ($res['error'] ?? '1'),
+            'user' => strtolower(trim($user)),
+        ]);
+        header('Location: ' . cfp_url('/register?' . $q), true, 302);
+        exit;
     } elseif ($path === '/auth/logout') {
         cfp_user_logout();
         header('Location: ' . cfp_url('/'), true, 302);
