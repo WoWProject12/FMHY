@@ -553,6 +553,10 @@
         card.__cfpSuppressClick = false;
         return;
       }
+      // Channel link inside the card should navigate on its own
+      if (e.target && e.target.closest && e.target.closest("a.cfp-card-channel")) {
+        return;
+      }
       if (cardHref(card)) openCard(card);
     });
     card.addEventListener("keydown", function (e) {

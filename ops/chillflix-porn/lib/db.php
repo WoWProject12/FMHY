@@ -180,6 +180,20 @@ function cfp_ensure_schema(PDO $pdo): void
         // ignore
     }
     try {
+        $cols = $pdo->query("SHOW COLUMNS FROM videos LIKE 'quality'")->fetchAll();
+        if (!$cols) {
+            $pdo->exec(
+                'ALTER TABLE videos
+                   ADD COLUMN quality VARCHAR(16) NULL DEFAULT NULL,
+                   ADD COLUMN has_cc TINYINT(1) NOT NULL DEFAULT 0,
+                   ADD COLUMN source_views INT UNSIGNED NOT NULL DEFAULT 0,
+                   ADD COLUMN channel_name VARCHAR(200) NULL DEFAULT NULL'
+            );
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+    try {
         $pdo->query('SELECT 1 FROM video_votes LIMIT 1');
     } catch (Throwable $e) {
         try {
@@ -326,9 +340,32 @@ function cfp_upsert_video(PDO $pdo, array $row, array $cats = [], array $tags = 
     $st->execute([$partner, $videoId]);
     $existing = $st->fetch();
 
+    $quality = trim((string) ($row['quality'] ?? ''));
+    if ($quality !== '' && !preg_match('/^(?:\d{3,4}p|4K|HD|SD)$/i', $quality)) {
+        $quality = '';
+    }
+    $hasCc = !empty($row['has_cc']) ? 1 : 0;
+    $sourceViews = max(0, (int) ($row['source_views'] ?? $row['views'] ?? 0));
+    $channelName = trim((string) ($row['channel_name'] ?? ''));
+    if ($channelName === '' && $actors) {
+        foreach ($actors as $actor) {
+            if (is_array($actor) && (($actor['role'] ?? '') === 'channel') && trim((string) ($actor['name'] ?? '')) !== '') {
+                $channelName = trim((string) $actor['name']);
+                break;
+            }
+        }
+    }
+
     if ($existing) {
         $id = (int) $existing['id'];
-        $u = $pdo->prepare('UPDATE videos SET title=?, thumb=?, duration=?, duration_sec=?, tracking_url=?, embed=?, updated_at=NOW() WHERE id=?');
+        $u = $pdo->prepare(
+            'UPDATE videos SET title=?, thumb=?, duration=?, duration_sec=?, tracking_url=?, embed=?,
+             quality=COALESCE(NULLIF(?, \'\'), quality),
+             has_cc=IF(?=1, 1, has_cc),
+             source_views=GREATEST(source_views, ?),
+             channel_name=COALESCE(NULLIF(?, \'\'), channel_name),
+             updated_at=NOW() WHERE id=?'
+        );
         $u->execute([
             $title,
             $row['thumb'] ?? null,
@@ -336,11 +373,18 @@ function cfp_upsert_video(PDO $pdo, array $row, array $cats = [], array $tags = 
             $durationSec,
             $row['tracking_url'] ?? null,
             $row['embed'] ?? null,
+            $quality,
+            $hasCc,
+            $sourceViews,
+            $channelName,
             $id,
         ]);
     } else {
         $slug = cfp_ensure_unique_slug($pdo, $slug);
-        $ins = $pdo->prepare('INSERT INTO videos (video_id, slug, title, thumb, duration, duration_sec, partner, tracking_url, embed, views, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
+        $ins = $pdo->prepare(
+            'INSERT INTO videos (video_id, slug, title, thumb, duration, duration_sec, partner, tracking_url, embed, views, source_views, quality, has_cc, channel_name, created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+        );
         $created = $row['created_at'] ?? date('Y-m-d H:i:s');
         $ins->execute([
             $videoId,
@@ -353,6 +397,10 @@ function cfp_upsert_video(PDO $pdo, array $row, array $cats = [], array $tags = 
             $row['tracking_url'] ?? null,
             $row['embed'] ?? null,
             (int) ($row['views'] ?? 0),
+            $sourceViews,
+            $quality !== '' ? $quality : null,
+            $hasCc,
+            $channelName !== '' ? $channelName : null,
             $created,
         ]);
         $id = (int) $pdo->lastInsertId();

@@ -8,6 +8,12 @@ $gridClass = $gridClass ?? 'cfp-grid';
 <?php foreach ($items as $item):
   $href = cfp_url('/video/' . $item['slug']);
   $thumb = $item['thumb'] ?: '';
+  $quality = cfp_card_quality($item);
+  $channel = cfp_card_channel($item);
+  $views = cfp_card_views($item);
+  $duration = trim((string) ($item['duration'] ?? ''));
+  $hasCc = !empty($item['has_cc']);
+  $channelHref = $channel !== '' ? cfp_url('/people/' . rawurlencode(cfp_slug($channel))) : '';
 ?>
   <div class="cfp-card" role="link" tabindex="0" data-href="<?= cfp_e($href) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>">
     <div class="cfp-card-media">
@@ -16,14 +22,34 @@ $gridClass = $gridClass ?? 'cfp-grid';
       <?php else: ?>
         <div class="cfp-card-ph" aria-hidden="true"></div>
       <?php endif; ?>
-      <?php if (!empty($item['duration'])): ?>
-        <span class="cfp-card-dur"><?= cfp_e((string) $item['duration']) ?></span>
+      <?php if ($quality !== '' || $hasCc): ?>
+        <span class="cfp-card-tags" aria-hidden="true">
+          <?php if ($hasCc): ?><span class="cfp-card-cc">CC</span><?php endif; ?>
+          <?php if ($quality !== ''): ?><span class="cfp-card-quality"><?= cfp_e($quality) ?></span><?php endif; ?>
+        </span>
       <?php endif; ?>
       <span class="cfp-card-play" aria-hidden="true"></span>
     </div>
     <div class="cfp-card-meta">
       <h3 class="cfp-card-title"><?= cfp_e((string) $item['title']) ?></h3>
-      <p class="cfp-card-sub"><?= cfp_e(cfp_fmt_views((int) ($item['views'] ?? 0))) ?> views</p>
+      <div class="cfp-card-sub">
+        <span class="cfp-card-sub-main">
+          <?php if ($channel !== ''): ?>
+            <?php if ($channelHref !== ''): ?>
+              <a class="cfp-card-channel" href="<?= cfp_e($channelHref) ?>"><?= cfp_e($channel) ?></a>
+            <?php else: ?>
+              <span class="cfp-card-channel"><?= cfp_e($channel) ?></span>
+            <?php endif; ?>
+            <?php if ($views > 0): ?><span class="cfp-card-sep">-</span><?php endif; ?>
+          <?php endif; ?>
+          <?php if ($views > 0): ?>
+            <span class="cfp-card-views"><?= cfp_e(cfp_fmt_views($views)) ?> Views</span>
+          <?php endif; ?>
+        </span>
+        <?php if ($duration !== ''): ?>
+          <span class="cfp-card-dur"><?= cfp_e($duration) ?></span>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 <?php endforeach; ?>

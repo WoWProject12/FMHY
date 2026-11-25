@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=60loop')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=61cards')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -43,15 +43,16 @@ declare(strict_types=1);
     .cfp-card{min-width:0;max-width:100%;gap:.25rem}
     .cfp-card-media{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:8px}
     .cfp-card-media>img,.cfp-card-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-    .cfp-card-title{font-size:.82rem;line-height:1.25;-webkit-line-clamp:2}
-    .cfp-card-sub{display:none}
+    .cfp-card-title{font-size:.9rem;line-height:1.25;-webkit-line-clamp:2}
+    .cfp-card-sub{display:flex!important;align-items:center;justify-content:space-between;gap:.45rem}
+    .cfp-card-tags{position:absolute;top:5px;right:5px;z-index:3;display:inline-flex;gap:3px}
     .cfp-rail{max-width:100%;overflow:hidden}
     .cfp-rail-track{display:grid!important;grid-auto-flow:row!important;grid-template-columns:minmax(0,1fr)!important;grid-auto-columns:unset!important;gap:.55rem;overflow:visible;max-width:100%}
     .cfp-rail-card{width:100%!important;max-width:100%!important}
     @media(min-width:700px){
       .cfp-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}
       .cfp-card-media{aspect-ratio:16/10}
-      .cfp-card-sub{display:block}
+      .cfp-card-title{font-size:.78rem}
       .cfp-rail-track{grid-auto-flow:column!important;grid-template-columns:none!important;grid-auto-columns:140px!important;overflow-x:auto}
       .cfp-rail-card{width:140px!important;max-width:140px!important}
     }
@@ -193,6 +194,6 @@ declare(strict_types=1);
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username']] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=57clean')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=61cards')) ?>" defer></script>
 </body>
 </html>

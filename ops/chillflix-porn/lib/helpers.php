@@ -58,12 +58,64 @@ function cfp_duration_sec(string $duration): int
 function cfp_fmt_views(int $n): string
 {
     if ($n >= 1000000) {
-        return round($n / 1000000, 1) . 'M';
+        $v = round($n / 1000000, 1);
+        return rtrim(rtrim(number_format($v, 1, '.', ''), '0'), '.') . 'M';
     }
     if ($n >= 1000) {
-        return round($n / 1000, 1) . 'K';
+        $v = round($n / 1000, 1);
+        return rtrim(rtrim(number_format($v, 1, '.', ''), '0'), '.') . 'K';
     }
     return (string) $n;
+}
+
+/** Parse labels like 17.8M / 463.1K / 1200 into an int. */
+function cfp_parse_count_label(string $label): int
+{
+    $label = strtoupper(trim(str_replace(',', '', $label)));
+    if ($label === '') {
+        return 0;
+    }
+    if (preg_match('/^([\d.]+)\s*([KMB])?$/', $label, $m)) {
+        $n = (float) $m[1];
+        $u = $m[2] ?? '';
+        if ($u === 'K') {
+            $n *= 1000;
+        } elseif ($u === 'M') {
+            $n *= 1000000;
+        } elseif ($u === 'B') {
+            $n *= 1000000000;
+        }
+        return (int) round($n);
+    }
+    if (ctype_digit($label)) {
+        return (int) $label;
+    }
+    return 0;
+}
+
+/** Views shown on cards: prefer source (xvideos) count, else local. */
+function cfp_card_views(array $item): int
+{
+    $source = (int) ($item['source_views'] ?? 0);
+    $local = (int) ($item['views'] ?? 0);
+    return $source > 0 ? $source : $local;
+}
+
+function cfp_card_channel(array $item): string
+{
+    return trim((string) ($item['channel_name'] ?? ''));
+}
+
+function cfp_card_quality(array $item): string
+{
+    $q = trim((string) ($item['quality'] ?? ''));
+    if ($q === '') {
+        return '';
+    }
+    if (preg_match('/^(?:\d{3,4}p|4K|HD|SD)$/i', $q)) {
+        return strtoupper($q) === '4K' ? '4K' : $q;
+    }
+    return '';
 }
 
 function cfp_age_ok(): bool

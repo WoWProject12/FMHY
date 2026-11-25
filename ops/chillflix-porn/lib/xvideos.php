@@ -47,7 +47,7 @@ function cfp_xv_build_list_url(string $categorySlug = '', int $page = 0, string 
 }
 
 /**
- * @return list<array{id:string,title:string,duration:string,thumb:?string,href:string,actors:string}>
+ * @return list<array{id:string,title:string,duration:string,thumb:?string,href:string,actors:string,quality:string,has_cc:bool,views:int}>
  */
 function cfp_xv_parse_listing(string $html, int $limit = 48, string $tagHint = ''): array
 {
@@ -120,6 +120,25 @@ function cfp_xv_parse_listing(string $html, int $limit = 48, string $tagHint = '
             $actors = trim(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         }
 
+        $quality = '';
+        if (preg_match('/class="video-hd-mark"[^>]*>([^<]+)</i', $chunk, $m)) {
+            $quality = trim(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        } elseif (preg_match('/class="video-sd-mark"[^>]*>([^<]+)</i', $chunk, $m)) {
+            $quality = trim(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        }
+        if ($quality !== '' && !preg_match('/^(?:\d{3,4}p|4K|HD|SD)$/i', $quality)) {
+            $quality = preg_match('/(\d{3,4})\s*p/i', $quality, $qm) ? ($qm[1] . 'p') : '';
+        }
+
+        $hasCc = (bool) preg_match('/class="video-cc-mark"/i', $chunk);
+
+        $views = 0;
+        if (preg_match('/([\d.,]+)\s*([KMB])?\s*<span class="sprfluous">\s*Views\s*<\/span>/i', $chunk, $m)) {
+            $views = cfp_parse_count_label($m[1] . ($m[2] ?? ''));
+        } elseif (preg_match('/([\d.,]+)\s*([KMB])?\s*Views/i', $chunk, $m)) {
+            $views = cfp_parse_count_label($m[1] . ($m[2] ?? ''));
+        }
+
         $results[] = [
             // Prefer public alphanumeric key for embeds; keep numeric as fallback id.
             'id' => (string) $vid,
@@ -129,6 +148,9 @@ function cfp_xv_parse_listing(string $html, int $limit = 48, string $tagHint = '
             'thumb' => $thumb,
             'href' => $href,
             'actors' => $actors,
+            'quality' => $quality,
+            'has_cc' => $hasCc,
+            'views' => $views,
             'tag' => $tagHint,
         ];
         if (count($results) >= $limit) {
@@ -581,6 +603,10 @@ function cfp_xv_import_page(PDO $pdo, string $categorySlug, string $categoryLabe
             'duration' => $item['duration'],
             'tracking_url' => $item['href'],
             'embed' => $embed,
+            'quality' => (string) ($item['quality'] ?? ''),
+            'has_cc' => !empty($item['has_cc']),
+            'source_views' => (int) ($item['views'] ?? 0),
+            'channel_name' => (string) ($item['actors'] ?? ''),
         ], [$categoryLabel], [$categoryLabel], $actors);
         $n++;
     }
