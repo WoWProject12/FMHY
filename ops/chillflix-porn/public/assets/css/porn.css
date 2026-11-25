@@ -68,8 +68,8 @@ body.page-porn .aurora-bg {
   align-items: center;
   max-width: 460px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.04);
   transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
@@ -77,7 +77,7 @@ body.page-porn .aurora-bg {
 .cfp-search:focus-within {
   border-color: rgba(228, 194, 122, 0.55);
   background: rgba(228, 194, 122, 0.06);
-  box-shadow: 0 0 0 3px rgba(228, 194, 122, 0.12);
+  box-shadow: 0 0 0 2px rgba(228, 194, 122, 0.12);
 }
 .cfp-search-ico {
   display: grid;
@@ -115,8 +115,8 @@ body.page-porn .aurora-bg {
   flex: 0 0 auto;
   border: 0;
   margin: 3px;
-  padding: 0.38rem 0.85rem;
-  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  border-radius: 4px;
   background: var(--cfp-accent);
   color: #1a1208;
   font-weight: 700;
@@ -177,7 +177,7 @@ button.cfp-nav-acct,
   min-width: 2rem;
   height: 2rem;
   padding: 0.15rem 0.55rem 0.15rem 0.2rem !important;
-  border-radius: 999px !important;
+  border-radius: 5px !important;
   border: 1px solid transparent !important;
   background: transparent !important;
   color: var(--cfp-text) !important;
@@ -243,8 +243,8 @@ button.cfp-nav-acct[aria-expanded="true"] {
 }
 .cfp-account-menu {
   right: 0; left: auto; min-width: 14rem; padding: 0.25rem;
-  border-radius: 0.75rem !important;
-  border: 1px solid var(--cfp-border) !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(228, 194, 122, 0.2) !important;
   background: #141311 !important;
   box-shadow: 0 10px 30px rgba(0,0,0,0.45);
 }
@@ -389,8 +389,8 @@ button.cfp-nav-acct[aria-expanded="true"] {
 .cfp-clear {
   flex: 0 0 auto; order: 99;
   color: var(--cfp-muted); text-decoration: none; font-size: 0.72rem; font-weight: 700;
-  padding: 0.28rem 0.55rem;
-  border-radius: 999px; border: 1px solid var(--cfp-border);
+  padding: 0.32rem 0.55rem;
+  border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.12);
   background: transparent;
 }
 .cfp-clear:hover { color: var(--cfp-accent); border-color: rgba(228, 194, 122, 0.45); }
@@ -398,8 +398,8 @@ button.cfp-nav-acct[aria-expanded="true"] {
 .cfp-dd { position: relative; flex: 0 0 auto; }
 .cfp-toolbar .cfp-dd-btn, .cfp-adv-toggle {
   display: inline-flex; align-items: center; gap: 0.28rem;
-  padding: 0.34rem 0.6rem; border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.38rem 0.58rem; border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
   color: rgba(244, 239, 230, 0.88);
   cursor: pointer; font: inherit; text-align: left;
@@ -408,8 +408,8 @@ button.cfp-nav-acct[aria-expanded="true"] {
 }
 .cfp-dd-btn, .cfp-adv-toggle {
   display: inline-flex; align-items: center; gap: 0.35rem;
-  padding: 0.4rem 0.7rem; border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.4rem 0.65rem; border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
   color: var(--cfp-text); cursor: pointer; font: inherit; text-align: left;
   transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
@@ -470,9 +470,9 @@ button.cfp-nav-acct[aria-expanded="true"] {
   display: none !important;
   flex-direction: column;
   background: #17140f;
-  border: 1px solid rgba(228, 194, 122, 0.18);
-  border-radius: 14px;
-  box-shadow: 0 18px 48px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  border: 1px solid rgba(228, 194, 122, 0.2);
+  border-radius: 6px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.62), 0 0 0 1px rgba(255,255,255,0.03) inset;
   overflow: hidden;
 }
 .cfp-dd-menu.is-open { display: flex !important; }
@@ -487,15 +487,15 @@ button.cfp-nav-acct[aria-expanded="true"] {
 }
 .cfp-dd-search {
   flex: 0 0 auto;
-  padding: 0.55rem 0.55rem 0.5rem;
+  padding: 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 .cfp-dd-search input {
-  width: 100%; box-sizing: border-box; border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%; box-sizing: border-box; border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.35);
   color: var(--cfp-text);
-  padding: 0.48rem 0.75rem;
+  padding: 0.48rem 0.65rem;
   font: inherit; font-size: 0.84rem; font-weight: 500;
   outline: none;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
@@ -505,7 +505,7 @@ button.cfp-nav-acct[aria-expanded="true"] {
 }
 .cfp-dd-search input:focus {
   border-color: rgba(228, 194, 122, 0.5);
-  box-shadow: 0 0 0 3px rgba(228, 194, 122, 0.1);
+  box-shadow: 0 0 0 2px rgba(228, 194, 122, 0.1);
 }
 /* Critical: min-height:0 so the list scrolls inside the flex menu instead of clipping to the footer */
 .cfp-dd-list {
@@ -513,7 +513,7 @@ button.cfp-nav-acct[aria-expanded="true"] {
   min-height: 0;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 0.35rem;
+  padding: 0.3rem;
 }
 .cfp-dd-foot { flex: 0 0 auto; }
 .cfp-dd-option {
@@ -526,8 +526,8 @@ button.cfp-nav-acct[aria-expanded="true"] {
   background: transparent;
   color: rgba(244, 239, 230, 0.9);
   text-align: left;
-  padding: 0.55rem 0.65rem;
-  border-radius: 10px;
+  padding: 0.52rem 0.6rem;
+  border-radius: 3px;
   cursor: pointer;
   font: inherit;
   font-size: 0.86rem;
@@ -833,14 +833,14 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-cats-search {
   flex: 1 1 220px; max-width: 360px;
   display: flex; align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px;
   background: rgba(255, 255, 255, 0.04); overflow: hidden;
   transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 .cfp-cats-search:focus-within {
   border-color: rgba(228, 194, 122, 0.55);
   background: rgba(228, 194, 122, 0.06);
-  box-shadow: 0 0 0 3px rgba(228, 194, 122, 0.12);
+  box-shadow: 0 0 0 2px rgba(228, 194, 122, 0.12);
 }
 .cfp-people-search-ico {
   display: grid; place-items: center;
@@ -1785,7 +1785,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-cats-clear,
 .cfp-cats-apply {
   border: 0; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 700;
-  padding: 0.45rem 0.85rem; border-radius: 999px;
+  padding: 0.45rem 0.85rem; border-radius: 4px;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .cfp-cats-clear { background: transparent; color: rgba(244, 239, 230, 0.55); }
@@ -1818,7 +1818,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
     flex-direction: column;
     width: 100% !important;
     max-height: min(70vh, 520px);
-    border-radius: 14px;
+    border-radius: 8px 8px 0 0;
     overflow: hidden;
   }
   body.cfp-cats-sheet .cfp-nav-cats .cfp-dd-list { flex: 1 1 auto; max-height: none; }
