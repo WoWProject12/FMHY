@@ -654,13 +654,8 @@
     function paint(state) {
       var likes = bar.querySelector("[data-cfp-likes]");
       var dislikes = bar.querySelector("[data-cfp-dislikes]");
-      var pct = bar.querySelector("[data-cfp-like-pct]");
       if (likes) likes.textContent = fmt(state.likes);
       if (dislikes) dislikes.textContent = fmt(state.dislikes);
-      var total = (Number(state.likes) || 0) + (Number(state.dislikes) || 0);
-      if (pct) {
-        pct.textContent = total > 0 ? Math.round((100 * state.likes) / total) + "%" : "";
-      }
       bar.querySelectorAll("[data-cfp-vote]").forEach(function (btn) {
         var v = parseInt(btn.getAttribute("data-cfp-vote") || "0", 10);
         var on = v === state.mine;
@@ -738,7 +733,28 @@
   var status = document.getElementById("cfpPlayerStatus");
   var qualityBox = document.getElementById("cfpQuality");
   var qualityOpts = qualityBox ? qualityBox.querySelector(".cfp-quality-opts") : null;
+  var gearBtn = document.getElementById("cfpGearBtn");
+  var gearLabel = document.getElementById("cfpGearLabel");
+  var qualityMenu = document.getElementById("cfpQualityMenu");
   if (!videoId || !video) return;
+
+  function setGearOpen(open) {
+    if (!gearBtn || !qualityMenu) return;
+    gearBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    qualityMenu.hidden = !open;
+  }
+  if (gearBtn) {
+    gearBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setGearOpen(qualityMenu && qualityMenu.hidden);
+    });
+  }
+  document.addEventListener("click", function (e) {
+    if (!qualityMenu || qualityMenu.hidden) return;
+    if (closest(e.target, "#cfpQuality")) return;
+    setGearOpen(false);
+  });
 
   function setStatus(msg, ready) {
     if (!status) return;
@@ -796,12 +812,16 @@
 
   function markQuality(id) {
     activeQ = id;
-    if (!qualityOpts) return;
-    qualityOpts.querySelectorAll("button").forEach(function (btn) {
-      btn.classList.toggle("is-on", btn.getAttribute("data-q") === id);
-    });
+    if (qualityOpts) {
+      qualityOpts.querySelectorAll("button").forEach(function (btn) {
+        btn.classList.toggle("is-on", btn.getAttribute("data-q") === id);
+      });
+    }
     var on = qualities.find(function (q) { return q.id === id; });
-    if (on) setTitleQualityLabel(on.label);
+    if (on) {
+      setTitleQualityLabel(on.label);
+      if (gearLabel) gearLabel.textContent = on.label;
+    }
   }
 
   function playMp4(url, id, seekTo, wasPlaying) {
@@ -922,26 +942,33 @@
       return (a.height || 0) - (b.height || 0);
     });
 
-    if (!qualityBox || !qualityOpts || qualities.length < 1) {
-      if (qualityBox) qualityBox.hidden = true;
+    if (!qualityOpts || qualities.length < 1) {
+      if (gearBtn) gearBtn.hidden = true;
+      setGearOpen(false);
       return;
     }
     qualityOpts.innerHTML = "";
-    qualities.forEach(function (q) {
+    qualities.slice().reverse().forEach(function (q) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "cfp-quality-btn";
       btn.setAttribute("data-q", q.id);
+      btn.setAttribute("role", "menuitemradio");
       btn.textContent = q.label;
-      btn.addEventListener("click", function () {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        setGearOpen(false);
         if (q.id === activeQ) return;
         playSource(q, video.currentTime || 0, !video.paused);
       });
       qualityOpts.appendChild(btn);
     });
-    qualityBox.hidden = qualities.length < 2;
+    if (gearBtn) gearBtn.hidden = qualities.length < 2;
     if (qualities.length) {
-      setTitleQualityLabel(qualities[qualities.length - 1].label);
+      var best = qualities[qualities.length - 1];
+      setTitleQualityLabel(best.label);
+      if (gearLabel) gearLabel.textContent = best.label;
     }
   }
 
