@@ -4,12 +4,10 @@ declare(strict_types=1);
 /** @var array $popular */
 /** @var array $cats */
 /** @var array $filters */
-/** @var list<array> $suggested */
 $filters = $filters ?? cfp_filters_from_request();
 $density = $filters['density'] ?? 'cozy';
 $resultsTotal = (int) ($latest['total'] ?? 0);
 $actionPath = '/';
-$suggested = $suggested ?? [];
 $activeCatSlugs = $filters['categories'] ?? cfp_parse_category_slugs($filters['category'] ?? '');
 $activeCatNames = [];
 if ($activeCatSlugs) {
@@ -38,21 +36,9 @@ $showDiscovery = !$isFiltered && ($filters['page'] ?? 1) <= 1;
 <?php endif; ?>
 
 <?php
-// xvideos-style discovery stack (clean homepage only):
-// 1) Suggested for you (history → related niches; cold start → popular)
-// 2) Best of the week
-// 3) Newest grid
+// Discovery stack (clean homepage only): Best of the week + Newest grid.
 // Continue watching lives in profile/library history.
 ?>
-<?php if ($showDiscovery && $suggested): ?>
-<section class="cfp-section cfp-section-tight">
-  <div class="cfp-section-head">
-    <h2>Suggested for you</h2>
-  </div>
-  <?php $items = array_slice($suggested, 0, 12); require __DIR__ . '/_rail.php'; ?>
-</section>
-<?php endif; ?>
-
 <?php if ($showDiscovery && !empty($popular['items'])): ?>
 <section class="cfp-section cfp-section-tight">
   <div class="cfp-section-head">

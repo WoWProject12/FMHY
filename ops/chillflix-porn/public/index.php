@@ -288,25 +288,11 @@ try {
             'categories' => $filters['categories'],
         ];
         $latest = cfp_list_videos($pdo, $listOpts);
-        // xvideos-style discovery: Best (popularity) + Suggested (watch history) + Newest
+        // Discovery: Best (popularity) + Newest
         $popular = cfp_list_videos($pdo, ['page' => 1, 'per' => 14, 'sort' => 'views', 'period' => 'week']);
         $cats = cfp_top_categories($pdo, 60);
-        $suggested = [];
-        $isCleanHome = empty($filters['categories'])
-            && ($filters['sort'] ?? 'new') === 'new'
-            && ($filters['duration'] ?? 'any') === 'any'
-            && ($filters['period'] ?? 'any') === 'any'
-            && ($filters['page'] ?? 1) <= 1;
-        if ($isCleanHome) {
-            $homeUser = cfp_current_user($pdo);
-            $excludeSuggest = [];
-            foreach (($popular['items'] ?? []) as $popItem) {
-                $excludeSuggest[] = (int) ($popItem['id'] ?? 0);
-            }
-            $suggested = cfp_home_suggested($pdo, $homeUser, 14, $excludeSuggest);
-        }
         $view = 'home';
-        $viewData = compact('latest', 'popular', 'cats', 'filters', 'suggested');
+        $viewData = compact('latest', 'popular', 'cats', 'filters');
         $pageTitle = CFP_SITE_NAME . ' — Free Adult Videos';
         if ($filters['density'] === 'compact') {
             $bodyClass .= ' is-compact';

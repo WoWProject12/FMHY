@@ -41,9 +41,6 @@ declare(strict_types=1);
               <?php if ($views > 0): ?>
                 <span class="cfp-card-views"><?= cfp_e(cfp_fmt_views($views)) ?> Views</span>
               <?php endif; ?>
-              <?php if (!empty($item['suggested'])): ?>
-                <span class="cfp-card-sep"> - </span><span class="cfp-card-suggested">Suggested</span>
-              <?php endif; ?>
             </span>
             <?php if ($duration !== ''): ?>
               <span class="cfp-card-dur"><?= cfp_e($duration) ?></span>
