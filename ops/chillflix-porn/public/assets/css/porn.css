@@ -206,7 +206,6 @@ body.page-porn .aurora-bg {
   overflow: hidden;
 }
 .cfp-dd-menu.is-open { display: flex !important; }
-html.cfp-dd-open { overflow: hidden; }
 .cfp-dd-menu-sm { min-width: 180px; }
 .cfp-dd-sep {
   margin: 0.35rem 0.4rem 0.15rem;
@@ -303,8 +302,10 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-card-preview {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; background: #000; z-index: 2; display: block;
-  pointer-events: none;
+  pointer-events: none; border: 0; outline: none;
 }
+.cfp-card-preview::-webkit-media-controls { display: none !important; }
+.cfp-card-preview::-webkit-media-controls-enclosure { display: none !important; }
 .cfp-card-preview[hidden] { display: none !important; }
 .cfp-card.is-previewing .cfp-card-media img { opacity: 0; }
 .cfp-card.is-previewing .cfp-card-play { opacity: 0; }
@@ -468,11 +469,13 @@ a.cfp-dd-option { color: var(--cfp-text); }
   .cfp-grid,
   .cfp-grid-compact,
   body.is-compact .cfp-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 0.75rem;
   }
+  /* Best-of rail: one full-width card at a time (no side peek) */
   .cfp-rail-track {
-    grid-auto-columns: minmax(78vw, 300px);
+    grid-auto-columns: 100% !important;
+    gap: 0.55rem;
   }
 }
 @media (max-width: 560px) {
