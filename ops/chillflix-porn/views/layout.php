@@ -16,8 +16,14 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=54auth')) ?>">
-  <?php $cfpUser = cfp_current_user(); ?>
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=55profile')) ?>">
+  <?php
+    $cfpUser = cfp_current_user();
+    $cfpIsAdmin = $cfpUser && (
+        (string) $cfpUser['username'] === 'admin'
+        || (function_exists('cfp_admin_ok') && cfp_admin_ok())
+    );
+  ?>
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
   <style>
     html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
@@ -90,10 +96,33 @@ declare(strict_types=1);
       </div>
       <a class="cfp-nav-main" href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
       <?php if ($cfpUser): ?>
-        <a class="cfp-nav-user" href="<?= cfp_e(cfp_url('/library')) ?>" title="My library">
-          <span class="cfp-nav-avatar" aria-hidden="true"><?= cfp_e(strtoupper(substr((string) $cfpUser['username'], 0, 1))) ?></span>
-          <span class="cfp-nav-user-label"><?= cfp_e((string) $cfpUser['username']) ?></span>
-        </a>
+        <div class="cfp-dd cfp-nav-dd cfp-account-dd" data-cfp-dd>
+          <button type="button" class="cfp-dd-btn cfp-nav-user" aria-expanded="false" aria-haspopup="menu" title="Account">
+            <span class="cfp-nav-avatar" aria-hidden="true"><?= cfp_e(strtoupper(substr((string) $cfpUser['username'], 0, 1))) ?></span>
+            <span class="cfp-nav-user-label"><?= cfp_e((string) $cfpUser['username']) ?></span>
+            <span class="cfp-dd-caret" aria-hidden="true"></span>
+          </button>
+          <div class="cfp-dd-menu cfp-account-menu" hidden>
+            <div class="cfp-account-menu-head">
+              <span class="cfp-nav-avatar" aria-hidden="true"><?= cfp_e(strtoupper(substr((string) $cfpUser['username'], 0, 1))) ?></span>
+              <div>
+                <strong><?= cfp_e((string) $cfpUser['username']) ?></strong>
+                <em>Signed in</em>
+              </div>
+            </div>
+            <div class="cfp-dd-list" role="menu">
+              <a class="cfp-dd-option" role="menuitem" href="<?= cfp_e(cfp_url('/library')) ?>">My library</a>
+              <a class="cfp-dd-option" role="menuitem" href="<?= cfp_e(cfp_url('/library?tab=history')) ?>">Watch history</a>
+              <a class="cfp-dd-option" role="menuitem" href="<?= cfp_e(cfp_url('/library?tab=saved')) ?>">Saved</a>
+              <a class="cfp-dd-option" role="menuitem" href="<?= cfp_e(cfp_url('/library?tab=liked')) ?>">Liked</a>
+              <a class="cfp-dd-option" role="menuitem" href="<?= cfp_e(cfp_url('/library?tab=downloaded')) ?>">Downloaded</a>
+              <?php if ($cfpIsAdmin): ?>
+                <a class="cfp-dd-option cfp-account-admin" role="menuitem" href="<?= cfp_e(cfp_url('/admin')) ?>">Admin panel</a>
+              <?php endif; ?>
+              <a class="cfp-dd-option cfp-account-logout" role="menuitem" href="<?= cfp_e(cfp_url('/auth/logout')) ?>">Log out</a>
+            </div>
+          </div>
+        </div>
       <?php else: ?>
         <a class="cfp-nav-login" href="<?= cfp_e(cfp_url('/login')) ?>">Login</a>
       <?php endif; ?>
@@ -164,6 +193,6 @@ declare(strict_types=1);
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username']] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=54auth')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=55profile')) ?>" defer></script>
 </body>
 </html>
