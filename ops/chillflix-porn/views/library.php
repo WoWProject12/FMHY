@@ -58,12 +58,20 @@ $isAdminUser = ((string) $user['username'] === 'admin') || (function_exists('cfp
     <div class="cfp-avatar-sheet-backdrop" data-cfp-avatar-close></div>
     <div class="cfp-avatar-sheet-panel">
       <div class="cfp-avatar-sheet-head">
-        <h2>Choose avatar</h2>
+        <div>
+          <h2>Choose avatar</h2>
+          <p class="cfp-avatar-sheet-sub">Scroll and tap a performer thumbnail</p>
+        </div>
         <button type="button" class="cfp-avatar-sheet-x" data-cfp-avatar-close aria-label="Close">&times;</button>
       </div>
-      <p class="cfp-avatar-sheet-sub">Pick a performer thumbnail — same style as movie cast icons.</p>
-      <div class="cfp-avatar-grid" data-cfp-avatar-grid>
-        <p class="sh-muted">Loading…</p>
+      <div class="cfp-avatar-sheet-body">
+        <div class="cfp-avatar-grid" data-cfp-avatar-grid>
+          <p class="sh-muted">Loading…</p>
+        </div>
+      </div>
+      <div class="cfp-avatar-sheet-foot">
+        <button type="button" class="cfp-avatar-sheet-cancel" data-cfp-avatar-close>Cancel</button>
+        <button type="button" class="cfp-avatar-sheet-done" data-cfp-avatar-close>Done</button>
       </div>
     </div>
   </div>

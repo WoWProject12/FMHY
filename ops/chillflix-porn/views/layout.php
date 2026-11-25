@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=67avatarpick')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=68avatarfoot')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -241,13 +241,28 @@ declare(strict_types=1);
 </nav>
 
 <footer class="cfp-footer">
-  <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
+  <div class="cfp-footer-inner">
+    <div class="cfp-footer-brand">
+      <span class="cfp-footer-mark">C</span>
+      <div>
+        <strong>Chillflix Porn</strong>
+        <em>18+ adult videos</em>
+      </div>
+    </div>
+    <nav class="cfp-footer-links" aria-label="Footer">
+      <a href="<?= cfp_e(cfp_url('/')) ?>">Home</a>
+      <a href="<?= cfp_e(cfp_url('/people')) ?>">People</a>
+      <a href="<?= cfp_e(cfp_url('/library')) ?>">Library</a>
+      <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
+    </nav>
+    <p class="cfp-footer-note">You must be 18 or older to use this site.</p>
+  </div>
 </footer>
 
 <script src="<?= cfp_e(cfp_asset('js/hls.min.js?v=1')) ?>" defer></script>
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username'], 'avatar' => $cfpAvatarUrl] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=67avatarpick')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=68avatarfoot')) ?>" defer></script>
 </body>
 </html>

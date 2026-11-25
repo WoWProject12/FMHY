@@ -183,7 +183,7 @@ if ($path === '/api/avatar' && ($method === 'GET' || $method === 'POST')) {
     cfp_json([
         'ok' => true,
         'avatar' => cfp_user_avatar_url($user, $pdo),
-        'choices' => cfp_avatar_choices($pdo, 48),
+        'choices' => cfp_avatar_choices($pdo, 96),
     ]);
 }
 

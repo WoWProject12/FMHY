@@ -423,7 +423,7 @@ function cfp_avatar_choices(?PDO $pdo = null, int $limit = 48): array
                       LIMIT 1
                     ) AS thumb
              FROM actors a
-             INNER JOIN video_actors va ON va.actor_id = a.id AND va.role = 'model'
+             INNER JOIN video_actors va ON va.actor_id = a.id
              LEFT JOIN videos v ON v.id = va.video_id
              GROUP BY a.id
              HAVING thumb IS NOT NULL AND thumb <> ''
