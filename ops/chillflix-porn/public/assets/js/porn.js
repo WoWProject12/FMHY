@@ -3,13 +3,20 @@
     return el && el.closest ? el.closest(sel) : null;
   }
 
+  function setMenuOpen(dd, open) {
+    var btn = dd.querySelector(".cfp-dd-btn");
+    var menu = dd.querySelector(".cfp-dd-menu");
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (menu) {
+      menu.classList.toggle("is-open", !!open);
+      menu.hidden = !open;
+    }
+  }
+
   function closeAllMenus(except) {
     document.querySelectorAll("[data-cfp-dd]").forEach(function (dd) {
       if (except && dd === except) return;
-      var btn = dd.querySelector(".cfp-dd-btn");
-      var menu = dd.querySelector(".cfp-dd-menu");
-      if (btn) btn.setAttribute("aria-expanded", "false");
-      if (menu) menu.hidden = true;
+      setMenuOpen(dd, false);
     });
   }
 
@@ -18,21 +25,28 @@
       var btn = dd.querySelector(".cfp-dd-btn");
       var menu = dd.querySelector(".cfp-dd-menu");
       if (!btn || !menu) return;
+
       btn.addEventListener("click", function (e) {
         e.preventDefault();
-        var open = btn.getAttribute("aria-expanded") === "true";
-        closeAllMenus();
-        btn.setAttribute("aria-expanded", open ? "false" : "true");
-        menu.hidden = open;
-        if (!open) {
+        e.stopPropagation();
+        var willOpen = btn.getAttribute("aria-expanded") !== "true";
+        closeAllMenus(willOpen ? dd : null);
+        setMenuOpen(dd, willOpen);
+        if (willOpen) {
           var filter = menu.querySelector("[data-cfp-dd-filter]");
           if (filter) {
             filter.value = "";
             filter.dispatchEvent(new Event("input"));
-            setTimeout(function () { filter.focus(); }, 0);
+            setTimeout(function () { try { filter.focus(); } catch (err) {} }, 0);
           }
         }
       });
+
+      // Clicks inside menu must not bubble to document closer incorrectly
+      menu.addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+
       var filter = menu.querySelector("[data-cfp-dd-filter]");
       if (filter) {
         filter.addEventListener("input", function () {
@@ -49,13 +63,13 @@
       var opt = closest(e.target, "[data-cfp-set]");
       if (!opt || !form.contains(opt)) return;
       e.preventDefault();
+      e.stopPropagation();
       var field = opt.getAttribute("data-cfp-set");
-      var value = opt.getAttribute("data-value") || "";
+      var value = opt.getAttribute("data-value");
+      if (value === null) value = "";
       var input = form.querySelector('[data-cfp-field="' + field + '"]');
       if (input) input.value = value;
-      // Reset page when filters change
-      var page = form.querySelector('[name="page"]');
-      if (page) page.remove();
+      closeAllMenus();
       form.requestSubmit ? form.requestSubmit() : form.submit();
     });
 
@@ -70,24 +84,28 @@
     var advBtn = form.querySelector("[data-cfp-adv-toggle]");
     var adv = form.querySelector("[data-cfp-adv]");
     if (advBtn && adv) {
-      advBtn.addEventListener("click", function () {
+      advBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeAllMenus();
         var open = advBtn.getAttribute("aria-expanded") === "true";
         advBtn.setAttribute("aria-expanded", open ? "false" : "true");
         adv.hidden = open;
+        adv.classList.toggle("is-open", !open);
       });
     }
-
-    document.addEventListener("click", function (e) {
-      if (!closest(e.target, "[data-cfp-dd], [data-cfp-toolbar]")) {
-        closeAllMenus();
-      }
-    });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") closeAllMenus();
-    });
   }
 
   document.querySelectorAll("[data-cfp-toolbar]").forEach(initToolbar);
+
+  // Close when clicking outside any open dropdown (including elsewhere in toolbar)
+  document.addEventListener("click", function (e) {
+    var insideMenu = closest(e.target, ".cfp-dd-menu.is-open, .cfp-dd-btn[aria-expanded='true']");
+    if (!insideMenu) closeAllMenus();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeAllMenus();
+  });
 
   // Player
   var root = document.querySelector(".cfp-player");

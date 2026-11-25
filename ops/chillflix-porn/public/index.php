@@ -27,7 +27,7 @@ if ($path === '/age-confirm' && $method === 'POST') {
 }
 
 if ($path === '/api/stream' && $method === 'GET') {
-    $vid = preg_replace('/[^0-9]/', '', (string) ($_GET['id'] ?? '')) ?? '';
+    $vid = preg_replace('/[^a-zA-Z0-9]/', '', (string) ($_GET['id'] ?? '')) ?? '';
     if ($vid === '') {
         cfp_json(['ok' => false, 'error' => 'missing id'], 400);
     }
@@ -60,7 +60,8 @@ try {
             'category' => $filters['category'],
         ];
         $latest = cfp_list_videos($pdo, $listOpts);
-        $popular = cfp_list_videos($pdo, ['page' => 1, 'per' => 14, 'sort' => 'views']);
+        // xvideos-style: top strip is “best this week”, main grid is newest (or filtered)
+        $popular = cfp_list_videos($pdo, ['page' => 1, 'per' => 14, 'sort' => 'views', 'period' => 'week']);
         $cats = cfp_top_categories($pdo, 60);
         $view = 'home';
         $viewData = compact('latest', 'popular', 'cats', 'filters');

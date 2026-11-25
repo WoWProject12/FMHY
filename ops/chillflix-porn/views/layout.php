@@ -17,7 +17,7 @@ declare(strict_types=1);
   <meta name="rating" content="adult">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/cinema.css?v=97fxovertoast1')) ?>">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/bridge.css?v=20261123notif22acctontop1phoneplayer5noshrink2nospa1fxuser5nocardfx1maylike1settingsback1')) ?>">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=2ui')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=3dd')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
 </head>
 <body class="<?= cfp_e($bodyClass) ?>">
@@ -87,6 +87,6 @@ declare(strict_types=1);
 
 <script src="<?= cfp_e(cfp_main_asset('js/leaves.js?v=29fxuser')) ?>" defer></script>
 <script src="<?= cfp_e(cfp_main_asset('js/snow.js?v=5fxuser')) ?>" defer></script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=2ui')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=3dd')) ?>" defer></script>
 </body>
 </html>

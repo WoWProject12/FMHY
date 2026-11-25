@@ -1,12 +1,13 @@
 <?php
 declare(strict_types=1);
 /**
- * Compact Chillflix-style filter toolbar.
+ * xvideos-style compact filter bar: all controls are dropdowns.
  * @var array $filters
  * @var array $cats
  * @var string $actionPath
  * @var string|null $activeCatName
  * @var int|null $resultsTotal
+ * @var bool $showCatQuick  homepage quick tags strip
  */
 $filters = $filters ?? cfp_filters_from_request();
 $cats = $cats ?? [];
@@ -14,6 +15,7 @@ $actionPath = $actionPath ?? '/';
 $activeCatName = $activeCatName ?? null;
 $activeCatSlug = (string) ($filters['category'] ?? '');
 $q = (string) ($filters['q'] ?? ($q ?? ''));
+$showCatQuick = !empty($showCatQuick);
 
 $sortLabels = [
     'new' => 'Newest',
@@ -23,33 +25,44 @@ $sortLabels = [
     'az' => 'A–Z',
 ];
 $durationLabels = [
-    'any' => 'Any length',
-    'short' => 'Under 10 min',
-    'medium' => '10–20 min',
-    'long' => '20+ min',
+    'any' => 'Any duration',
+    'short' => 'Short (<10 min)',
+    'medium' => 'Medium (10–20)',
+    'long' => 'Long (20+ min)',
 ];
 $periodLabels = [
     'any' => 'All time',
-    'day' => 'Today',
+    'day' => 'Last day',
     'week' => 'This week',
     'month' => 'This month',
     'year' => 'This year',
 ];
 $densityLabels = [
     'cozy' => 'Comfortable',
-    'compact' => 'Compact',
+    'compact' => 'Compact grid',
 ];
 
-$catLabel = $activeCatName ?: ($activeCatSlug !== '' ? $activeCatSlug : 'All categories');
-$hasAdvanced = ($filters['duration'] ?? 'any') !== 'any'
-    || ($filters['period'] ?? 'any') !== 'any'
-    || ($filters['density'] ?? 'cozy') !== 'cozy'
-    || ($filters['sort'] ?? 'new') !== 'new';
+$catLabel = $activeCatName ?: ($activeCatSlug !== '' ? $activeCatSlug : 'Categories');
 $clearHref = cfp_url($actionPath);
 if ($actionPath === '/search' && $q !== '') {
     $clearHref = cfp_url('/search?q=' . rawurlencode($q));
 }
+$hasFilters = $activeCatSlug !== ''
+    || ($filters['sort'] ?? 'new') !== 'new'
+    || ($filters['duration'] ?? 'any') !== 'any'
+    || ($filters['period'] ?? 'any') !== 'any'
+    || ($filters['density'] ?? 'cozy') !== 'cozy';
 ?>
+<?php if ($showCatQuick && $cats): ?>
+<nav class="cfp-quickcats" aria-label="Popular categories">
+  <a class="cfp-quickcat<?= $activeCatSlug === '' ? ' is-on' : '' ?>" href="<?= cfp_e(cfp_url('/')) ?>">All</a>
+  <?php foreach (array_slice($cats, 0, 14) as $c): ?>
+    <a class="cfp-quickcat<?= $activeCatSlug === $c['slug'] ? ' is-on' : '' ?>" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>"><?= cfp_e($c['name']) ?></a>
+  <?php endforeach; ?>
+  <a class="cfp-quickcat cfp-quickcat-more" href="<?= cfp_e(cfp_url('/categories')) ?>">More…</a>
+</nav>
+<?php endif; ?>
+
 <form class="cfp-toolbar" method="get" action="<?= cfp_e(cfp_url($actionPath)) ?>" data-cfp-toolbar>
   <?php if ($q !== '' && $actionPath === '/search'): ?>
     <input type="hidden" name="q" value="<?= cfp_e($q) ?>">
@@ -70,7 +83,7 @@ if ($actionPath === '/search' && $q !== '') {
       </button>
       <div class="cfp-dd-menu" hidden>
         <div class="cfp-dd-search">
-          <input type="search" placeholder="Filter categories…" data-cfp-dd-filter autocomplete="off">
+          <input type="search" placeholder="Find a category…" data-cfp-dd-filter autocomplete="off">
         </div>
         <div class="cfp-dd-list" role="listbox">
           <button type="button" class="cfp-dd-option<?= $activeCatSlug === '' ? ' is-on' : '' ?>" data-cfp-set="category" data-value="">All categories</button>
@@ -81,14 +94,12 @@ if ($actionPath === '/search' && $q !== '') {
             </button>
           <?php endforeach; ?>
         </div>
-        <div class="cfp-dd-foot">
-          <a href="<?= cfp_e(cfp_url('/categories')) ?>">Browse all</a>
-        </div>
+        <div class="cfp-dd-foot"><a href="<?= cfp_e(cfp_url('/categories')) ?>">Full category list</a></div>
       </div>
     </div>
 
     <div class="cfp-dd" data-cfp-dd>
-      <button type="button" class="cfp-dd-btn" aria-expanded="false">
+      <button type="button" class="cfp-dd-btn<?= ($filters['sort'] ?? 'new') !== 'new' ? ' is-active' : '' ?>" aria-expanded="false">
         <span class="cfp-dd-kicker">Sort</span>
         <span class="cfp-dd-value"><?= cfp_e($sortLabels[$filters['sort']] ?? 'Newest') ?></span>
         <span class="cfp-dd-caret" aria-hidden="true"></span>
@@ -103,9 +114,24 @@ if ($actionPath === '/search' && $q !== '') {
     </div>
 
     <div class="cfp-dd" data-cfp-dd>
+      <button type="button" class="cfp-dd-btn<?= ($filters['period'] ?? 'any') !== 'any' ? ' is-active' : '' ?>" aria-expanded="false">
+        <span class="cfp-dd-kicker">Date</span>
+        <span class="cfp-dd-value"><?= cfp_e($periodLabels[$filters['period']] ?? 'All time') ?></span>
+        <span class="cfp-dd-caret" aria-hidden="true"></span>
+      </button>
+      <div class="cfp-dd-menu cfp-dd-menu-sm" hidden>
+        <div class="cfp-dd-list" role="listbox">
+          <?php foreach ($periodLabels as $val => $label): ?>
+            <button type="button" class="cfp-dd-option<?= $filters['period'] === $val ? ' is-on' : '' ?>" data-cfp-set="period" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+
+    <div class="cfp-dd" data-cfp-dd>
       <button type="button" class="cfp-dd-btn<?= ($filters['duration'] ?? 'any') !== 'any' ? ' is-active' : '' ?>" aria-expanded="false">
-        <span class="cfp-dd-kicker">Length</span>
-        <span class="cfp-dd-value"><?= cfp_e($durationLabels[$filters['duration']] ?? 'Any length') ?></span>
+        <span class="cfp-dd-kicker">Duration</span>
+        <span class="cfp-dd-value"><?= cfp_e($durationLabels[$filters['duration']] ?? 'Any duration') ?></span>
         <span class="cfp-dd-caret" aria-hidden="true"></span>
       </button>
       <div class="cfp-dd-menu cfp-dd-menu-sm" hidden>
@@ -117,52 +143,33 @@ if ($actionPath === '/search' && $q !== '') {
       </div>
     </div>
 
-    <button type="button" class="cfp-adv-toggle<?= $hasAdvanced ? ' is-on' : '' ?>" data-cfp-adv-toggle aria-expanded="<?= $hasAdvanced ? 'true' : 'false' ?>">
-      Advanced
-      <span class="cfp-dd-caret" aria-hidden="true"></span>
-    </button>
+    <div class="cfp-dd" data-cfp-dd>
+      <button type="button" class="cfp-dd-btn<?= ($filters['density'] ?? 'cozy') !== 'cozy' || (int) $filters['per'] !== 24 ? ' is-active' : '' ?>" aria-expanded="false">
+        <span class="cfp-dd-kicker">Display</span>
+        <span class="cfp-dd-value"><?= cfp_e($densityLabels[$filters['density']] ?? 'Comfortable') ?></span>
+        <span class="cfp-dd-caret" aria-hidden="true"></span>
+      </button>
+      <div class="cfp-dd-menu cfp-dd-menu-sm" hidden>
+        <div class="cfp-dd-list" role="listbox">
+          <?php foreach ($densityLabels as $val => $label): ?>
+            <button type="button" class="cfp-dd-option<?= $filters['density'] === $val ? ' is-on' : '' ?>" data-cfp-set="density" data-value="<?= cfp_e($val) ?>"><?= cfp_e($label) ?></button>
+          <?php endforeach; ?>
+          <div class="cfp-dd-sep">Per page</div>
+          <?php foreach ([12, 24, 36, 48] as $n): ?>
+            <button type="button" class="cfp-dd-option<?= (int) $filters['per'] === $n ? ' is-on' : '' ?>" data-cfp-set="per" data-value="<?= $n ?>"><?= $n ?> videos</button>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </div>
 
-    <?php if ($hasAdvanced || $activeCatSlug !== ''): ?>
-      <a class="cfp-clear" href="<?= cfp_e($clearHref) ?>">Clear</a>
+    <?php if ($hasFilters): ?>
+      <a class="cfp-clear" href="<?= cfp_e($clearHref) ?>">Reset</a>
     <?php endif; ?>
 
-    <div class="cfp-toolbar-meta" aria-live="polite">
+    <div class="cfp-toolbar-meta">
       <?php if (isset($resultsTotal)): ?>
-        <span><?= number_format((int) $resultsTotal) ?> videos</span>
+        <span><?= number_format((int) $resultsTotal) ?></span>
       <?php endif; ?>
-    </div>
-  </div>
-
-  <div class="cfp-adv" data-cfp-adv<?= $hasAdvanced ? '' : ' hidden' ?>>
-    <div class="cfp-adv-grid">
-      <label class="cfp-field">
-        <span>Period</span>
-        <select data-cfp-field-select="period">
-          <?php foreach ($periodLabels as $val => $label): ?>
-            <option value="<?= cfp_e($val) ?>"<?= $filters['period'] === $val ? ' selected' : '' ?>><?= cfp_e($label) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </label>
-      <label class="cfp-field">
-        <span>Density</span>
-        <select data-cfp-field-select="density">
-          <?php foreach ($densityLabels as $val => $label): ?>
-            <option value="<?= cfp_e($val) ?>"<?= $filters['density'] === $val ? ' selected' : '' ?>><?= cfp_e($label) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </label>
-      <label class="cfp-field">
-        <span>Per page</span>
-        <select data-cfp-field-select="per">
-          <?php foreach ([12, 24, 36, 48] as $n): ?>
-            <option value="<?= $n ?>"<?= (int) $filters['per'] === $n ? ' selected' : '' ?>><?= $n ?></option>
-          <?php endforeach; ?>
-        </select>
-      </label>
-      <div class="cfp-field cfp-field-apply">
-        <span>&nbsp;</span>
-        <button type="submit" class="cfp-btn cfp-btn-primary cfp-btn-sm">Apply</button>
-      </div>
     </div>
   </div>
 </form>

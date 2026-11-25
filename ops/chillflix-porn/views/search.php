@@ -10,6 +10,7 @@ $resultsTotal = (int) ($results['total'] ?? 0);
 $actionPath = '/search';
 $activeCatName = null;
 $density = $filters['density'] ?? 'cozy';
+$showCatQuick = false;
 if (!empty($filters['category'])) {
     foreach ($cats as $c) {
         if ($c['slug'] === $filters['category']) {

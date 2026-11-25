@@ -157,15 +157,26 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
   border-left: 4px solid transparent; border-right: 4px solid transparent;
   border-top: 5px solid var(--cfp-muted);
 }
+/* Important: never use bare display:flex here — it overrides [hidden] and traps menus open */
 .cfp-dd-menu {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 70;
   min-width: 240px; max-height: min(360px, 70vh);
-  display: flex; flex-direction: column;
+  display: none;
+  flex-direction: column;
   background: #16130f; border: 1px solid var(--cfp-border);
   border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.45);
   overflow: hidden;
 }
+.cfp-dd-menu.is-open { display: flex; }
 .cfp-dd-menu-sm { min-width: 180px; }
+.cfp-dd-sep {
+  margin: 0.35rem 0.4rem 0.15rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--cfp-border);
+  color: var(--cfp-muted);
+  font-size: 0.68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
 .cfp-dd-search { padding: 0.5rem; border-bottom: 1px solid var(--cfp-border); }
 .cfp-dd-search input {
   width: 100%; box-sizing: border-box; border-radius: 8px;
@@ -189,21 +200,30 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
 }
 .cfp-dd-foot a { color: var(--cfp-accent); text-decoration: none; font-weight: 700; }
 
-.cfp-adv {
-  margin-top: 0.45rem; padding-top: 0.45rem;
-  border-top: 1px solid var(--cfp-border);
+/* Quick category strip (xvideos-style top tags) */
+.cfp-quickcats {
+  display: flex; gap: 0.35rem; overflow-x: auto;
+  margin: 0 0 0.65rem; padding-bottom: 0.15rem;
+  scrollbar-width: thin;
 }
-.cfp-adv-grid {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.55rem;
+.cfp-quickcat {
+  flex: 0 0 auto;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--cfp-border);
+  background: var(--cfp-surface);
+  color: var(--cfp-muted);
+  text-decoration: none;
+  font-size: 0.78rem; font-weight: 700;
+  white-space: nowrap;
 }
-.cfp-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.72rem; color: var(--cfp-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
-.cfp-field select {
-  border-radius: 8px; border: 1px solid var(--cfp-border);
-  background: #0f0d0a; color: var(--cfp-text);
-  padding: 0.45rem 0.55rem; font: inherit; font-size: 0.85rem;
-  text-transform: none; letter-spacing: 0; font-weight: 600;
+.cfp-quickcat:hover { color: var(--cfp-text); border-color: rgba(228,194,122,.35); }
+.cfp-quickcat.is-on {
+  color: #1a1208; background: var(--cfp-accent); border-color: var(--cfp-accent);
 }
-.cfp-field-apply .cfp-btn { width: 100%; }
+.cfp-quickcat-more { color: var(--cfp-accent); }
+.cfp-cat-head { margin: 0 0 0.55rem; }
+.cfp-cat-sub { margin: 0.15rem 0 0; color: var(--cfp-muted); font-size: 0.82rem; }
 
 /* Sections */
 .cfp-section { margin: 1.1rem 0; }
@@ -362,7 +382,6 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
   .cfp-header-inner { flex-wrap: wrap; }
   .cfp-search { order: 3; max-width: none; width: 100%; }
   .cfp-strip { grid-template-columns: 132px 1fr; }
-  .cfp-adv-grid { grid-template-columns: 1fr 1fr; }
   .cfp-toolbar { top: 92px; }
   .cfp-dd-value { max-width: 110px; }
   .cfp-toolbar-meta { width: 100%; margin-left: 0; order: 8; }
