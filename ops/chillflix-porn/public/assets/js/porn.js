@@ -177,7 +177,8 @@
   }
 
   // xvideos-style preview: play ~2.5s of real video at 8 different parts, then jump.
-  // No photo slideshow. Finger may move; only stop on release or real page scroll.
+  // Touch rule: once a hold-preview starts, it keeps playing even if the finger
+  // leaves the card or lifts — stop only on feed scroll or a new tap.
   var activePreview = null;
   var previewTimer = null;
   var previewUrlCache = Object.create(null);
@@ -187,8 +188,13 @@
   var scrubbing = false;
   var holdScrollY = 0;
   var partGen = 0;
-  var holdFingerDown = false; // true while a press-hold gesture is active (tracked on document)
+  var holdFingerDown = false;
   var holdCard = null;
+  var stickyPreview = false; // touch preview survives finger leave / lift
+  var isCoarse = false;
+  try {
+    isCoarse = window.matchMedia("(pointer: coarse)").matches;
+  } catch (e) {}
 
   // 8 parts across the movie; play each for ~2.5s like xvideos trailers
   var PART_FRACS = [0.05, 0.17, 0.29, 0.41, 0.53, 0.65, 0.77, 0.89];
@@ -232,6 +238,9 @@
       vid.style.opacity = "";
     }
     if (activePreview === card) activePreview = null;
+    if (holdCard === card) holdCard = null;
+    stickyPreview = false;
+    holdFingerDown = false;
   }
 
   function ensurePreviewVideo(media) {
@@ -487,86 +496,88 @@
       }
     });
 
-    // Desktop-only hover. Mobile Chrome synthesizes mouseleave when the finger
-    // slides off the card — that MUST NOT kill a touch preview.
-    card.addEventListener("mouseenter", function () {
-      if (holdFingerDown) return;
-      clearTimeout(previewTimer);
-      resolveStreamUrl(card.getAttribute("data-video-id") || "");
-      previewTimer = setTimeout(function () { startPreview(card); }, 100);
-    });
-    card.addEventListener("mouseleave", function () {
-      if (holdFingerDown || holdCard === card) return;
-      clearTimeout(previewTimer);
-      stopPreview(card);
-    });
+    // Hover preview — desktop only. On phones, mouseleave is fake and kills touch previews.
+    if (!isCoarse) {
+      card.addEventListener("mouseenter", function () {
+        if (stickyPreview || holdFingerDown) return;
+        clearTimeout(previewTimer);
+        resolveStreamUrl(card.getAttribute("data-video-id") || "");
+        previewTimer = setTimeout(function () { startPreview(card); }, 100);
+      });
+      card.addEventListener("mouseleave", function () {
+        if (stickyPreview || holdFingerDown) return;
+        clearTimeout(previewTimer);
+        stopPreview(card);
+      });
+    }
 
     var touchTimer = null;
     var startX = 0;
     var startY = 0;
     var previewArmed = false;
+    var fingerMoved = false;
     var id = card.getAttribute("data-video-id") || "";
 
     function detachDocHold() {
       document.removeEventListener("touchmove", onDocTouchMove, true);
       document.removeEventListener("touchend", onDocTouchEnd, true);
-      document.removeEventListener("touchcancel", onDocTouchCancel, true);
+      document.removeEventListener("touchcancel", onDocTouchEnd, true);
     }
 
-    function endHold() {
+    function releaseFingerKeepPreview() {
+      // Finger left / lifted — preview STAYS playing (sticky).
       clearTimeout(touchTimer);
-      var wasPreview = previewArmed || activePreview === card;
-      previewArmed = false;
       holdFingerDown = false;
-      if (holdCard === card) holdCard = null;
       detachDocHold();
-      stopPreview(card);
-      if (wasPreview) {
-        card.__cfpSuppressClick = true;
-        setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
-      }
+      card.__cfpSuppressClick = true;
+      setTimeout(function () { card.__cfpSuppressClick = false; }, 500);
     }
 
     function onDocTouchMove(e) {
-      if (!holdFingerDown || holdCard !== card) return;
+      if (holdCard !== card) return;
       if (!e.touches || !e.touches[0]) return;
       var adx = Math.abs(e.touches[0].clientX - startX);
       var ady = Math.abs(e.touches[0].clientY - startY);
+      if (adx > 12 || ady > 12) fingerMoved = true;
       if (!previewArmed && ady > 50 && ady > adx * 1.15) {
         clearTimeout(touchTimer);
       }
-      // Preview armed: keep playing even if finger is far outside the card
+      // Never stop preview here.
     }
 
     function onDocTouchEnd(e) {
-      if (!holdFingerDown || holdCard !== card) return;
-      if (e.touches && e.touches.length > 0) return;
-      endHold();
-    }
+      if (holdCard !== card) return;
+      if (e.type === "touchend" && e.touches && e.touches.length > 0) return;
 
-    // touchcancel is NOT a finger lift — Android fires it when the finger leaves
-    // the element or the browser considers a gesture. Keep preview playing.
-    function onDocTouchCancel() {
-      if (!holdFingerDown || holdCard !== card) return;
       clearTimeout(touchTimer);
-      // Stay in "holding" mode for preview purposes; mouseleave must stay ignored.
-      // Real stop happens on next touchend, scroll, or a new touch elsewhere.
+
+      if (previewArmed || stickyPreview || activePreview === card) {
+        // Preview already running (or about to): keep it. Moving/lifting must NOT cut it.
+        stickyPreview = true;
+        previewArmed = true;
+        releaseFingerKeepPreview();
+        return;
+      }
+
+      // Hold never engaged — just clean up
+      holdFingerDown = false;
+      holdCard = null;
       detachDocHold();
-      // Re-attach only touchend so a later lift still stops cleanly
-      document.addEventListener("touchend", onDocTouchEnd, { passive: true, capture: true });
     }
 
     card.addEventListener("touchstart", function (e) {
       if (!e.touches || !e.touches[0]) return;
-      if (holdCard && holdCard !== card) {
-        stopPreview(holdCard);
-        holdFingerDown = false;
-        holdCard = null;
+
+      // New gesture while a sticky preview is on another card → stop that one
+      if (activePreview && activePreview !== card) {
+        stopPreview(activePreview);
       }
+
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       holdScrollY = window.scrollY || window.pageYOffset || 0;
       previewArmed = false;
+      fingerMoved = false;
       holdFingerDown = true;
       holdCard = card;
       scrubbing = false;
@@ -575,14 +586,15 @@
       detachDocHold();
       document.addEventListener("touchmove", onDocTouchMove, { passive: true, capture: true });
       document.addEventListener("touchend", onDocTouchEnd, { passive: true, capture: true });
-      document.addEventListener("touchcancel", onDocTouchCancel, { passive: true, capture: true });
+      document.addEventListener("touchcancel", onDocTouchEnd, { passive: true, capture: true });
       resolveStreamUrl(id);
       touchTimer = setTimeout(function () {
-        if (!holdFingerDown || holdCard !== card) return;
+        if (holdCard !== card) return;
         previewArmed = true;
+        stickyPreview = true;
         card.__cfpSuppressClick = true;
         startPreview(card);
-      }, 160);
+      }, 150);
     }, { passive: true });
   }
 
@@ -592,23 +604,18 @@
     }
   }, true);
 
-  // Never stop a touch-hold preview because of scroll jank while the finger is down.
+  // Scroll the feed → stop sticky preview
   window.addEventListener("scroll", function () {
     if (!activePreview) return;
-    if (holdFingerDown) return; // finger still down → keep playing
     var scrollY = window.scrollY || window.pageYOffset || 0;
-    if (Math.abs(scrollY - holdScrollY) < 40) return;
+    if (Math.abs(scrollY - holdScrollY) < 50) return;
     stopPreview(activePreview);
-    holdCard = null;
   }, { passive: true });
 
-  // Stop orphaned preview (after touchcancel) when user taps somewhere else
+  // Tap anywhere (new gesture) while sticky preview is running → stop
   document.addEventListener("touchstart", function (e) {
-    if (!activePreview || holdFingerDown) return;
-    var t = e.target;
-    if (t && t.closest && t.closest(".cfp-card.is-previewing, .cfp-card.is-preview-loading")) return;
+    if (!stickyPreview || !activePreview || holdFingerDown) return;
     stopPreview(activePreview);
-    holdCard = null;
   }, { passive: true, capture: true });
 
   document.querySelectorAll(".cfp-card[data-video-id], .cfp-rail-card[data-video-id]").forEach(bindCardPreview);
