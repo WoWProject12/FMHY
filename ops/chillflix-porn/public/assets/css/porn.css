@@ -467,7 +467,15 @@ a.cfp-dd-option { color: var(--cfp-text); }
   font-size: clamp(1.15rem, 2.2vw, 1.65rem);
 }
 .cfp-watch-meta { display: flex; gap: 0.75rem; color: var(--cfp-muted); margin: 0 0 0.55rem; font-size: 0.85rem; }
-.cfp-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.cfp-chips {
+  display: flex; flex-wrap: nowrap; gap: 0.4rem;
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.15rem;
+}
+.cfp-chips::-webkit-scrollbar { display: none; }
+.cfp-chips .cfp-chip { flex: 0 0 auto; white-space: nowrap; }
 .cfp-chip {
   display: inline-flex; align-items: center; gap: 0.3rem;
   padding: 0.3rem 0.6rem; border-radius: 999px;
@@ -485,8 +493,14 @@ a.cfp-dd-option { color: var(--cfp-text); }
 
 /* People on watch + directory */
 .cfp-people-row {
-  display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 0.65rem;
+  display: flex; flex-wrap: nowrap; gap: 0.45rem; margin: 0 0 0.65rem;
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.15rem;
 }
+.cfp-people-row::-webkit-scrollbar { display: none; }
+.cfp-people-row .cfp-person-chip { flex: 0 0 auto; }
 .cfp-person-chip {
   display: inline-flex; align-items: center; gap: 0.45rem;
   padding: 0.3rem 0.65rem 0.3rem 0.3rem; border-radius: 999px;
@@ -553,8 +567,14 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-person-count { margin: 0.15rem 0 0; color: var(--cfp-muted); font-size: 0.88rem; }
 .cfp-person-tags {
-  display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.85rem;
+  display: flex; flex-wrap: nowrap; gap: 0.4rem; margin: 0 0 0.85rem;
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.15rem;
 }
+.cfp-person-tags::-webkit-scrollbar { display: none; }
+.cfp-person-tags .cfp-chip { flex: 0 0 auto; white-space: nowrap; }
 .cfp-chips-cats { margin-top: 0.35rem; opacity: 0.92; }
 .cfp-person-sort {
   display: flex; gap: 0.35rem; margin: 0 0 0.85rem;
