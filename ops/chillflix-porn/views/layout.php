@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=28cdn')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=29dense')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
   <style>
     html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
@@ -24,18 +24,23 @@ declare(strict_types=1);
     .cfp-header-inner,.cfp-main,.cfp-watch,.cfp-player,.cfp-watch-head,.cfp-section,.cfp-footer{width:100%;max-width:100%;min-width:0}
     .cfp-player,.cfp-player-stage,#cfpPlayer{width:100%!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;left:auto!important;right:auto!important;transform:none!important}
     #cfpPlayer{display:block!important;position:static!important;height:auto!important;aspect-ratio:16/9;background:#000;object-fit:contain}
-    .cfp-people-row,.cfp-chips,.cfp-person-tags,.cfp-watch-meta{display:flex!important;flex-wrap:wrap!important;gap:.4rem;max-width:100%;overflow:visible!important}
-    .cfp-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:.65rem .5rem;width:100%}
-    .cfp-card{min-width:0;max-width:100%}
-    .cfp-card-media{position:relative;width:100%;aspect-ratio:16/10;overflow:hidden}
+    .cfp-people-row,.cfp-chips,.cfp-person-tags,.cfp-watch-meta{display:flex!important;flex-wrap:wrap!important;gap:.35rem;max-width:100%;overflow:visible!important}
+    .cfp-section{margin:.75rem 0}.cfp-section-head h2{font-size:1rem}
+    .cfp-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:.45rem .35rem;width:100%}
+    .cfp-card{min-width:0;max-width:100%;gap:.2rem}
+    .cfp-card-media{position:relative;width:100%;aspect-ratio:16/10;overflow:hidden;border-radius:6px}
     .cfp-card-media>img,.cfp-card-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .cfp-card-title{font-size:.68rem;line-height:1.2;-webkit-line-clamp:1}
+    .cfp-card-sub{display:none}
     .cfp-rail{max-width:100%;overflow:hidden}
-    .cfp-rail-track{display:grid;grid-auto-flow:column;grid-auto-columns:42vw;gap:.5rem;overflow-x:auto;max-width:100%}
-    .cfp-rail-card{width:42vw;max-width:42vw}
+    .cfp-rail-track{display:grid;grid-auto-flow:column;grid-auto-columns:31vw;gap:.35rem;overflow-x:auto;max-width:100%}
+    .cfp-rail-card{width:31vw;max-width:31vw}
     @media(min-width:600px){
-      .cfp-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}
-      .cfp-rail-track{grid-auto-columns:148px}
-      .cfp-rail-card{width:148px;max-width:148px}
+      .cfp-grid{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))!important}
+      .cfp-card-sub{display:block}
+      .cfp-card-title{font-size:.72rem;-webkit-line-clamp:2}
+      .cfp-rail-track{grid-auto-columns:118px}
+      .cfp-rail-card{width:118px;max-width:118px}
     }
   </style>
 </head>
@@ -100,6 +105,6 @@ declare(strict_types=1);
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=28cdn')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=29dense')) ?>" defer></script>
 </body>
 </html>
