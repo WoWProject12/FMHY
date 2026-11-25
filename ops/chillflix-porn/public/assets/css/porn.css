@@ -735,12 +735,14 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-qsheet-panel {
   position: relative; z-index: 1;
   width: min(520px, 100%);
-  max-height: min(70vh, 420px);
+  max-height: min(72vh, 460px);
   display: flex; flex-direction: column;
   background: #212121; color: #f1f1f1;
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -12px 40px rgba(0,0,0,0.45);
-  padding: 0.35rem 0.55rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  /* clear floating bottom dock so last qualities stay reachable */
+  padding: 0.35rem 0.55rem calc(5.25rem + env(safe-area-inset-bottom, 0px));
+  margin-bottom: 0;
 }
 .cfp-qsheet-grab {
   width: 2.4rem; height: 0.28rem; border-radius: 999px;
