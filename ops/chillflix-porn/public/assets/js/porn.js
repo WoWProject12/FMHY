@@ -176,13 +176,18 @@
     });
   }
 
-  // xvideos-style in-thumb previews: desktop hover + mobile press-and-hold.
-  // Cards are <div role="link"> (not <a>) so Chrome never shows the link long-press menu.
-  // Play CDN MP4 directly (fast); proxy only as fallback. Keep thumb visible until a real frame.
+  // xvideos-style in-thumb previews: jump through parts of the video while held.
+  // Finger can move on the card (scrub); only stop on release or when scrolling away.
   var activePreview = null;
   var previewTimer = null;
   var previewUrlCache = Object.create(null);
   var streamInflight = Object.create(null);
+  var segmentTimer = null;
+  var scrubbing = false;
+
+  // Sample points across the video (xvideos-style "parts" trailer)
+  var PART_FRACS = [0.08, 0.22, 0.38, 0.52, 0.68, 0.82];
+  var PART_HOLD_MS = 1400;
 
   function cardHref(card) {
     return card.getAttribute("data-href") || card.getAttribute("href") || "";
@@ -193,9 +198,18 @@
     if (href) window.location.href = href;
   }
 
+  function clearSegmentTour() {
+    if (segmentTimer) {
+      clearInterval(segmentTimer);
+      segmentTimer = null;
+    }
+    scrubbing = false;
+  }
+
   function stopPreview(card) {
     if (!card) return;
-    card.classList.remove("is-previewing", "is-preview-loading");
+    clearSegmentTour();
+    card.classList.remove("is-previewing", "is-preview-loading", "is-scrubbing");
     var vid = card.querySelector(".cfp-card-preview");
     if (vid) {
       try { vid.pause(); } catch (e) {}
@@ -205,6 +219,7 @@
         vid.load();
       } catch (e2) {}
       vid.hidden = true;
+      vid.style.opacity = "";
     }
     if (activePreview === card) activePreview = null;
   }
@@ -218,7 +233,7 @@
     vid.defaultMuted = true;
     vid.volume = 0;
     vid.playsInline = true;
-    vid.loop = true;
+    vid.loop = false; // we jump parts ourselves
     vid.preload = "auto";
     vid.controls = false;
     vid.disablePictureInPicture = true;
@@ -227,7 +242,6 @@
     vid.setAttribute("webkit-playsinline", "");
     vid.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
     vid.setAttribute("disablepictureinpicture", "");
-    // Critical: no-referrer lets xvideos CDN accept the request from our page
     vid.setAttribute("referrerpolicy", "no-referrer");
     vid.referrerPolicy = "no-referrer";
     vid.hidden = true;
@@ -262,13 +276,86 @@
     return streamInflight[id];
   }
 
+  function seekSafe(vid, t) {
+    try {
+      if (!isFinite(vid.duration) || vid.duration < 1) return;
+      var target = Math.max(0.05, Math.min(t, vid.duration - 0.2));
+      if (Math.abs(vid.currentTime - target) > 0.35) {
+        vid.currentTime = target;
+      }
+    } catch (e) {}
+  }
+
+  /** Jump through several parts of the video, like xvideos hover previews. */
+  function startSegmentTour(card, vid) {
+    clearSegmentTour();
+    if (!vid || activePreview !== card) return;
+
+    var startTour = function () {
+      if (activePreview !== card || scrubbing) return;
+      var dur = vid.duration;
+      if (!isFinite(dur) || dur < 3) {
+        // Short clip — just play through
+        try { vid.loop = true; vid.play(); } catch (e) {}
+        return;
+      }
+      vid.loop = false;
+      var idx = 0;
+      seekSafe(vid, dur * PART_FRACS[0]);
+      try { vid.play(); } catch (e2) {}
+
+      segmentTimer = setInterval(function () {
+        if (activePreview !== card || scrubbing) return;
+        if (!isFinite(vid.duration) || vid.duration < 3) return;
+        idx = (idx + 1) % PART_FRACS.length;
+        seekSafe(vid, vid.duration * PART_FRACS[idx]);
+        if (vid.paused) {
+          try { vid.play(); } catch (e3) {}
+        }
+      }, PART_HOLD_MS);
+    };
+
+    if (isFinite(vid.duration) && vid.duration > 0) {
+      startTour();
+    } else {
+      vid.addEventListener("loadedmetadata", function onMeta() {
+        vid.removeEventListener("loadedmetadata", onMeta);
+        startTour();
+      });
+    }
+  }
+
+  /** Finger X across the thumb → seek through the whole video (scrub). */
+  function scrubPreview(card, clientX) {
+    var vid = card.querySelector(".cfp-card-preview");
+    var media = card.querySelector(".cfp-card-media");
+    if (!vid || !media || !isFinite(vid.duration) || vid.duration < 1) return;
+    clearSegmentTour();
+    scrubbing = true;
+    card.classList.add("is-scrubbing");
+    var rect = media.getBoundingClientRect();
+    var ratio = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+    ratio = Math.max(0, Math.min(1, ratio));
+    seekSafe(vid, vid.duration * ratio);
+    if (vid.paused) {
+      try { vid.play(); } catch (e) {}
+    }
+  }
+
+  function resumeSegmentTour(card) {
+    var vid = card.querySelector(".cfp-card-preview");
+    if (!vid || activePreview !== card) return;
+    scrubbing = false;
+    card.classList.remove("is-scrubbing");
+    startSegmentTour(card, vid);
+  }
+
   function playPreview(card, url) {
     if (!url || activePreview !== card) return;
     var media = card.querySelector(".cfp-card-media");
     if (!media) return;
     var vid = ensurePreviewVideo(media);
 
-    // Keep thumb visible under a spinner until we have a decoded frame (no black flash).
     card.classList.add("is-preview-loading");
     card.classList.remove("is-previewing");
     vid.hidden = false;
@@ -280,6 +367,7 @@
       vid.style.opacity = "1";
       card.classList.remove("is-preview-loading");
       card.classList.add("is-previewing");
+      if (!scrubbing) startSegmentTour(card, vid);
     };
 
     vid.onplaying = reveal;
@@ -325,6 +413,11 @@
     });
   }
 
+  function pointInCard(card, x, y) {
+    var r = card.getBoundingClientRect();
+    return x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8;
+  }
+
   function bindCardPreview(card) {
     if (!card.getAttribute("data-video-id") && !cardHref(card)) return;
 
@@ -354,8 +447,7 @@
 
     card.addEventListener("mouseenter", function () {
       clearTimeout(previewTimer);
-      var id = card.getAttribute("data-video-id") || "";
-      resolveStreamUrl(id); // warm
+      resolveStreamUrl(card.getAttribute("data-video-id") || "");
       previewTimer = setTimeout(function () { startPreview(card); }, 120);
     });
     card.addEventListener("mouseleave", function () {
@@ -366,19 +458,21 @@
     var touchTimer = null;
     var startX = 0;
     var startY = 0;
+    var lastX = 0;
+    var lastY = 0;
     var previewArmed = false;
-    var moved = false;
+    var scrolledAway = false;
     var id = card.getAttribute("data-video-id") || "";
 
     card.addEventListener("touchstart", function (e) {
       if (!e.touches || !e.touches[0]) return;
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
+      startX = lastX = e.touches[0].clientX;
+      startY = lastY = e.touches[0].clientY;
       previewArmed = false;
-      moved = false;
+      scrolledAway = false;
+      scrubbing = false;
       card.__cfpSuppressClick = false;
       clearTimeout(touchTimer);
-      // Resolve CDN URL immediately so hold can play within ~200ms
       resolveStreamUrl(id);
       touchTimer = setTimeout(function () {
         previewArmed = true;
@@ -389,23 +483,47 @@
 
     card.addEventListener("touchmove", function (e) {
       if (!e.touches || !e.touches[0]) return;
-      var dx = Math.abs(e.touches[0].clientX - startX);
-      var dy = Math.abs(e.touches[0].clientY - startY);
-      if (dx > 36 || dy > 36) {
-        moved = true;
-        clearTimeout(touchTimer);
-        if (previewArmed) stopPreview(card);
+      var x = e.touches[0].clientX;
+      var y = e.touches[0].clientY;
+      var dx = x - startX;
+      var dy = y - startY;
+      var adx = Math.abs(dx);
+      var ady = Math.abs(dy);
+      lastX = x;
+      lastY = y;
+
+      // Before preview starts: only cancel if user is clearly scrolling the feed
+      if (!previewArmed) {
+        if (ady > 28 && ady > adx * 1.2) {
+          clearTimeout(touchTimer);
+          scrolledAway = true;
+        }
+        return;
+      }
+
+      // Preview active: keep playing while finger stays on/near the card.
+      // Vertical scroll that leaves the card → pause. Horizontal → scrub parts.
+      if (!pointInCard(card, x, y) && ady > 40) {
+        stopPreview(card);
         previewArmed = false;
-        card.__cfpSuppressClick = false;
+        scrolledAway = true;
+        card.__cfpSuppressClick = true;
+        return;
+      }
+
+      if (adx > 18 && adx >= ady) {
+        // Slide across thumb → scrub through video timeline (xvideos-style)
+        scrubPreview(card, x);
       }
     }, { passive: true });
 
     card.addEventListener("touchend", function () {
       clearTimeout(touchTimer);
       var wasPreview = previewArmed;
+      // If they were scrubbing, briefly resume isn't needed — release stops like xvideos
       stopPreview(card);
       previewArmed = false;
-      if (wasPreview || moved) {
+      if (wasPreview || scrolledAway) {
         card.__cfpSuppressClick = true;
         setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
       }
@@ -424,6 +542,21 @@
       e.preventDefault();
     }
   }, true);
+
+  // If the page scrolls under a held preview, pause it
+  var scrollStopTimer = null;
+  window.addEventListener("scroll", function () {
+    if (!activePreview) return;
+    clearTimeout(scrollStopTimer);
+    scrollStopTimer = setTimeout(function () {
+      if (!activePreview) return;
+      var r = activePreview.getBoundingClientRect();
+      var vh = window.innerHeight || 0;
+      if (r.bottom < 40 || r.top > vh - 40) {
+        stopPreview(activePreview);
+      }
+    }, 50);
+  }, { passive: true });
 
   document.querySelectorAll(".cfp-card[data-video-id], .cfp-rail-card[data-video-id]").forEach(bindCardPreview);
 
