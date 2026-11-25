@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=80fast')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=81user')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -133,12 +133,9 @@ declare(strict_types=1);
         </div>
       </div>
       <a class="cfp-nav-main" href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
-      <?php if ($cfpIsAdmin): ?>
-        <a class="cfp-nav-admin<?= ($view ?? '') === 'admin' || str_starts_with((string) ($view ?? ''), 'admin') ? ' is-on' : '' ?>" href="<?= cfp_e(cfp_url('/admin')) ?>">Admin</a>
-      <?php endif; ?>
       <?php if ($cfpUser): ?>
         <div class="cfp-dd cfp-nav-dd cfp-account-dd" data-cfp-dd>
-          <button type="button" class="cfp-dd-btn cfp-nav-acct<?= $cfpAvatarUrl ? ' has-avatar' : '' ?>" aria-expanded="false" aria-haspopup="menu" aria-label="Account (<?= cfp_e((string) $cfpUser['username']) ?>)" title="<?= cfp_e((string) $cfpUser['username']) ?>">
+          <button type="button" class="cfp-dd-btn cfp-nav-acct has-name<?= $cfpAvatarUrl ? ' has-avatar' : '' ?>" aria-expanded="false" aria-haspopup="menu" aria-label="Account (<?= cfp_e((string) $cfpUser['username']) ?>)" title="<?= cfp_e((string) $cfpUser['username']) ?>">
             <span class="cfp-acct-av" aria-hidden="true">
               <?php if ($cfpAvatarUrl): ?>
                 <img class="cfp-acct-img" src="<?= cfp_e($cfpAvatarUrl) ?>" alt="" width="22" height="22" decoding="async" referrerpolicy="no-referrer">
@@ -146,6 +143,7 @@ declare(strict_types=1);
                 <span class="cfp-acct-letter"><?= cfp_e($cfpAvatarInitial) ?></span>
               <?php endif; ?>
             </span>
+            <span class="cfp-acct-name"><?= cfp_e((string) $cfpUser['username']) ?></span>
           </button>
           <div class="cfp-dd-menu cfp-account-menu" hidden>
             <div class="cfp-account-menu-head">
@@ -227,11 +225,8 @@ declare(strict_types=1);
   <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
   <a href="<?= cfp_e(cfp_url('/people')) ?>" class="<?= in_array(($view ?? ''), ['people', 'person'], true) ? 'is-on' : '' ?>">People</a>
   <button type="button" class="cfp-dock-cats<?= !empty($filters['categories']) ? ' is-on' : '' ?>" data-cfp-open-nav-cats>Categories</button>
-  <?php if ($cfpIsAdmin): ?>
-    <a href="<?= cfp_e(cfp_url('/admin')) ?>" class="cfp-dock-admin<?= ($view ?? '') === 'admin' || str_starts_with((string) ($view ?? ''), 'admin') ? ' is-on' : '' ?>">Admin</a>
-  <?php endif; ?>
   <?php if ($cfpUser): ?>
-    <a href="<?= cfp_e(cfp_url('/library')) ?>" class="cfp-dock-acct<?= ($view ?? '') === 'library' ? ' is-on' : '' ?><?= $cfpAvatarUrl ? ' has-avatar' : '' ?>" aria-label="Account (<?= cfp_e((string) $cfpUser['username']) ?>)" title="<?= cfp_e((string) $cfpUser['username']) ?>">
+    <a href="<?= cfp_e(cfp_url('/library')) ?>" class="cfp-dock-acct has-name<?= ($view ?? '') === 'library' ? ' is-on' : '' ?><?= $cfpAvatarUrl ? ' has-avatar' : '' ?>" aria-label="Account (<?= cfp_e((string) $cfpUser['username']) ?>)" title="<?= cfp_e((string) $cfpUser['username']) ?>">
       <span class="cfp-acct-av" aria-hidden="true">
         <?php if ($cfpAvatarUrl): ?>
           <img class="cfp-acct-img" src="<?= cfp_e($cfpAvatarUrl) ?>" alt="" width="22" height="22" decoding="async" referrerpolicy="no-referrer">
@@ -239,6 +234,7 @@ declare(strict_types=1);
           <span class="cfp-acct-letter"><?= cfp_e($cfpAvatarInitial) ?></span>
         <?php endif; ?>
       </span>
+      <span class="cfp-acct-name"><?= cfp_e((string) $cfpUser['username']) ?></span>
     </a>
   <?php else: ?>
     <a href="<?= cfp_e(cfp_url('/login')) ?>" class="cfp-dock-acct<?= in_array(($view ?? ''), ['login', 'register'], true) ? ' is-on' : '' ?>" aria-label="Account" title="Account">
@@ -274,5 +270,5 @@ declare(strict_types=1);
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username'], 'avatar' => $cfpAvatarUrl] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=80fast')) ?>" defer></script></body>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=81user')) ?>" defer></script></body>
 </html>

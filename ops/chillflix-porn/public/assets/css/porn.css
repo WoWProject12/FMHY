@@ -108,27 +108,29 @@ body.page-porn .aurora-bg {
 .cfp-nav-main {
   color: rgba(244, 239, 230, 0.78);
 }
-.cfp-nav-admin {
-  color: var(--cfp-accent-hi) !important;
-  font-weight: 650 !important;
-}
-.cfp-nav-admin:hover,
-.cfp-nav-admin.is-on {
-  background: rgba(228, 194, 122, 0.14) !important;
-}
-/* Chillflix-style account control: person icon when logged out, actor thumb when in */
+/* Account: avatar + username beside it */
 a.cfp-nav-acct,
 button.cfp-nav-acct,
 .cfp-nav-acct {
-  display: inline-grid !important;
-  place-items: center;
-  width: 2rem; height: 2rem; padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: auto;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0.15rem 0.55rem 0.15rem 0.2rem !important;
   border-radius: 999px !important;
   border: 1px solid transparent !important;
   background: transparent !important;
-  color: var(--cfp-muted) !important;
+  color: var(--cfp-text) !important;
   text-decoration: none; cursor: pointer; font: inherit;
   flex: 0 0 auto;
+}
+a.cfp-nav-acct:not(.has-name),
+button.cfp-nav-acct:not(.has-name) {
+  width: 2rem;
+  padding: 0 !important;
 }
 a.cfp-nav-acct:hover,
 button.cfp-nav-acct:hover,
@@ -136,6 +138,17 @@ button.cfp-nav-acct[aria-expanded="true"] {
   color: var(--cfp-text) !important;
   border-color: rgba(228, 194, 122, 0.35) !important;
   background: rgba(228, 194, 122, 0.1) !important;
+}
+.cfp-acct-name {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: inherit;
 }
 .cfp-account-dd { position: relative; }
 .cfp-acct-av {
@@ -1591,16 +1604,23 @@ a.cfp-dd-option { color: var(--cfp-text); }
   cursor: pointer;
   font: inherit;
 }
-.cfp-dock a.cfp-dock-admin {
-  color: var(--cfp-accent-hi);
-  font-weight: 650;
-}
 .cfp-dock a.cfp-dock-acct {
-  display: inline-grid; place-items: center;
-  padding: 0.35rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem 0.3rem 0.3rem;
   min-width: 2.4rem;
 }
+.cfp-dock a.cfp-dock-acct:not(.has-name) {
+  padding: 0.35rem 0.55rem;
+}
 .cfp-dock a.cfp-dock-acct .cfp-acct-av { width: 22px; height: 22px; }
+.cfp-dock a.cfp-dock-acct .cfp-acct-name {
+  max-width: 4.5rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+}
 .cfp-dock a.cfp-dock-acct.is-on {
   color: #1a1208; background: var(--cfp-accent);
 }
