@@ -25,32 +25,51 @@ $cats = $meta['categories'] ?? [];
       <span><?= cfp_e(cfp_fmt_views((int) $video['views'])) ?> views</span>
     </p>
 
-    <?php if ($actors): ?>
+    <?php
+      // Unique people only (enrichment can attach the same name twice)
+      $peopleUnique = [];
+      foreach ($actors as $a) {
+          $key = (string) ($a['slug'] ?? $a['name'] ?? '');
+          if ($key === '' || isset($peopleUnique[$key])) {
+              continue;
+          }
+          $peopleUnique[$key] = $a;
+      }
+      $peopleUnique = array_values($peopleUnique);
+      $tagList = array_values($tags);
+      $tagPrimary = array_slice($tagList, 0, 8);
+      $tagExtra = array_slice($tagList, 8);
+    ?>
+
+    <?php if ($peopleUnique): ?>
       <div class="cfp-people-row" aria-label="People">
-        <?php foreach ($actors as $a): ?>
+        <?php foreach ($peopleUnique as $a): ?>
           <a class="cfp-person-chip" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($a['slug']))) ?>">
             <span class="cfp-person-chip-mark"><?= cfp_e(strtoupper(substr((string) $a['name'], 0, 1))) ?></span>
-            <span class="cfp-person-chip-text">
-              <strong><?= cfp_e((string) $a['name']) ?></strong>
-              <?php if (!empty($a['n'])): ?><em><?= (int) $a['n'] ?> videos</em><?php endif; ?>
-            </span>
+            <strong><?= cfp_e((string) $a['name']) ?></strong>
           </a>
         <?php endforeach; ?>
       </div>
     <?php endif; ?>
 
-    <?php if ($tags): ?>
-      <div class="cfp-chips" aria-label="Tags">
-        <?php foreach ($tags as $t): ?>
-          <a class="cfp-chip cfp-chip-soft" href="<?= cfp_e(cfp_url('/tag/' . rawurlencode($t['slug']))) ?>"><?= cfp_e($t['name']) ?></a>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
-    <?php if ($cats): ?>
-      <div class="cfp-chips cfp-chips-cats" aria-label="Categories">
+    <?php if ($tagPrimary || $cats): ?>
+      <div class="cfp-chips cfp-chips-watch" aria-label="Tags">
         <?php foreach ($cats as $c): ?>
           <a class="cfp-chip" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>"><?= cfp_e($c['name']) ?></a>
         <?php endforeach; ?>
+        <?php foreach ($tagPrimary as $t): ?>
+          <a class="cfp-chip cfp-chip-soft" href="<?= cfp_e(cfp_url('/tag/' . rawurlencode($t['slug']))) ?>"><?= cfp_e($t['name']) ?></a>
+        <?php endforeach; ?>
+        <?php if ($tagExtra): ?>
+          <details class="cfp-tags-more">
+            <summary>+<?= count($tagExtra) ?> more</summary>
+            <div class="cfp-chips">
+              <?php foreach ($tagExtra as $t): ?>
+                <a class="cfp-chip cfp-chip-soft" href="<?= cfp_e(cfp_url('/tag/' . rawurlencode($t['slug']))) ?>"><?= cfp_e($t['name']) ?></a>
+              <?php endforeach; ?>
+            </div>
+          </details>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
   </header>

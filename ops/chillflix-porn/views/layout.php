@@ -16,31 +16,42 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=29dense')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=30oneup')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
   <style>
     html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
     *,*:before,*:after{box-sizing:border-box}
     .cfp-header-inner,.cfp-main,.cfp-watch,.cfp-player,.cfp-watch-head,.cfp-section,.cfp-footer{width:100%;max-width:100%;min-width:0}
-    .cfp-player,.cfp-player-stage,#cfpPlayer{width:100%!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;left:auto!important;right:auto!important;transform:none!important}
+    .cfp-player,.cfp-player-stage,#cfpPlayer{width:100%!important;max-width:100%!important;margin:0!important;left:auto!important;right:auto!important;transform:none!important}
     #cfpPlayer{display:block!important;position:static!important;height:auto!important;aspect-ratio:16/9;background:#000;object-fit:contain}
-    .cfp-people-row,.cfp-chips,.cfp-person-tags,.cfp-watch-meta{display:flex!important;flex-wrap:wrap!important;gap:.35rem;max-width:100%;overflow:visible!important}
-    .cfp-section{margin:.75rem 0}.cfp-section-head h2{font-size:1rem}
-    .cfp-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:.45rem .35rem;width:100%}
-    .cfp-card{min-width:0;max-width:100%;gap:.2rem}
-    .cfp-card-media{position:relative;width:100%;aspect-ratio:16/10;overflow:hidden;border-radius:6px}
+    .cfp-watch-head h1{font-size:1.05rem;line-height:1.25;margin:0 0 .25rem}
+    .cfp-watch-meta{margin:0 0 .4rem;font-size:.78rem}
+    .cfp-people-row{display:flex!important;flex-wrap:wrap!important;gap:.3rem;margin:0 0 .35rem;max-width:100%}
+    .cfp-person-chip{padding:.2rem .55rem .2rem .2rem!important;gap:.3rem!important}
+    .cfp-person-chip-mark{width:1.25rem!important;height:1.25rem!important;font-size:.65rem!important}
+    .cfp-person-chip strong{font-size:.75rem!important;font-weight:600}
+    .cfp-person-chip-text,.cfp-person-chip em{display:none!important}
+    .cfp-chips,.cfp-chips-watch{display:flex!important;flex-wrap:wrap!important;gap:.25rem;max-width:100%;margin:0}
+    .cfp-chip{padding:.18rem .45rem!important;font-size:.7rem!important}
+    .cfp-chips-cats{display:none!important}
+    .cfp-section{margin:.65rem 0}.cfp-section-head h2{font-size:.95rem}
+    /* Phone: exactly 1 video per row everywhere */
+    .cfp-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:.55rem;width:100%}
+    .cfp-card{min-width:0;max-width:100%;gap:.25rem}
+    .cfp-card-media{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:8px}
     .cfp-card-media>img,.cfp-card-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-    .cfp-card-title{font-size:.68rem;line-height:1.2;-webkit-line-clamp:1}
+    .cfp-card-title{font-size:.82rem;line-height:1.25;-webkit-line-clamp:2}
     .cfp-card-sub{display:none}
     .cfp-rail{max-width:100%;overflow:hidden}
-    .cfp-rail-track{display:grid;grid-auto-flow:column;grid-auto-columns:31vw;gap:.35rem;overflow-x:auto;max-width:100%}
-    .cfp-rail-card{width:31vw;max-width:31vw}
-    @media(min-width:600px){
-      .cfp-grid{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))!important}
+    .cfp-rail-track{display:grid!important;grid-auto-flow:row!important;grid-template-columns:minmax(0,1fr)!important;grid-auto-columns:unset!important;gap:.55rem;overflow:visible;max-width:100%}
+    .cfp-rail-card{width:100%!important;max-width:100%!important}
+    @media(min-width:700px){
+      .cfp-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}
+      .cfp-card-media{aspect-ratio:16/10}
       .cfp-card-sub{display:block}
-      .cfp-card-title{font-size:.72rem;-webkit-line-clamp:2}
-      .cfp-rail-track{grid-auto-columns:118px}
-      .cfp-rail-card{width:118px;max-width:118px}
+      .cfp-rail-track{grid-auto-flow:column!important;grid-template-columns:none!important;grid-auto-columns:140px!important;overflow-x:auto}
+      .cfp-rail-card{width:140px!important;max-width:140px!important}
+      .cfp-person-chip-text,.cfp-person-chip em{display:flex!important}
     }
   </style>
 </head>
@@ -105,6 +116,6 @@ declare(strict_types=1);
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=29dense')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=30oneup')) ?>" defer></script>
 </body>
 </html>

@@ -294,29 +294,29 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-rail-card .cfp-card-title { font-size: 0.7rem; -webkit-line-clamp: 1; }
 .cfp-rail-card .cfp-card-sub { display: none; }
 
-/* Grid — dense 3-up on phones */
+/* Grid — 1 video per row on phones; multi-col from tablet up */
 .cfp-grid {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 0.45rem 0.35rem;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0.55rem;
   width: 100%;
 }
 .cfp-grid-compact, body.is-compact .cfp-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 0.35rem 0.3rem;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0.45rem;
 }
-@media (min-width: 600px) {
+@media (min-width: 700px) {
   .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
     gap: 0.55rem 0.45rem;
   }
   .cfp-grid-compact, body.is-compact .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
   }
 }
 @media (min-width: 1100px) {
   .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
   }
 }
 .cfp-card,
@@ -431,9 +431,10 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-grid-compact .cfp-card-title, body.is-compact .cfp-card-title { font-size: 0.68rem; }
 .cfp-card-sub { margin: 0; color: var(--cfp-muted); font-size: 0.62rem; }
-@media (max-width: 600px) {
-  .cfp-card-title { -webkit-line-clamp: 1; font-size: 0.68rem; }
+@media (max-width: 699px) {
+  .cfp-card-title { -webkit-line-clamp: 2; font-size: 0.82rem; }
   .cfp-card-sub { display: none; }
+  .cfp-card-media { aspect-ratio: 16 / 9 !important; }
 }
 
 .cfp-pager {
@@ -568,32 +569,56 @@ a.cfp-dd-option { color: var(--cfp-text); }
 
 /* People on watch + directory */
 .cfp-people-row {
-  display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 0.65rem;
+  display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0 0 0.4rem;
   max-width: 100%;
   overflow: visible;
 }
 .cfp-people-row .cfp-person-chip { flex: 0 1 auto; max-width: 100%; }
 .cfp-person-chip {
-  display: inline-flex; align-items: center; gap: 0.45rem;
-  padding: 0.3rem 0.65rem 0.3rem 0.3rem; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.2rem 0.55rem 0.2rem 0.2rem; border-radius: 999px;
   background: var(--cfp-surface); border: 1px solid var(--cfp-border);
   text-decoration: none; color: inherit; max-width: 100%;
 }
 .cfp-person-chip:hover { border-color: rgba(228, 194, 122, 0.45); color: var(--cfp-accent-hi); }
 .cfp-person-chip-mark {
-  width: 1.7rem; height: 1.7rem; border-radius: 50%;
+  width: 1.25rem; height: 1.25rem; border-radius: 50%;
   display: grid; place-items: center;
-  background: var(--cfp-surface-2); color: var(--cfp-accent); font-size: 0.72rem; font-weight: 800;
+  background: var(--cfp-surface-2); color: var(--cfp-accent); font-size: 0.65rem; font-weight: 800;
   flex: 0 0 auto;
 }
+.cfp-person-chip > strong {
+  font-size: 0.75rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 9.5rem;
+}
 .cfp-person-chip-text {
-  display: flex; flex-direction: column; line-height: 1.15; min-width: 0;
+  display: none; flex-direction: column; line-height: 1.15; min-width: 0;
 }
 .cfp-person-chip-text strong {
   font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cfp-person-chip-text em {
   font-style: normal; color: var(--cfp-muted); font-size: 0.68rem; font-weight: 600;
+}
+@media (min-width: 700px) {
+  .cfp-person-chip-text { display: flex; }
+  .cfp-person-chip > strong { display: none; }
+}
+.cfp-chips-watch { margin: 0; gap: 0.25rem; }
+.cfp-tags-more {
+  display: inline-flex; flex-direction: column; gap: 0.25rem; max-width: 100%;
+}
+.cfp-tags-more > summary {
+  list-style: none; cursor: pointer;
+  padding: 0.18rem 0.45rem; border-radius: 999px;
+  border: 1px dashed var(--cfp-border); color: var(--cfp-muted);
+  font-size: 0.7rem; font-weight: 700; user-select: none;
+}
+.cfp-tags-more > summary::-webkit-details-marker { display: none; }
+.cfp-tags-more[open] > summary { color: var(--cfp-accent); border-style: solid; }
+.cfp-watch-head h1 {
+  font-size: clamp(1.05rem, 3.5vw, 1.45rem);
+  line-height: 1.25;
 }
 
 .cfp-people-tools {
@@ -693,13 +718,17 @@ a.cfp-dd-option { color: var(--cfp-text); }
   .cfp-toolbar { top: 92px; }
   .cfp-dd-value { max-width: 110px; }
   .cfp-toolbar-meta { width: 100%; margin-left: 0; order: 8; }
+  /* Phone: rails stack as 1-per-row like the main grid */
   .cfp-rail-track {
-    grid-auto-columns: 31vw !important;
-    gap: 0.35rem;
+    grid-auto-flow: row !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-columns: unset !important;
+    gap: 0.55rem;
+    overflow: visible;
   }
   .cfp-rail-card {
-    width: 31vw !important;
-    max-width: 31vw !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }
 @media (max-width: 560px) {
