@@ -16,6 +16,9 @@ html.cfp-app, body.page-porn {
   color: var(--cfp-text);
   font-family: var(--cfp-font);
   min-height: 100%;
+  overflow-x: hidden !important;
+  max-width: 100%;
+  width: 100%;
 }
 body.page-porn { margin: 0; padding-bottom: 76px; }
 
@@ -80,6 +83,9 @@ body.page-porn .aurora-bg {
   max-width: 1320px; margin: 0 auto;
   padding: 0.85rem 0.9rem 1.5rem;
   background: transparent;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: clip;
 }
 .cfp-nav { position: relative; }
 .cfp-nav-dd { position: relative; }
@@ -267,17 +273,18 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 
 /* Horizontal trending rail */
-.cfp-rail { margin: 0 -0.15rem; }
+.cfp-rail { margin: 0; max-width: 100%; overflow: hidden; }
 .cfp-rail-track {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 148px;
   gap: 0.55rem;
   overflow-x: auto;
-  padding: 0.15rem 0.15rem 0.45rem;
+  padding: 0.15rem 0 0.45rem;
   scroll-snap-type: x mandatory;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 .cfp-rail-card {
   scroll-snap-align: start;
@@ -494,30 +501,34 @@ a.cfp-dd-option { color: var(--cfp-text); }
   width: 100%;
   max-width: 100%;
 }
+/* Simple in-flow video — absolute/max-height hacks were blacking out mobile */
 .cfp-player-stage {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9 !important;
-  height: auto !important;
-  max-height: min(56vw, 420px);
   background: #000;
   overflow: hidden;
 }
-.cfp-player-stage video {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  max-width: none !important;
-  max-height: none !important;
-  object-fit: contain !important;
+.cfp-player-stage video,
+#cfpPlayer {
+  position: static;
   display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 70vh;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
   background: #000;
+  border: 0;
+  transform: none;
+  left: auto;
+  margin: 0;
 }
 .cfp-player-status {
-  position: absolute; inset: auto 0 0 0; padding: 0.5rem 0.75rem;
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 0.5rem 0.75rem;
   background: linear-gradient(transparent, rgba(0,0,0,.75));
   color: #ddd; font-size: 0.8rem; pointer-events: none;
+  z-index: 2;
 }
 .cfp-player-status.is-ready { opacity: 0; transition: opacity .4s ease; }
 .cfp-watch-head h1 {
@@ -527,13 +538,9 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-watch-meta { display: flex; gap: 0.75rem; color: var(--cfp-muted); margin: 0 0 0.55rem; font-size: 0.85rem; }
 .cfp-chips {
-  display: flex; flex-wrap: nowrap; gap: 0.4rem;
-  overflow-x: auto; overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding-bottom: 0.15rem;
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  overflow: visible;
 }
-.cfp-chips::-webkit-scrollbar { display: none; }
 .cfp-chips .cfp-chip { flex: 0 0 auto; white-space: nowrap; }
 .cfp-chip {
   display: inline-flex; align-items: center; gap: 0.3rem;
@@ -626,13 +633,9 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-person-count { margin: 0.15rem 0 0; color: var(--cfp-muted); font-size: 0.88rem; }
 .cfp-person-tags {
-  display: flex; flex-wrap: nowrap; gap: 0.4rem; margin: 0 0 0.85rem;
-  overflow-x: auto; overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding-bottom: 0.15rem;
+  display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.85rem;
+  overflow: visible;
 }
-.cfp-person-tags::-webkit-scrollbar { display: none; }
 .cfp-person-tags .cfp-chip { flex: 0 0 auto; white-space: nowrap; }
 .cfp-chips-cats { margin-top: 0.35rem; opacity: 0.92; }
 .cfp-person-sort {
@@ -684,7 +687,6 @@ a.cfp-dd-option { color: var(--cfp-text); }
   .cfp-toolbar { top: 92px; }
   .cfp-dd-value { max-width: 110px; }
   .cfp-toolbar-meta { width: 100%; margin-left: 0; order: 8; }
-  /* Rails stay compact thumbs — never full-bleed cards */
   .cfp-rail-track {
     grid-auto-columns: 42vw !important;
     gap: 0.5rem;

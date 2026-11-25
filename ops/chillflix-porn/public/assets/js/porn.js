@@ -638,6 +638,63 @@
     return streams.high || streams.low || streams.hls || "";
   }
 
+  video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "");
+  video.setAttribute("controls", "");
+  video.controls = true;
+  video.playsInline = true;
+  video.preload = "auto";
+
+  var proxyUrl = "/porn/api/preview?id=" + encodeURIComponent(videoId);
+  var triedProxy = false;
+  var cdnUrl = "";
+
+  function tryPlay() {
+    var p = video.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(function () {
+        setStatus("Tap play to start", false);
+      });
+    }
+  }
+
+  function useProxy(reason) {
+    if (triedProxy) {
+      setStatus("Stream unavailable — try again later.");
+      return;
+    }
+    triedProxy = true;
+    setStatus(reason || "Loading…");
+    video.removeAttribute("crossorigin");
+    video.referrerPolicy = "no-referrer";
+    video.src = proxyUrl;
+    try { video.load(); } catch (e) {}
+    tryPlay();
+  }
+
+  function useCdn(url) {
+    cdnUrl = url;
+    video.referrerPolicy = "no-referrer";
+    video.src = url;
+    try { video.load(); } catch (e) {}
+    tryPlay();
+  }
+
+  video.addEventListener("loadeddata", function () {
+    if (video.videoWidth > 0) setStatus("", true);
+  });
+  video.addEventListener("playing", function () {
+    setStatus("", true);
+  });
+  video.addEventListener("error", function () {
+    useProxy("Retrying…");
+  });
+
+  // Phones: same-origin proxy first (CDN often paints black / blocked).
+  // Desktop: CDN direct, proxy on error.
+  var coarse = false;
+  try { coarse = window.matchMedia("(pointer: coarse)").matches; } catch (e1) {}
+
   fetch("/porn/api/stream?id=" + encodeURIComponent(videoId), {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
@@ -645,33 +702,27 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data || !data.ok || !data.streams) {
-        setStatus("Stream unavailable — try again later.");
+        useProxy("Loading…");
         return;
       }
       var streams = data.streams;
-      if (streams.poster && !video.getAttribute("poster")) {
+      if (streams.poster) {
         video.setAttribute("poster", streams.poster);
       }
       var url = pickUrl(streams);
       if (!url) {
-        setStatus("No playable source.");
+        useProxy("Loading…");
         return;
       }
-      video.referrerPolicy = "no-referrer";
-      video.src = url;
-      setStatus("Ready", true);
-      var p = video.play();
-      if (p && typeof p.catch === "function") {
-        p.catch(function () {
-          // Fallback: same-origin proxy if CDN blocks the player
-          video.src = "/porn/api/preview?id=" + encodeURIComponent(videoId);
-          video.play().catch(function () {
-            setStatus("Tap play to start", true);
-          });
-        });
+      setStatus("Loading…");
+      if (coarse) {
+        // Keep CDN as poster/fallback info; play via proxy so phone shows frames
+        useProxy("Loading…");
+      } else {
+        useCdn(url);
       }
     })
     .catch(function () {
-      setStatus("Could not load stream.");
+      useProxy("Loading…");
     });
 })();
