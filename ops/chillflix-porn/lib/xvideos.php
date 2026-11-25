@@ -121,7 +121,9 @@ function cfp_xv_parse_listing(string $html, int $limit = 48, string $tagHint = '
         }
 
         $results[] = [
+            // Prefer public alphanumeric key for embeds; keep numeric as fallback id.
             'id' => (string) $vid,
+            'public_id' => (string) $eid,
             'title' => $title,
             'duration' => $duration,
             'thumb' => $thumb,
@@ -137,6 +139,25 @@ function cfp_xv_parse_listing(string $html, int $limit = 48, string $tagHint = '
 }
 
 /**
+ * Extract the public xvideos key (e.g. ufuildf89e8) from a watch/embed URL.
+ * Numeric-only ids no longer resolve on embedframe/video pages.
+ */
+function cfp_xv_key_from_url(?string $url): string
+{
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+    if (preg_match('#/(?:video|embedframe)\.([a-zA-Z0-9]+)#', $url, $m)) {
+        return $m[1];
+    }
+    if (preg_match('#/embedframe/([a-zA-Z0-9]+)#', $url, $m)) {
+        return $m[1];
+    }
+    return '';
+}
+
+/**
  * @return array{high?:string,low?:string,hls?:string,poster?:string}|null
  */
 function cfp_xv_parse_streams(string $body): ?array
@@ -145,11 +166,12 @@ function cfp_xv_parse_streams(string $body): ?array
         return null;
     }
     $pick = static function (string $name) use ($body): string {
-        $pattern = '/' . preg_quote($name, '/') . "\\('([^']*)'\\)/";
+        // single- or double-quoted helper args
+        $pattern = '/' . preg_quote($name, '/') . "\\((['\\\"])(.*?)\\1\\)/s";
         if (!preg_match($pattern, $body, $m)) {
             return '';
         }
-        return str_replace('http:', 'https:', html_entity_decode($m[1], ENT_QUOTES));
+        return str_replace('http:', 'https:', html_entity_decode($m[2], ENT_QUOTES));
     };
     $streams = array_filter([
         'high' => $pick('setVideoUrlHigh'),
@@ -168,7 +190,8 @@ function cfp_xv_parse_streams(string $body): ?array
  */
 function cfp_xv_fetch_streams(PDO $pdo, string $videoId): ?array
 {
-    $videoId = preg_replace('/[^0-9]/', '', $videoId) ?? '';
+    // Accept numeric partner ids and alphanumeric public keys.
+    $videoId = preg_replace('/[^a-zA-Z0-9]/', '', $videoId) ?? '';
     if ($videoId === '') {
         return null;
     }
@@ -183,12 +206,42 @@ function cfp_xv_fetch_streams(PDO $pdo, string $videoId): ?array
         }
     }
 
-    $body = cfp_xv_http_get('https://www.xvideos.com/embedframe/' . $videoId);
-    $streams = cfp_xv_parse_streams($body);
-    if (!$streams) {
-        // fallback: video page sometimes has the same helpers
-        $body2 = cfp_xv_http_get('https://www.xvideos.com/video.' . $videoId . '/');
-        $streams = cfp_xv_parse_streams($body2);
+    $tracking = '';
+    $row = $pdo->prepare('SELECT tracking_url, embed FROM videos WHERE video_id = ? LIMIT 1');
+    $row->execute([$videoId]);
+    $meta = $row->fetch();
+    if ($meta) {
+        $tracking = (string) ($meta['tracking_url'] ?? '');
+    }
+
+    $publicKey = cfp_xv_key_from_url($tracking);
+    if ($publicKey === '') {
+        $publicKey = cfp_xv_key_from_url((string) ($meta['embed'] ?? ''));
+    }
+    // If the client already passed an alphanumeric key, use it directly.
+    if ($publicKey === '' && preg_match('/[a-zA-Z]/', $videoId)) {
+        $publicKey = $videoId;
+    }
+
+    $candidates = [];
+    if ($publicKey !== '') {
+        $candidates[] = 'https://www.xvideos.com/embedframe/' . rawurlencode($publicKey);
+    }
+    if ($tracking !== '') {
+        $candidates[] = $tracking;
+    }
+    // Legacy numeric paths (usually 404 now, kept as last resort).
+    if (ctype_digit($videoId)) {
+        $candidates[] = 'https://www.xvideos.com/embedframe/' . $videoId;
+        $candidates[] = 'https://www.xvideos.com/video.' . $videoId . '/';
+    }
+
+    $streams = null;
+    foreach (array_unique($candidates) as $url) {
+        $streams = cfp_xv_parse_streams(cfp_xv_http_get($url));
+        if ($streams) {
+            break;
+        }
     }
     if (!$streams) {
         return null;
@@ -223,7 +276,11 @@ function cfp_xv_import_page(PDO $pdo, string $categorySlug, string $categoryLabe
     $items = cfp_xv_parse_listing($html, $limit, $categoryLabel);
     $n = 0;
     foreach ($items as $item) {
-        $embed = '<iframe src="https://www.xvideos.com/embedframe/' . $item['id'] . '" frameborder="0" width="510" height="400" scrolling="no" allowfullscreen="allowfullscreen"></iframe>';
+        $embedKey = (string) ($item['public_id'] ?? '');
+        if ($embedKey === '') {
+            $embedKey = cfp_xv_key_from_url((string) ($item['href'] ?? '')) ?: (string) $item['id'];
+        }
+        $embed = '<iframe src="https://www.xvideos.com/embedframe/' . $embedKey . '" frameborder="0" width="510" height="400" scrolling="no" allowfullscreen="allowfullscreen"></iframe>';
         $actors = $item['actors'] !== '' ? [$item['actors']] : [];
         cfp_upsert_video($pdo, [
             'partner' => 'xvideos',
