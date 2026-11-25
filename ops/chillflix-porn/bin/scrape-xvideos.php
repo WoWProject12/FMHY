@@ -11,8 +11,17 @@ require dirname(__DIR__) . '/lib/bootstrap.php';
 
 $pdo = cfp_pdo();
 $lockFile = cfp_scrape_lock_path();
-$fh = fopen($lockFile, 'c');
-if (!$fh || !flock($fh, LOCK_EX | LOCK_NB)) {
+$fh = @fopen($lockFile, 'c+');
+if (!$fh) {
+    // Fallback if app var/ is not writable
+    $lockFile = sys_get_temp_dir() . '/cfp-xvideos-scrape.lock';
+    $fh = @fopen($lockFile, 'c+');
+}
+if (!$fh) {
+    echo "lock_open_failed\n";
+    exit(1);
+}
+if (!flock($fh, LOCK_EX | LOCK_NB)) {
     echo "locked\n";
     exit(0);
 }

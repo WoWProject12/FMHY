@@ -126,7 +126,11 @@ function cfp_save_scraper_settings(PDO $pdo, array $settings): array
 
 function cfp_scrape_lock_path(): string
 {
-    return sys_get_temp_dir() . '/cfp-xvideos-scrape.lock';
+    $dir = dirname(__DIR__) . '/var';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    return $dir . '/scrape.lock';
 }
 
 function cfp_scrape_set_running(PDO $pdo, bool $on): void
