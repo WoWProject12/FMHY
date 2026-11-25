@@ -2,28 +2,50 @@
 declare(strict_types=1);
 /** @var array{items:list<array>,total:int,page:int,per:int,pages:int} $people */
 /** @var string $peopleQ */
-/** @var string $peopleLetter */
+/** @var string $peopleSort */
+/** @var string $peopleRole */
 $peopleQ = $peopleQ ?? '';
-$peopleLetter = strtoupper(trim((string) ($peopleLetter ?? '')));
-if ($peopleLetter === 'NUM') {
-    $peopleLetter = '#';
+$peopleSort = (string) ($peopleSort ?? 'popular');
+$peopleRole = (string) ($peopleRole ?? 'model');
+if (!in_array($peopleSort, ['popular', 'videos', 'az', 'new'], true)) {
+    $peopleSort = 'popular';
 }
-if ($peopleLetter !== '' && $peopleLetter !== '#' && !preg_match('/^[A-Z]$/', $peopleLetter)) {
-    $peopleLetter = '';
+if (!in_array($peopleRole, ['model', 'channel', 'any'], true)) {
+    $peopleRole = 'model';
 }
 $items = $people['items'] ?? [];
 
-$groups = [];
-foreach ($items as $p) {
-    $name = (string) ($p['name'] ?? '');
-    $letter = strtoupper(substr($name, 0, 1));
-    if (!preg_match('/[A-Z]/', $letter)) {
-        $letter = '#';
+$sortOpts = [
+    'popular' => 'Popularity',
+    'videos' => 'Most videos',
+    'new' => 'Recently active',
+    'az' => 'A–Z',
+];
+$roleOpts = [
+    'model' => 'People',
+    'channel' => 'Channels',
+    'any' => 'Everyone',
+];
+
+$buildPeopleUrl = static function (array $overrides = []) use ($peopleQ, $peopleSort, $peopleRole): string {
+    $qs = array_merge([
+        'q' => $peopleQ,
+        'sort' => $peopleSort,
+        'role' => $peopleRole,
+    ], $overrides);
+    if (($qs['q'] ?? '') === '') {
+        unset($qs['q']);
     }
-    $groups[$letter][] = $p;
-}
-ksort($groups, SORT_STRING);
-$letters = array_keys($groups);
+    if (($qs['sort'] ?? 'popular') === 'popular') {
+        unset($qs['sort']);
+    }
+    if (($qs['role'] ?? 'model') === 'model') {
+        unset($qs['role']);
+    }
+    unset($qs['page']);
+    $query = http_build_query($qs);
+    return cfp_url('/people' . ($query !== '' ? '?' . $query : ''));
+};
 ?>
 <section class="cfp-section cfp-section-tight">
   <div class="cfp-section-head">
@@ -32,63 +54,77 @@ $letters = array_keys($groups);
   </div>
 
   <form class="cfp-people-tools" action="<?= cfp_e(cfp_url('/people')) ?>" method="get" role="search">
+    <?php if ($peopleSort !== 'popular'): ?>
+      <input type="hidden" name="sort" value="<?= cfp_e($peopleSort) ?>">
+    <?php endif; ?>
+    <?php if ($peopleRole !== 'model'): ?>
+      <input type="hidden" name="role" value="<?= cfp_e($peopleRole) ?>">
+    <?php endif; ?>
     <label class="cfp-cats-search">
       <span class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Find people</span>
       <input type="search" name="q" placeholder="Find a person…" value="<?= cfp_e($peopleQ) ?>" autocomplete="off">
     </label>
-    <?php if ($peopleQ !== '' || $peopleLetter !== ''): ?>
+    <?php if ($peopleQ !== '' || $peopleSort !== 'popular' || $peopleRole !== 'model'): ?>
       <a class="cfp-chip" href="<?= cfp_e(cfp_url('/people')) ?>">Clear</a>
     <?php endif; ?>
   </form>
 
-  <?php if ($peopleQ === ''): ?>
-  <nav class="cfp-alpha" aria-label="Alphabet">
-    <a class="<?= $peopleLetter === '' ? 'is-on' : '' ?>" href="<?= cfp_e(cfp_url('/people')) ?>">All</a>
-    <?php foreach (range('A', 'Z') as $L): ?>
-      <a class="<?= $peopleLetter === $L ? 'is-on' : '' ?>" href="<?= cfp_e(cfp_url('/people?letter=' . $L)) ?>"><?= cfp_e($L) ?></a>
-    <?php endforeach; ?>
-    <a class="<?= $peopleLetter === '#' ? 'is-on' : '' ?>" href="<?= cfp_e(cfp_url('/people?letter=NUM')) ?>">#</a>
-  </nav>
-  <?php endif; ?>
+  <div class="cfp-people-filters" aria-label="People filters">
+    <div class="cfp-seg" role="group" aria-label="Type">
+      <?php foreach ($roleOpts as $key => $label): ?>
+        <a class="cfp-seg-item<?= $peopleRole === $key ? ' is-on' : '' ?>" href="<?= cfp_e($buildPeopleUrl(['role' => $key])) ?>"><?= cfp_e($label) ?></a>
+      <?php endforeach; ?>
+    </div>
+    <div class="cfp-seg" role="group" aria-label="Sort">
+      <?php foreach ($sortOpts as $key => $label): ?>
+        <a class="cfp-seg-item<?= $peopleSort === $key ? ' is-on' : '' ?>" href="<?= cfp_e($buildPeopleUrl(['sort' => $key])) ?>"><?= cfp_e($label) ?></a>
+      <?php endforeach; ?>
+    </div>
+  </div>
 
   <?php if (!$items): ?>
-    <p class="cfp-empty">No people found<?= $peopleQ !== '' ? ' for “' . cfp_e($peopleQ) . '”' : ($peopleLetter !== '' ? ' for “' . cfp_e($peopleLetter) . '”' : '') ?>.</p>
+    <p class="cfp-empty">No people found<?= $peopleQ !== '' ? ' for “' . cfp_e($peopleQ) . '”' : '' ?>.</p>
   <?php else: ?>
+    <div class="cfp-people-grid">
+      <?php foreach ($items as $p):
+        $n = (int) ($p['n'] ?? 0);
+        $pop = (int) ($p['popularity'] ?? 0);
+        $role = (string) ($p['role'] ?? $peopleRole);
+      ?>
+        <a class="cfp-people-card" href="<?= cfp_e(cfp_url('/people/' . rawurlencode((string) $p['slug']))) ?>">
+          <span class="cfp-people-avatar" aria-hidden="true">
+            <?php if (!empty($p['thumb'])): ?>
+              <img src="<?= cfp_e((string) $p['thumb']) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+            <?php else: ?>
+              <span><?= cfp_e(strtoupper(substr((string) $p['name'], 0, 1))) ?></span>
+            <?php endif; ?>
+          </span>
+          <span class="cfp-people-card-meta">
+            <strong><?= cfp_e((string) $p['name']) ?></strong>
+            <em>
+              <?= $n ?> video<?= $n === 1 ? '' : 's' ?>
+              <?php if ($pop > 0): ?> · <?= cfp_e(cfp_fmt_views($pop)) ?> views<?php endif; ?>
+              <?php if ($peopleRole === 'any' && $role !== ''): ?> · <?= $role === 'channel' ? 'Channel' : 'Person' ?><?php endif; ?>
+            </em>
+          </span>
+        </a>
+      <?php endforeach; ?>
+    </div>
 
-  <?php foreach ($groups as $letter => $rows): ?>
-    <section class="cfp-people-letter" id="people-<?= cfp_e($letter === '#' ? 'num' : $letter) ?>">
-      <h2><?= cfp_e($letter) ?></h2>
-      <div class="cfp-people-grid">
-        <?php foreach ($rows as $p): ?>
-          <a class="cfp-people-card" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($p['slug']))) ?>">
-            <span class="cfp-people-avatar" aria-hidden="true">
-              <?php if (!empty($p['thumb'])): ?>
-                <img src="<?= cfp_e((string) $p['thumb']) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
-              <?php else: ?>
-                <span><?= cfp_e(strtoupper(substr((string) $p['name'], 0, 1))) ?></span>
-              <?php endif; ?>
-            </span>
-            <span class="cfp-people-card-meta">
-              <strong><?= cfp_e((string) $p['name']) ?></strong>
-              <em><?= (int) $p['n'] ?> videos</em>
-            </span>
-          </a>
-        <?php endforeach; ?>
-      </div>
-    </section>
-  <?php endforeach; ?>
-
-  <?php
-    $pager = $people;
-    $qs = [];
-    if ($peopleQ !== '') {
-        $qs['q'] = $peopleQ;
-    }
-    if ($peopleLetter !== '') {
-        $qs['letter'] = $peopleLetter === '#' ? 'NUM' : $peopleLetter;
-    }
-    $basePath = '/people' . ($qs ? '?' . http_build_query($qs) : '');
-    require __DIR__ . '/_pager.php';
-  ?>
+    <?php
+      $pager = $people;
+      $qs = [];
+      if ($peopleQ !== '') {
+          $qs['q'] = $peopleQ;
+      }
+      if ($peopleSort !== 'popular') {
+          $qs['sort'] = $peopleSort;
+      }
+      if ($peopleRole !== 'model') {
+          $qs['role'] = $peopleRole;
+      }
+      $basePath = '/people' . ($qs ? '?' . http_build_query($qs) : '');
+      require __DIR__ . '/_pager.php';
+    ?>
   <?php endif; ?>
 </section>

@@ -209,12 +209,96 @@
     if (!closest(dd, "[data-cfp-toolbar]")) initDropdown(dd);
   });
 
+  function selectedCatSlugs(root) {
+    return Array.prototype.map.call(
+      root.querySelectorAll("[data-cfp-cat-toggle].is-on, [data-cfp-cat-toggle][aria-pressed='true']"),
+      function (el) { return el.getAttribute("data-cfp-cat-toggle") || ""; }
+    ).filter(Boolean);
+  }
+
+  function syncCatOption(el, on) {
+    el.classList.toggle("is-on", !!on);
+    el.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+
+  function closeCatsSheet() {
+    document.body.classList.remove("cfp-cats-sheet");
+  }
+
+  function openCatsSheet(dd) {
+    if (!dd) return;
+    document.body.classList.add("cfp-cats-sheet");
+    setMenuOpen(dd, true);
+  }
+
+  function applySelectedCats(root) {
+    var slugs = selectedCatSlugs(root);
+    var url = new URL(window.location.href);
+    // Always land on browse home with the selected categories
+    url.pathname = "/porn/";
+    url.search = "";
+    if (slugs.length) {
+      url.searchParams.set("category", slugs.join(","));
+    }
+    window.location.href = url.pathname + url.search + url.hash;
+  }
+
+  document.querySelectorAll("[data-cfp-multi-cats]").forEach(function (dd) {
+    var menu = dd.querySelector(".cfp-dd-menu");
+    if (!menu) return;
+    menu.addEventListener("click", function (e) {
+      var toggle = closest(e.target, "[data-cfp-cat-toggle]");
+      if (toggle && menu.contains(toggle)) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Second click removes the category
+        syncCatOption(toggle, !toggle.classList.contains("is-on"));
+        return;
+      }
+      if (closest(e.target, "[data-cfp-cats-clear]")) {
+        e.preventDefault();
+        e.stopPropagation();
+        menu.querySelectorAll("[data-cfp-cat-toggle]").forEach(function (el) {
+          syncCatOption(el, false);
+        });
+        return;
+      }
+      if (closest(e.target, "[data-cfp-cats-apply]")) {
+        e.preventDefault();
+        e.stopPropagation();
+        applySelectedCats(menu);
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-cfp-open-nav-cats]").forEach(function (btn) {
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var dd = document.querySelector("[data-cfp-multi-cats]");
+      if (!dd) {
+        window.location.href = "/porn/categories";
+        return;
+      }
+      openCatsSheet(dd);
+    });
+  });
+
   document.addEventListener("click", function (e) {
+    if (document.body.classList.contains("cfp-cats-sheet")) {
+      if (closest(e.target, ".cfp-nav-cats, [data-cfp-open-nav-cats]")) return;
+      closeCatsSheet();
+      closeAllMenus();
+      return;
+    }
     if (closest(e.target, ".cfp-dd-menu.is-open, .cfp-dd-btn")) return;
     closeAllMenus();
   });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeAllMenus();
+    if (e.key === "Escape") {
+      closeCatsSheet();
+      closeAllMenus();
+    }
   });
   window.addEventListener("resize", function () {
     syncHeaderHeight();

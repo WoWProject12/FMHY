@@ -441,7 +441,7 @@ function cfp_upsert_video(PDO $pdo, array $row, array $cats = [], array $tags = 
 
 /**
  * Normalize list/filter query params from $_GET.
- * @return array{sort:string,duration:string,period:string,density:string,per:int,page:int,category:string,q:string}
+ * @return array{sort:string,duration:string,period:string,density:string,per:int,page:int,category:string,categories:list<string>,q:string}
  */
 function cfp_filters_from_request(array $get = null): array
 {
@@ -464,6 +464,7 @@ function cfp_filters_from_request(array $get = null): array
     }
     $perDefault = $density === 'compact' ? 36 : 24;
     $per = max(12, min(48, (int) ($get['per'] ?? $perDefault)));
+    $categories = cfp_parse_category_slugs($get['category'] ?? ($get['categories'] ?? ''));
     return [
         'sort' => $sort,
         'duration' => $duration,
@@ -471,9 +472,33 @@ function cfp_filters_from_request(array $get = null): array
         'density' => $density,
         'per' => $per,
         'page' => max(1, (int) ($get['page'] ?? 1)),
-        'category' => trim((string) ($get['category'] ?? '')),
+        'category' => $categories ? implode(',', $categories) : '',
+        'categories' => $categories,
         'q' => trim((string) ($get['q'] ?? '')),
     ];
+}
+
+/** @param mixed $raw @return list<string> */
+function cfp_parse_category_slugs($raw): array
+{
+    if (is_array($raw)) {
+        $parts = $raw;
+    } else {
+        $parts = preg_split('/[,\s|]+/', trim((string) $raw)) ?: [];
+    }
+    $out = [];
+    $seen = [];
+    foreach ($parts as $p) {
+        $slug = strtolower(trim((string) $p));
+        $slug = preg_replace('/[^a-z0-9\-]+/', '-', $slug) ?? '';
+        $slug = trim($slug, '-');
+        if ($slug === '' || isset($seen[$slug])) {
+            continue;
+        }
+        $seen[$slug] = true;
+        $out[] = $slug;
+    }
+    return $out;
 }
 
 function cfp_list_videos(PDO $pdo, array $opts = []): array
@@ -482,7 +507,12 @@ function cfp_list_videos(PDO $pdo, array $opts = []): array
     $per = max(1, min(48, (int) ($opts['per'] ?? 24)));
     $offset = ($page - 1) * $per;
     $q = trim((string) ($opts['q'] ?? ''));
-    $cat = trim((string) ($opts['category'] ?? ''));
+    $cats = [];
+    if (isset($opts['categories']) && is_array($opts['categories'])) {
+        $cats = cfp_parse_category_slugs($opts['categories']);
+    } else {
+        $cats = cfp_parse_category_slugs($opts['category'] ?? '');
+    }
     $sort = (string) ($opts['sort'] ?? 'new');
     $duration = (string) ($opts['duration'] ?? 'any');
     $period = (string) ($opts['period'] ?? 'any');
@@ -495,10 +525,13 @@ function cfp_list_videos(PDO $pdo, array $opts = []): array
         $where[] = 'v.title LIKE ?';
         $args[] = '%' . $q . '%';
     }
-    if ($cat !== '') {
+    if ($cats) {
         $join .= ' INNER JOIN video_categories vc ON vc.video_id = v.id INNER JOIN categories c ON c.id = vc.category_id ';
-        $where[] = 'c.slug = ?';
-        $args[] = $cat;
+        $ph = implode(',', array_fill(0, count($cats), '?'));
+        $where[] = "c.slug IN ($ph)";
+        foreach ($cats as $slug) {
+            $args[] = $slug;
+        }
     }
 
     if ($duration === 'short') {
@@ -738,13 +771,13 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
     $per = max(12, min(96, (int) ($opts['per'] ?? 48)));
     $offset = ($page - 1) * $per;
     $q = trim((string) ($opts['q'] ?? ''));
-    $letter = strtoupper(trim((string) ($opts['letter'] ?? '')));
-    if ($letter === 'NUM') {
-        $letter = '#';
-    }
     $role = (string) ($opts['role'] ?? 'model');
     if (!in_array($role, ['model', 'channel', 'any'], true)) {
         $role = 'model';
+    }
+    $sort = (string) ($opts['sort'] ?? 'popular');
+    if (!in_array($sort, ['popular', 'videos', 'az', 'new'], true)) {
+        $sort = 'popular';
     }
     $where = ['1=1'];
     $args = [];
@@ -755,12 +788,6 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
     if ($q !== '') {
         $where[] = 'a.name LIKE ?';
         $args[] = '%' . $q . '%';
-    }
-    if ($letter === '#') {
-        $where[] = "(UPPER(LEFT(a.name, 1)) < 'A' OR UPPER(LEFT(a.name, 1)) > 'Z')";
-    } elseif ($letter !== '' && preg_match('/^[A-Z]$/', $letter)) {
-        $where[] = 'UPPER(LEFT(a.name, 1)) = ?';
-        $args[] = $letter;
     }
     $sqlWhere = implode(' AND ', $where);
 
@@ -775,20 +802,32 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
     $countSt->execute($args);
     $total = (int) $countSt->fetchColumn();
 
+    $order = match ($sort) {
+        'videos' => 'n DESC, a.name ASC',
+        'az' => 'a.name ASC',
+        'new' => 'fresh DESC, n DESC, a.name ASC',
+        default => 'popularity DESC, n DESC, a.name ASC',
+    };
+
     $listArgs = $args;
     $listArgs[] = $per;
     $listArgs[] = $offset;
     $st = $pdo->prepare(
-        "SELECT a.id, a.slug, a.name, COUNT(*) AS n,
-                (SELECT v.thumb FROM videos v
-                 INNER JOIN video_actors va2 ON va2.video_id = v.id
-                 WHERE va2.actor_id = a.id AND v.thumb IS NOT NULL AND v.thumb <> ''
-                 ORDER BY v.views DESC LIMIT 1) AS thumb
+        "SELECT a.id, a.slug, a.name,
+                COUNT(DISTINCT va.video_id) AS n,
+                COALESCE(SUM(GREATEST(COALESCE(v.source_views,0), COALESCE(v.views,0))), 0) AS popularity,
+                MAX(v.created_at) AS fresh,
+                MAX(va.role) AS role,
+                (SELECT v2.thumb FROM videos v2
+                 INNER JOIN video_actors va2 ON va2.video_id = v2.id
+                 WHERE va2.actor_id = a.id AND v2.thumb IS NOT NULL AND v2.thumb <> ''
+                 ORDER BY GREATEST(COALESCE(v2.source_views,0), COALESCE(v2.views,0)) DESC LIMIT 1) AS thumb
          FROM actors a
          INNER JOIN video_actors va ON va.actor_id = a.id
+         LEFT JOIN videos v ON v.id = va.video_id
          WHERE $sqlWhere
          GROUP BY a.id
-         ORDER BY " . ($letter !== '' || $q !== '' ? 'a.name ASC' : 'n DESC, a.name ASC') . "
+         ORDER BY $order
          LIMIT ? OFFSET ?"
     );
     $st->execute($listArgs);

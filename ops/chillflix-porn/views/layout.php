@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=63center')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=64peoplecats')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -77,26 +77,50 @@ declare(strict_types=1);
     <nav class="cfp-nav" aria-label="Primary">
       <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
       <a href="<?= cfp_e(cfp_url('/people')) ?>" class="<?= in_array(($view ?? ''), ['people', 'person'], true) ? 'is-on' : '' ?>">People</a>
-      <div class="cfp-dd cfp-nav-dd" data-cfp-dd>
-        <button type="button" class="cfp-dd-btn<?= ($view ?? '') === 'categories' ? ' is-active' : '' ?>" aria-expanded="false" aria-haspopup="listbox">
+      <?php
+        $activeCatSlugs = $filters['categories'] ?? (function_exists('cfp_parse_category_slugs')
+          ? cfp_parse_category_slugs($filters['category'] ?? '')
+          : []);
+        $catBtnLabel = 'Categories';
+        if (count($activeCatSlugs) === 1) {
+            foreach (($navCats ?? []) as $nc) {
+                if ($nc['slug'] === $activeCatSlugs[0]) {
+                    $catBtnLabel = (string) $nc['name'];
+                    break;
+                }
+            }
+        } elseif (count($activeCatSlugs) > 1) {
+            $catBtnLabel = count($activeCatSlugs) . ' categories';
+        }
+      ?>
+      <div class="cfp-dd cfp-nav-dd cfp-nav-cats" data-cfp-dd data-cfp-multi-cats>
+        <button type="button" class="cfp-dd-btn<?= $activeCatSlugs || (($view ?? '') === 'categories') ? ' is-active' : '' ?>" aria-expanded="false" aria-haspopup="listbox">
           <span class="cfp-dd-kicker">Browse</span>
-          <span class="cfp-dd-value">Categories</span>
+          <span class="cfp-dd-value"><?= cfp_e($catBtnLabel) ?></span>
           <span class="cfp-dd-caret" aria-hidden="true"></span>
         </button>
-        <div class="cfp-dd-menu" hidden>
+        <div class="cfp-dd-menu cfp-cats-menu" hidden>
           <div class="cfp-dd-search">
             <input type="search" placeholder="Find a category…" data-cfp-dd-filter autocomplete="off">
           </div>
-          <div class="cfp-dd-list" role="listbox">
-            <a class="cfp-dd-option" href="<?= cfp_e(cfp_url('/')) ?>" data-label="all categories">All categories</a>
-            <?php foreach (($navCats ?? []) as $nc): ?>
-              <a class="cfp-dd-option" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($nc['slug']))) ?>" data-label="<?= cfp_e(strtolower($nc['name'])) ?>">
+          <div class="cfp-dd-list" role="listbox" aria-multiselectable="true">
+            <?php foreach (($navCats ?? []) as $nc):
+              $on = in_array($nc['slug'], $activeCatSlugs, true);
+            ?>
+              <button type="button"
+                class="cfp-dd-option<?= $on ? ' is-on' : '' ?>"
+                data-cfp-cat-toggle="<?= cfp_e($nc['slug']) ?>"
+                data-label="<?= cfp_e(strtolower($nc['name'])) ?>"
+                aria-pressed="<?= $on ? 'true' : 'false' ?>">
                 <span><?= cfp_e($nc['name']) ?></span>
                 <em><?= (int) $nc['n'] ?></em>
-              </a>
+              </button>
             <?php endforeach; ?>
           </div>
-          <div class="cfp-dd-foot"><a href="<?= cfp_e(cfp_url('/categories')) ?>">Full category list</a></div>
+          <div class="cfp-dd-foot cfp-cats-foot">
+            <button type="button" class="cfp-cats-clear" data-cfp-cats-clear>Clear</button>
+            <button type="button" class="cfp-cats-apply" data-cfp-cats-apply>Apply</button>
+          </div>
         </div>
       </div>
       <a class="cfp-nav-main" href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
@@ -137,32 +161,26 @@ declare(strict_types=1);
   // Filter chips live in the sticky header so they stay fixed while scrolling.
   $showFilterBar = empty($needsAge) && in_array(($view ?? ''), ['home', 'search'], true);
   if ($showFilterBar):
+      $activeCatSlugs = $filters['categories'] ?? cfp_parse_category_slugs($filters['category'] ?? '');
+      $activeCatSlug = $activeCatSlugs ? implode(',', $activeCatSlugs) : '';
+      $activeCatName = null;
+      if ($activeCatSlugs && !empty($cats)) {
+          $names = [];
+          $bySlug = [];
+          foreach ($cats as $c) {
+              $bySlug[(string) $c['slug']] = (string) $c['name'];
+          }
+          foreach ($activeCatSlugs as $slug) {
+              $names[] = $bySlug[$slug] ?? $slug;
+          }
+          $activeCatName = implode(', ', $names);
+      }
       if (($view ?? '') === 'search') {
           $actionPath = '/search';
           $resultsTotal = (int) (($results['total'] ?? 0));
-          $activeCatName = null;
-          $activeCatSlug = (string) (($filters['category'] ?? ''));
-          if ($activeCatSlug !== '' && !empty($cats)) {
-              foreach ($cats as $c) {
-                  if ($c['slug'] === $activeCatSlug) {
-                      $activeCatName = $c['name'];
-                      break;
-                  }
-              }
-          }
       } else {
           $actionPath = '/';
           $resultsTotal = (int) (($latest['total'] ?? 0));
-          $activeCatName = null;
-          $activeCatSlug = (string) (($filters['category'] ?? ''));
-          if ($activeCatSlug !== '' && !empty($cats)) {
-              foreach ($cats as $c) {
-                  if ($c['slug'] === $activeCatSlug) {
-                      $activeCatName = $c['name'];
-                      break;
-                  }
-              }
-          }
       }
   ?>
   <div class="cfp-header-filters">
@@ -182,7 +200,7 @@ declare(strict_types=1);
 <nav class="cfp-dock" aria-label="Mobile navigation">
   <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
   <a href="<?= cfp_e(cfp_url('/people')) ?>" class="<?= in_array(($view ?? ''), ['people', 'person'], true) ? 'is-on' : '' ?>">People</a>
-  <a href="<?= cfp_e(cfp_url('/categories')) ?>" class="<?= ($view ?? '') === 'categories' ? 'is-on' : '' ?>">Categories</a>
+  <button type="button" class="cfp-dock-cats<?= !empty($filters['categories']) ? ' is-on' : '' ?>" data-cfp-open-nav-cats>Categories</button>
   <?php if ($cfpUser): ?>
     <a href="<?= cfp_e(cfp_url('/library')) ?>" class="<?= ($view ?? '') === 'library' ? 'is-on' : '' ?>">Me</a>
   <?php else: ?>
@@ -198,6 +216,6 @@ declare(strict_types=1);
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username']] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=62xv')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=64peoplecats')) ?>" defer></script>
 </body>
 </html>

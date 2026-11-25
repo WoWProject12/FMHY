@@ -8,17 +8,20 @@ $filters = $filters ?? cfp_filters_from_request();
 $density = $filters['density'] ?? 'cozy';
 $resultsTotal = (int) ($latest['total'] ?? 0);
 $actionPath = '/';
-$activeCatName = null;
-$activeCatSlug = (string) ($filters['category'] ?? '');
-if ($activeCatSlug !== '') {
+$activeCatSlugs = $filters['categories'] ?? cfp_parse_category_slugs($filters['category'] ?? '');
+$activeCatNames = [];
+if ($activeCatSlugs) {
+    $bySlug = [];
     foreach ($cats as $c) {
-        if ($c['slug'] === $activeCatSlug) {
-            $activeCatName = $c['name'];
-            break;
-        }
+        $bySlug[(string) $c['slug']] = (string) $c['name'];
+    }
+    foreach ($activeCatSlugs as $slug) {
+        $activeCatNames[] = $bySlug[$slug] ?? $slug;
     }
 }
-$isFiltered = $activeCatSlug !== ''
+$activeCatName = $activeCatNames ? implode(', ', $activeCatNames) : null;
+$activeCatSlug = $activeCatSlugs ? implode(',', $activeCatSlugs) : '';
+$isFiltered = $activeCatSlugs
     || ($filters['sort'] ?? 'new') !== 'new'
     || ($filters['duration'] ?? 'any') !== 'any'
     || ($filters['period'] ?? 'any') !== 'any';

@@ -247,6 +247,7 @@ try {
             'duration' => $filters['duration'],
             'period' => $filters['period'],
             'category' => $filters['category'],
+            'categories' => $filters['categories'],
         ];
         $latest = cfp_list_videos($pdo, $listOpts);
         // xvideos-style: top strip is “best this week”, main grid is newest (or filtered)
@@ -268,6 +269,7 @@ try {
             'duration' => $filters['duration'],
             'period' => $filters['period'],
             'category' => $filters['category'],
+            'categories' => $filters['categories'],
         ]);
         $cats = cfp_top_categories($pdo, 60);
         $q = $filters['q'];
@@ -318,15 +320,23 @@ try {
         }
     } elseif ($path === '/people') {
         $peopleQ = trim((string) ($_GET['q'] ?? ''));
-        $peopleLetter = strtoupper(trim((string) ($_GET['letter'] ?? '')));
+        $peopleSort = strtolower(trim((string) ($_GET['sort'] ?? 'popular')));
+        if (!in_array($peopleSort, ['popular', 'videos', 'az', 'new'], true)) {
+            $peopleSort = 'popular';
+        }
+        $peopleRole = strtolower(trim((string) ($_GET['role'] ?? 'model')));
+        if (!in_array($peopleRole, ['model', 'channel', 'any'], true)) {
+            $peopleRole = 'model';
+        }
         $people = cfp_list_people($pdo, [
             'q' => $peopleQ,
-            'letter' => $peopleLetter,
+            'sort' => $peopleSort,
+            'role' => $peopleRole,
             'page' => $filters['page'],
             'per' => 60,
         ]);
         $view = 'people';
-        $viewData = compact('people', 'peopleQ', 'peopleLetter');
+        $viewData = compact('people', 'peopleQ', 'peopleSort', 'peopleRole');
         $pageTitle = 'People — ' . CFP_SITE_NAME;
     } elseif (preg_match('#^/people/([a-z0-9\-]+)$#', $path, $m)) {
         $person = cfp_get_person_by_slug($pdo, $m[1]);

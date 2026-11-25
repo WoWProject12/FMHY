@@ -12,7 +12,8 @@ $filters = $filters ?? cfp_filters_from_request();
 $cats = $cats ?? [];
 $actionPath = $actionPath ?? '/';
 $activeCatName = $activeCatName ?? null;
-$activeCatSlug = (string) ($filters['category'] ?? '');
+$activeCatSlugs = $filters['categories'] ?? cfp_parse_category_slugs($filters['category'] ?? '');
+$activeCatSlug = $activeCatSlugs ? implode(',', $activeCatSlugs) : '';
 $q = (string) ($filters['q'] ?? ($q ?? ''));
 
 $sortLabels = [
@@ -57,13 +58,21 @@ $densityChip = [
     'compact' => 'Compact',
 ];
 
-$catLabel = $activeCatName ?: ($activeCatSlug !== '' ? $activeCatSlug : 'All categories');
-$catChip = $activeCatSlug !== '' ? $catLabel : 'Category';
+if ($activeCatName) {
+    $catLabel = (string) $activeCatName;
+} elseif (count($activeCatSlugs) > 1) {
+    $catLabel = count($activeCatSlugs) . ' categories';
+} elseif (count($activeCatSlugs) === 1) {
+    $catLabel = $activeCatSlugs[0];
+} else {
+    $catLabel = 'All categories';
+}
+$catChip = $activeCatSlugs ? $catLabel : 'Category';
 $clearHref = cfp_url($actionPath);
 if ($actionPath === '/search' && $q !== '') {
     $clearHref = cfp_url('/search?q=' . rawurlencode($q));
 }
-$hasFilters = $activeCatSlug !== ''
+$hasFilters = $activeCatSlugs
     || ($filters['sort'] ?? 'new') !== 'new'
     || ($filters['duration'] ?? 'any') !== 'any'
     || ($filters['period'] ?? 'any') !== 'any'
@@ -101,15 +110,15 @@ $densityVal = (string) ($filters['density'] ?? 'cozy');
           <input type="search" placeholder="Find a category…" data-cfp-dd-filter autocomplete="off">
         </div>
         <div class="cfp-dd-list" role="listbox">
-          <button type="button" class="cfp-dd-option<?= $activeCatSlug === '' ? ' is-on' : '' ?>" data-cfp-set="category" data-value="" data-label="all categories">All categories</button>
+          <button type="button" class="cfp-dd-option<?= !$activeCatSlugs ? ' is-on' : '' ?>" data-cfp-set="category" data-value="" data-label="all categories">All categories</button>
           <?php foreach ($cats as $c): ?>
-            <button type="button" class="cfp-dd-option<?= $activeCatSlug === $c['slug'] ? ' is-on' : '' ?>" data-cfp-set="category" data-value="<?= cfp_e($c['slug']) ?>" data-label="<?= cfp_e(strtolower($c['name'])) ?>">
+            <button type="button" class="cfp-dd-option<?= in_array($c['slug'], $activeCatSlugs, true) ? ' is-on' : '' ?>" data-cfp-set="category" data-value="<?= cfp_e($c['slug']) ?>" data-label="<?= cfp_e(strtolower($c['name'])) ?>">
               <span><?= cfp_e($c['name']) ?></span>
               <em><?= (int) $c['n'] ?></em>
             </button>
           <?php endforeach; ?>
         </div>
-        <div class="cfp-dd-foot"><a href="<?= cfp_e(cfp_url('/categories')) ?>">A–Z category list</a></div>
+        <div class="cfp-dd-foot"><span class="cfp-muted">Use navbar Categories to pick several</span></div>
       </div>
     </div>
 
