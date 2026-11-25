@@ -269,43 +269,55 @@ a.cfp-dd-option { color: var(--cfp-text); }
 /* Horizontal trending rail */
 .cfp-rail { margin: 0 -0.15rem; }
 .cfp-rail-track {
-  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(148px, 168px);
-  gap: 0.65rem; overflow-x: auto; padding: 0.15rem 0.15rem 0.45rem;
-  scroll-snap-type: x mandatory; scrollbar-width: thin;
-}
-.cfp-rail-card { scroll-snap-align: start; }
-.cfp-rail-card .cfp-card-title { font-size: 0.82rem; -webkit-line-clamp: 2; }
-
-/* Grid — compact thumbs (2-up on phones, denser on desktop) */
-.cfp-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem 0.55rem;
+  grid-auto-flow: column;
+  grid-auto-columns: 148px;
+  gap: 0.55rem;
+  overflow-x: auto;
+  padding: 0.15rem 0.15rem 0.45rem;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.cfp-rail-card {
+  scroll-snap-align: start;
+  width: 148px;
+  max-width: 148px;
+}
+.cfp-rail-card .cfp-card-title { font-size: 0.78rem; -webkit-line-clamp: 2; }
+
+/* Grid — always compact (2-up on phones; never one giant card) */
+.cfp-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.65rem 0.5rem;
+  width: 100%;
 }
 .cfp-grid-compact, body.is-compact .cfp-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem 0.45rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.5rem 0.4rem;
 }
 @media (min-width: 600px) {
   .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 0.75rem 0.65rem;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+    gap: 0.7rem 0.6rem;
   }
   .cfp-grid-compact, body.is-compact .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
-    gap: 0.55rem;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
   }
 }
 @media (min-width: 1100px) {
   .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
   }
 }
 .cfp-card,
 .cfp-rail-card {
   text-decoration: none; color: inherit;
-  display: flex; flex-direction: column; gap: 0.35rem;
+  display: flex; flex-direction: column; gap: 0.3rem;
   cursor: pointer;
+  min-width: 0;
+  max-width: 100%;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
@@ -319,17 +331,39 @@ a.cfp-dd-option { color: var(--cfp-text); }
   -webkit-user-drag: none;
   user-select: none;
 }
+/* Absolute media so intrinsic img/video size cannot blow up the card */
 .cfp-card-media {
-  position: relative; aspect-ratio: 16/10; border-radius: 9px;
-  overflow: hidden; background: #16130f; border: 1px solid var(--cfp-border);
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10 !important;
+  height: auto !important;
+  flex: 0 0 auto;
+  min-height: 0;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #16130f;
+  border: 1px solid var(--cfp-border);
   -webkit-touch-callout: none;
 }
-.cfp-card-media img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s ease, opacity .15s ease; }
-.cfp-card:hover .cfp-card-media img { transform: scale(1.04); }
+.cfp-card-media > img,
+.cfp-card-media > .cfp-card-ph {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+  display: block;
+  transition: transform .3s ease, opacity .15s ease;
+}
+.cfp-card:hover .cfp-card-media > img { transform: scale(1.04); }
 .cfp-card-preview {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; background: #000; z-index: 2; display: block;
+  position: absolute !important; inset: 0 !important;
+  width: 100% !important; height: 100% !important;
+  object-fit: cover !important; background: #000; z-index: 2; display: block;
   pointer-events: none; border: 0; outline: none;
+  max-width: none !important; max-height: none !important;
   transition: opacity .12s ease;
 }
 .cfp-card-preview::-webkit-media-controls { display: none !important; }
@@ -457,9 +491,29 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-player {
   border-radius: 12px; overflow: hidden; background: #000;
   border: 1px solid var(--cfp-border);
+  width: 100%;
+  max-width: 100%;
 }
-.cfp-player-stage { position: relative; aspect-ratio: 16/9; background: #000; }
-.cfp-player-stage video { width: 100%; height: 100%; display: block; background: #000; }
+.cfp-player-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9 !important;
+  height: auto !important;
+  max-height: min(56vw, 420px);
+  background: #000;
+  overflow: hidden;
+}
+.cfp-player-stage video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  display: block;
+  background: #000;
+}
 .cfp-player-status {
   position: absolute; inset: auto 0 0 0; padding: 0.5rem 0.75rem;
   background: linear-gradient(transparent, rgba(0,0,0,.75));
@@ -630,10 +684,14 @@ a.cfp-dd-option { color: var(--cfp-text); }
   .cfp-toolbar { top: 92px; }
   .cfp-dd-value { max-width: 110px; }
   .cfp-toolbar-meta { width: 100%; margin-left: 0; order: 8; }
-  /* Best-of rail: compact thumbs with a peek of the next card */
+  /* Rails stay compact thumbs — never full-bleed cards */
   .cfp-rail-track {
-    grid-auto-columns: minmax(140px, 46%) !important;
-    gap: 0.55rem;
+    grid-auto-columns: 42vw !important;
+    gap: 0.5rem;
+  }
+  .cfp-rail-card {
+    width: 42vw !important;
+    max-width: 42vw !important;
   }
 }
 @media (max-width: 560px) {

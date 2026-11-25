@@ -17,8 +17,24 @@ declare(strict_types=1);
   <meta name="rating" content="adult">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/cinema.css?v=97fxovertoast1')) ?>">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/bridge.css?v=20261123notif22acctontop1phoneplayer5noshrink2nospa1fxuser5nocardfx1maylike1settingsback1')) ?>">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=23compact')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=25rail')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
+  <!-- Critical size locks (beat cached CSS / main-site overrides) -->
+  <style>
+    .cfp-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:.65rem .5rem;width:100%}
+    .cfp-card{min-width:0;max-width:100%}
+    .cfp-card-media{position:relative!important;width:100%;aspect-ratio:16/10!important;height:auto!important;flex:0 0 auto;min-height:0;overflow:hidden!important}
+    .cfp-card-media>img,.cfp-card-media>.cfp-card-ph,.cfp-card-preview{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:cover!important}
+    .cfp-player-stage{position:relative!important;width:100%;aspect-ratio:16/9!important;height:auto!important;max-height:min(56vw,420px);overflow:hidden!important}
+    .cfp-player-stage video{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;max-width:none!important;max-height:none!important}
+    .cfp-rail-track{display:grid!important;grid-auto-flow:column;grid-auto-columns:148px;gap:.55rem;overflow-x:auto}
+    .cfp-rail-card{width:148px;max-width:148px}
+    @media(max-width:900px){
+      .cfp-rail-track{grid-auto-columns:42vw!important}
+      .cfp-rail-card{width:42vw!important;max-width:42vw!important}
+    }
+    @media(min-width:600px){.cfp-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}}
+  </style>
 </head>
 <body class="<?= cfp_e($bodyClass) ?>">
 <div class="aurora-bg" aria-hidden="true" hidden><div class="aurora-bg-wash"></div><div class="aurora-bg-grain"></div></div>
@@ -91,6 +107,6 @@ declare(strict_types=1);
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=23compact')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=25rail')) ?>" defer></script>
 </body>
 </html>

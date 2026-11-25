@@ -43,26 +43,7 @@ $heading = $activeCatName ?: ($isFiltered ? 'Results' : 'Newest videos');
     <h2>Best of the week</h2>
     <a href="<?= cfp_e(cfp_url('/?sort=views&period=week')) ?>">More</a>
   </div>
-  <div class="cfp-rail" data-cfp-rail>
-    <div class="cfp-rail-track">
-      <?php foreach (array_slice($popular['items'], 0, 10) as $item): ?>
-        <div class="cfp-rail-card cfp-card" role="link" tabindex="0" data-href="<?= cfp_e(cfp_url('/video/' . $item['slug'])) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>">
-          <div class="cfp-card-media">
-            <?php if (!empty($item['thumb'])): ?>
-              <img src="<?= cfp_e($item['thumb']) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false">
-            <?php else: ?>
-              <div class="cfp-card-ph" aria-hidden="true"></div>
-            <?php endif; ?>
-            <?php if (!empty($item['duration'])): ?>
-              <span class="cfp-card-dur"><?= cfp_e((string) $item['duration']) ?></span>
-            <?php endif; ?>
-            <span class="cfp-card-play" aria-hidden="true"></span>
-          </div>
-          <h3 class="cfp-card-title"><?= cfp_e((string) $item['title']) ?></h3>
-        </div>
-      <?php endforeach; ?>
-    </div>
-  </div>
+  <?php $items = array_slice($popular['items'], 0, 10); require __DIR__ . '/_rail.php'; ?>
 </section>
 <?php endif; ?>
 

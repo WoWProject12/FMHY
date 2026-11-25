@@ -61,14 +61,14 @@ $cats = $meta['categories'] ?? [];
       <h2>More from <a href="<?= cfp_e(cfp_url('/people/' . rawurlencode($sec['person']['slug']))) ?>"><?= cfp_e($sec['person']['name']) ?></a></h2>
       <a class="cfp-section-more" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($sec['person']['slug']))) ?>">See all</a>
     </div>
-    <?php $items = $sec['items']; require __DIR__ . '/_grid.php'; ?>
+    <?php $items = $sec['items']; require __DIR__ . '/_rail.php'; ?>
   </section>
   <?php endforeach; ?>
 
   <?php if (!empty($related)): ?>
   <section class="cfp-section">
     <div class="cfp-section-head"><h2>Similar videos</h2></div>
-    <?php $items = $related; require __DIR__ . '/_grid.php'; ?>
+    <?php $items = $related; require __DIR__ . '/_rail.php'; ?>
   </section>
   <?php endif; ?>
 </article>
