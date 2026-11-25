@@ -385,7 +385,7 @@ try {
             'sort' => $peopleSort,
             'role' => $peopleRole,
             'page' => $filters['page'],
-            'per' => 60,
+            'per' => 24,
         ]);
         $view = 'people';
         $viewData = compact('people', 'peopleQ', 'peopleSort', 'peopleRole');

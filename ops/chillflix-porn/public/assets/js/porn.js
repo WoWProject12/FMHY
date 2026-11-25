@@ -113,6 +113,9 @@
       menu.classList.remove("is-open");
       menu.hidden = true;
       clearMenuPosition(menu);
+      if (dd.hasAttribute("data-cfp-multi-cats")) {
+        closeCatsSheet();
+      }
     }
   }
 
@@ -123,15 +126,29 @@
     });
   }
 
+  function isCatsMenuOpen(dd) {
+    if (!dd) return false;
+    var menu = dd.querySelector(".cfp-dd-menu");
+    return !!(menu && menu.classList.contains("is-open"))
+      || document.body.classList.contains("cfp-cats-sheet");
+  }
+
   function initDropdown(dd) {
     var btn = dd.querySelector(".cfp-dd-btn");
     var menu = dd.querySelector(".cfp-dd-menu");
-    if (!btn || !menu) return;
+    if (!btn || !menu || btn.getAttribute("data-cfp-dd-bound") === "1") return;
+    btn.setAttribute("data-cfp-dd-bound", "1");
 
     btn.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
-      var willOpen = !menu.classList.contains("is-open");
+      var willOpen = !isCatsMenuOpen(dd) && !menu.classList.contains("is-open");
+      // Multi-cat nav: second click always closes (incl. mobile sheet)
+      if (dd.hasAttribute("data-cfp-multi-cats") && isCatsMenuOpen(dd)) {
+        closeCatsSheet();
+        closeAllMenus();
+        return;
+      }
       closeAllMenus(willOpen ? dd : null);
       setMenuOpen(dd, willOpen);
       if (willOpen) {
@@ -231,6 +248,21 @@
     setMenuOpen(dd, true);
   }
 
+  function toggleCatsMenu(dd) {
+    if (!dd) return;
+    if (isCatsMenuOpen(dd)) {
+      closeCatsSheet();
+      setMenuOpen(dd, false);
+      return;
+    }
+    if (isNarrow()) {
+      openCatsSheet(dd);
+    } else {
+      closeAllMenus(dd);
+      setMenuOpen(dd, true);
+    }
+  }
+
   function applySelectedCats(root) {
     var slugs = selectedCatSlugs(root);
     var url = new URL(window.location.href);
@@ -280,18 +312,19 @@
         window.location.href = "/porn/categories";
         return;
       }
-      openCatsSheet(dd);
+      toggleCatsMenu(dd);
     });
   });
 
   document.addEventListener("click", function (e) {
     if (document.body.classList.contains("cfp-cats-sheet")) {
-      if (closest(e.target, ".cfp-nav-cats, [data-cfp-open-nav-cats]")) return;
+      // Outside the sheet / dock toggle → close
+      if (closest(e.target, ".cfp-nav-cats .cfp-dd-menu, [data-cfp-open-nav-cats]")) return;
       closeCatsSheet();
       closeAllMenus();
       return;
     }
-    if (closest(e.target, ".cfp-dd-menu.is-open, .cfp-dd-btn")) return;
+    if (closest(e.target, ".cfp-dd-menu.is-open, .cfp-dd-btn, [data-cfp-open-nav-cats]")) return;
     closeAllMenus();
   });
   document.addEventListener("keydown", function (e) {
