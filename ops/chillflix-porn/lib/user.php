@@ -135,6 +135,36 @@ function cfp_current_user(PDO $pdo = null): ?array
     }
 }
 
+/** Ensure a site "admin" user exists (password = admin panel pass). @return array{id:int,username:string,email:?string} */
+function cfp_ensure_admin_user(PDO $pdo): array
+{
+    cfp_ensure_user_schema($pdo);
+    $adminPass = function_exists('cfp_admin_pass') ? cfp_admin_pass() : (defined('CFP_ADMIN_PASS') ? (string) CFP_ADMIN_PASS : '');
+    $st = $pdo->prepare('SELECT id, username, email, pass_hash FROM users WHERE username = ? LIMIT 1');
+    $st->execute(['admin']);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        // Keep hash in sync with current admin panel password when provided
+        if ($adminPass !== '' && !password_verify($adminPass, (string) $row['pass_hash'])) {
+            $hash = password_hash($adminPass, PASSWORD_DEFAULT);
+            $pdo->prepare('UPDATE users SET pass_hash = ? WHERE id = ?')->execute([$hash, (int) $row['id']]);
+        }
+        return [
+            'id' => (int) $row['id'],
+            'username' => (string) $row['username'],
+            'email' => $row['email'] !== null ? (string) $row['email'] : null,
+        ];
+    }
+    $hash = password_hash($adminPass !== '' ? $adminPass : bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+    $pdo->prepare('INSERT INTO users (username, email, pass_hash) VALUES (?,?,?)')
+        ->execute(['admin', null, $hash]);
+    return [
+        'id' => (int) $pdo->lastInsertId(),
+        'username' => 'admin',
+        'email' => null,
+    ];
+}
+
 function cfp_user_login(PDO $pdo, string $username, string $password): array
 {
     cfp_ensure_user_schema($pdo);
@@ -142,6 +172,18 @@ function cfp_user_login(PDO $pdo, string $username, string $password): array
     if ($username === '' || $password === '') {
         return ['ok' => false, 'error' => 'Missing username or password'];
     }
+
+    // Site admin credentials also work on the public Login form
+    $adminPass = function_exists('cfp_admin_pass') ? cfp_admin_pass() : (defined('CFP_ADMIN_PASS') ? (string) CFP_ADMIN_PASS : '');
+    if ($username === 'admin' && $adminPass !== '' && hash_equals($adminPass, $password)) {
+        $user = cfp_ensure_admin_user($pdo);
+        cfp_user_set_auth_cookie((int) $user['id']);
+        if (function_exists('cfp_admin_login')) {
+            cfp_admin_login($password);
+        }
+        return ['ok' => true, 'user' => $user];
+    }
+
     $st = $pdo->prepare(
         'SELECT id, username, email, pass_hash FROM users
          WHERE username = ? OR LOWER(COALESCE(email, \'\')) = ? LIMIT 1'
@@ -152,6 +194,10 @@ function cfp_user_login(PDO $pdo, string $username, string $password): array
         return ['ok' => false, 'error' => 'Wrong username or password. Create an account if you are new here.'];
     }
     cfp_user_set_auth_cookie((int) $row['id']);
+    // If this is the admin user signing in with their user password, open admin session too
+    if ((string) $row['username'] === 'admin' && $adminPass !== '' && hash_equals($adminPass, $password) && function_exists('cfp_admin_login')) {
+        cfp_admin_login($password);
+    }
     return [
         'ok' => true,
         'user' => [

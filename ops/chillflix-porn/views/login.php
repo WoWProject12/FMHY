@@ -9,7 +9,7 @@ $prefillUser = $prefillUser ?? '';
 ?>
 <section class="cfp-auth">
   <h1 class="cfp-page-title">Sign in</h1>
-  <p class="cfp-auth-sub">Save videos, keep watch history, and sync likes across devices. This is your Chillflix Porn account (separate from the admin panel).</p>
+  <p class="cfp-auth-sub">Save videos, keep watch history, and sync likes across devices.</p>
   <?php if ($flashErr): ?>
     <p class="cfp-admin-flash is-err"><?= cfp_e($flashErr) ?></p>
   <?php endif; ?>
