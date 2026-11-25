@@ -187,6 +187,8 @@
   var scrubbing = false;
   var holdScrollY = 0;
   var partGen = 0;
+  var holdFingerDown = false; // true while a press-hold gesture is active (tracked on document)
+  var holdCard = null;
 
   // 8 parts across the movie; play each for ~2.5s like xvideos trailers
   var PART_FRACS = [0.05, 0.17, 0.29, 0.41, 0.53, 0.65, 0.77, 0.89];
@@ -499,14 +501,21 @@
     var startX = 0;
     var startY = 0;
     var previewArmed = false;
-    var fingerDown = false;
     var id = card.getAttribute("data-video-id") || "";
+
+    function detachDocHold() {
+      document.removeEventListener("touchmove", onDocTouchMove, true);
+      document.removeEventListener("touchend", onDocTouchEnd, true);
+      document.removeEventListener("touchcancel", onDocTouchEnd, true);
+    }
 
     function endHold() {
       clearTimeout(touchTimer);
       var wasPreview = previewArmed || activePreview === card;
-      fingerDown = false;
       previewArmed = false;
+      holdFingerDown = false;
+      if (holdCard === card) holdCard = null;
+      detachDocHold();
       stopPreview(card);
       if (wasPreview) {
         card.__cfpSuppressClick = true;
@@ -514,54 +523,56 @@
       }
     }
 
+    function onDocTouchMove(e) {
+      if (!holdFingerDown || holdCard !== card) return;
+      if (!e.touches || !e.touches[0]) return;
+      var adx = Math.abs(e.touches[0].clientX - startX);
+      var ady = Math.abs(e.touches[0].clientY - startY);
+      // Before preview starts: cancel pending hold if user is scrolling the feed
+      if (!previewArmed && ady > 50 && ady > adx * 1.15) {
+        clearTimeout(touchTimer);
+      }
+      // After preview starts: do NOTHING — finger can leave the card, keep playing
+    }
+
+    function onDocTouchEnd(e) {
+      if (!holdFingerDown || holdCard !== card) return;
+      // Only end when ALL fingers are up (moving off the card must not end the hold)
+      if (e.touches && e.touches.length > 0) return;
+      endHold();
+    }
+
     card.addEventListener("touchstart", function (e) {
       if (!e.touches || !e.touches[0]) return;
+      // If another card was mid-hold, stop it
+      if (holdCard && holdCard !== card) {
+        stopPreview(holdCard);
+        holdFingerDown = false;
+        holdCard = null;
+      }
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       holdScrollY = window.scrollY || window.pageYOffset || 0;
       previewArmed = false;
-      fingerDown = true;
+      holdFingerDown = true;
+      holdCard = card;
       scrubbing = false;
       card.__cfpSuppressClick = false;
       clearTimeout(touchTimer);
+      detachDocHold();
+      // Track the whole gesture on document so sliding finger OFF the card
+      // does not fire a card-level touchend and kill the preview.
+      document.addEventListener("touchmove", onDocTouchMove, { passive: true, capture: true });
+      document.addEventListener("touchend", onDocTouchEnd, { passive: true, capture: true });
+      document.addEventListener("touchcancel", onDocTouchEnd, { passive: true, capture: true });
       resolveStreamUrl(id);
       touchTimer = setTimeout(function () {
-        if (!fingerDown) return;
+        if (!holdFingerDown || holdCard !== card) return;
         previewArmed = true;
         card.__cfpSuppressClick = true;
         startPreview(card);
       }, 160);
     }, { passive: true });
-
-    // Never stop preview on touchmove. Never preventDefault (that locked scrolling).
-    // Finger wiggle = keep playing. Real list scroll is handled by the scroll listener.
-    card.addEventListener("touchmove", function (e) {
-      if (!e.touches || !e.touches[0]) return;
-      var adx = Math.abs(e.touches[0].clientX - startX);
-      var ady = Math.abs(e.touches[0].clientY - startY);
-      if (!previewArmed) {
-        // Cancel pending hold if user is clearly scrolling the feed
-        if (ady > 40 && ady > adx) clearTimeout(touchTimer);
-      }
-      // If preview is armed: do nothing. Keep playing.
-    }, { passive: true });
-
-    card.addEventListener("touchend", function () {
-      endHold();
-    });
-
-    // touchcancel = browser took the gesture (usually started scrolling). Stop so scroll works.
-    card.addEventListener("touchcancel", function () {
-      clearTimeout(touchTimer);
-      fingerDown = false;
-      previewArmed = false;
-      // Only stop if the page actually moved — pure finger jitter shouldn't cancel
-      var scrollY = window.scrollY || window.pageYOffset || 0;
-      if (Math.abs(scrollY - holdScrollY) > 10) {
-        stopPreview(card);
-      }
-      // else keep the clip tour running (finger moved, page didn't scroll)
-    });
   }
 
   document.addEventListener("contextmenu", function (e) {
@@ -570,12 +581,21 @@
     }
   }, true);
 
-  // Stop preview when the feed actually scrolls (not when finger merely wiggles)
+  // While finger is down, never kill preview on tiny scroll jank.
+  // Only stop on scroll after the finger has lifted (orphaned) or a big scroll.
   window.addEventListener("scroll", function () {
     if (!activePreview) return;
     var scrollY = window.scrollY || window.pageYOffset || 0;
-    if (Math.abs(scrollY - holdScrollY) < 24) return;
+    var delta = Math.abs(scrollY - holdScrollY);
+    if (holdFingerDown) {
+      // Finger still down: allow small move noise; big scroll = user wants the feed
+      if (delta < 80) return;
+    } else if (delta < 40) {
+      return;
+    }
     stopPreview(activePreview);
+    holdFingerDown = false;
+    holdCard = null;
   }, { passive: true });
 
   document.querySelectorAll(".cfp-card[data-video-id], .cfp-rail-card[data-video-id]").forEach(bindCardPreview);
