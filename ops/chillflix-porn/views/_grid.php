@@ -9,10 +9,10 @@ $gridClass = $gridClass ?? 'cfp-grid';
   $href = cfp_url('/video/' . $item['slug']);
   $thumb = $item['thumb'] ?: '';
 ?>
-  <a class="cfp-card" href="<?= cfp_e($href) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>" draggable="false" oncontextmenu="return false">
+  <div class="cfp-card" role="link" tabindex="0" data-href="<?= cfp_e($href) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>">
     <div class="cfp-card-media">
       <?php if ($thumb): ?>
-        <img src="<?= cfp_e($thumb) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+        <img src="<?= cfp_e($thumb) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false">
       <?php else: ?>
         <div class="cfp-card-ph" aria-hidden="true"></div>
       <?php endif; ?>
@@ -25,6 +25,6 @@ $gridClass = $gridClass ?? 'cfp-grid';
       <h3 class="cfp-card-title"><?= cfp_e((string) $item['title']) ?></h3>
       <p class="cfp-card-sub"><?= cfp_e(cfp_fmt_views((int) ($item['views'] ?? 0))) ?> views</p>
     </div>
-  </a>
+  </div>
 <?php endforeach; ?>
 </div>

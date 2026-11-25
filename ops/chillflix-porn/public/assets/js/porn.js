@@ -176,14 +176,25 @@
     });
   }
 
-  // xvideos-style in-thumb previews: desktop hover + mobile press-and-hold (no browser link menu)
+  // xvideos-style in-thumb previews: desktop hover + mobile press-and-hold.
+  // Cards are <div role="link"> (not <a>) so Chrome never shows the link long-press menu.
   var activePreview = null;
   var previewTimer = null;
   var previewUrlCache = Object.create(null);
+  var warmCache = Object.create(null);
+
+  function cardHref(card) {
+    return card.getAttribute("data-href") || card.getAttribute("href") || "";
+  }
+
+  function openCard(card) {
+    var href = cardHref(card);
+    if (href) window.location.href = href;
+  }
 
   function stopPreview(card) {
     if (!card) return;
-    card.classList.remove("is-previewing");
+    card.classList.remove("is-previewing", "is-preview-loading");
     var vid = card.querySelector(".cfp-card-preview");
     if (vid) {
       try { vid.pause(); } catch (e) {}
@@ -204,6 +215,7 @@
     vid.className = "cfp-card-preview";
     vid.muted = true;
     vid.defaultMuted = true;
+    vid.volume = 0;
     vid.playsInline = true;
     vid.loop = true;
     vid.preload = "auto";
@@ -214,9 +226,26 @@
     vid.setAttribute("webkit-playsinline", "");
     vid.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
     vid.setAttribute("disablepictureinpicture", "");
-    vid.referrerPolicy = "no-referrer";
+    vid.hidden = true;
     media.appendChild(vid);
     return vid;
+  }
+
+  function previewProxyUrl(id) {
+    return "/porn/api/preview?id=" + encodeURIComponent(id);
+  }
+
+  function warmPreview(id) {
+    if (!id || warmCache[id]) return;
+    warmCache[id] = true;
+    // Kick the proxy early so hold feels instant (cache stream lookup + CDN warm).
+    try {
+      fetch(previewProxyUrl(id), {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { Range: "bytes=0-1", Accept: "video/*,*/*" },
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   function playPreview(card, url) {
@@ -224,32 +253,44 @@
     var media = card.querySelector(".cfp-card-media");
     if (!media) return;
     var vid = ensurePreviewVideo(media);
-    var show = function () {
+
+    // Must be visible BEFORE play() — many mobile browsers refuse display:none video.
+    vid.hidden = false;
+    card.classList.add("is-preview-loading", "is-previewing");
+
+    var markPlaying = function () {
       if (activePreview !== card) return;
-      vid.hidden = false;
+      card.classList.remove("is-preview-loading");
       card.classList.add("is-previewing");
     };
-    vid.onplaying = show;
-    if (vid.getAttribute("data-src") !== url) {
-      vid.setAttribute("data-src", url);
-      vid.src = url;
-      try { vid.currentTime = 0; } catch (e) {}
-    }
-    var p = vid.play();
-    if (p && typeof p.catch === "function") {
-      p.catch(function () {
-        var proxy = "/porn/api/preview?id=" + encodeURIComponent(card.getAttribute("data-video-id") || "");
-        if (vid.getAttribute("data-src") === proxy) {
-          stopPreview(card);
-          return;
-        }
-        vid.setAttribute("data-src", proxy);
-        vid.src = proxy;
-        vid.play().then(show).catch(function () {
-          stopPreview(card);
+
+    vid.onplaying = markPlaying;
+    vid.onloadeddata = markPlaying;
+
+    var tryPlay = function (src) {
+      if (activePreview !== card) return;
+      if (vid.getAttribute("data-src") !== src) {
+        vid.setAttribute("data-src", src);
+        vid.src = src;
+      }
+      vid.muted = true;
+      vid.defaultMuted = true;
+      vid.volume = 0;
+      var p = vid.play();
+      if (p && typeof p.then === "function") {
+        p.then(markPlaying).catch(function () {
+          if (activePreview !== card) return;
+          var proxy = previewProxyUrl(card.getAttribute("data-video-id") || "");
+          if (src === proxy) {
+            card.classList.remove("is-preview-loading", "is-previewing");
+            return;
+          }
+          tryPlay(proxy);
         });
-      });
-    }
+      }
+    };
+
+    tryPlay(url);
   }
 
   function startPreview(card) {
@@ -257,49 +298,15 @@
     if (!id) return;
     if (activePreview && activePreview !== card) stopPreview(activePreview);
     activePreview = card;
+    card.classList.add("is-preview-loading", "is-previewing");
 
-    // On touch, go straight through same-origin proxy (more reliable on mobile browsers)
-    var preferProxy = false;
-    try {
-      preferProxy = window.matchMedia("(pointer: coarse)").matches;
-    } catch (e) {}
-
-    if (preferProxy) {
-      playPreview(card, "/porn/api/preview?id=" + encodeURIComponent(id));
-      return;
-    }
-
-    if (previewUrlCache[id]) {
-      playPreview(card, previewUrlCache[id]);
-      return;
-    }
-
-    fetch("/porn/api/stream?id=" + encodeURIComponent(id), {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (activePreview !== card || !data || !data.ok || !data.streams) return;
-        var url = data.streams.low || data.streams.high || "";
-        if (!url) {
-          playPreview(card, "/porn/api/preview?id=" + encodeURIComponent(id));
-          return;
-        }
-        previewUrlCache[id] = url;
-        playPreview(card, url);
-      })
-      .catch(function () {
-        if (activePreview === card) {
-          playPreview(card, "/porn/api/preview?id=" + encodeURIComponent(id));
-        }
-      });
+    // Always prefer same-origin proxy for reliability (CDN often blocks mobile <video>).
+    playPreview(card, previewProxyUrl(id));
   }
 
   function bindCardPreview(card) {
-    if (!card.getAttribute("data-video-id")) return;
+    if (!card.getAttribute("data-video-id") && !cardHref(card)) return;
 
-    // Block Chrome/Safari long-press "Open in new tab" menu — preview plays instead
     var blockMenu = function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -307,12 +314,23 @@
     };
     card.addEventListener("contextmenu", blockMenu, true);
     card.setAttribute("draggable", "false");
-    var imgs = card.querySelectorAll("img");
-    for (var i = 0; i < imgs.length; i++) {
-      imgs[i].addEventListener("contextmenu", blockMenu, true);
-      imgs[i].draggable = false;
-      imgs[i].setAttribute("draggable", "false");
-    }
+
+    // Tap / keyboard → open video (cards are div[role=link], not <a>)
+    card.addEventListener("click", function (e) {
+      if (card.__cfpSuppressClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        card.__cfpSuppressClick = false;
+        return;
+      }
+      if (cardHref(card)) openCard(card);
+    });
+    card.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openCard(card);
+      }
+    });
 
     card.addEventListener("mouseenter", function () {
       clearTimeout(previewTimer);
@@ -327,59 +345,60 @@
     var startX = 0;
     var startY = 0;
     var previewArmed = false;
-    var suppressClick = false;
-
-    // Short tap → open video. Press-hold → in-thumb preview (xvideos-style), no nav, no Chrome menu.
-    card.addEventListener("click", function (e) {
-      if (suppressClick) {
-        e.preventDefault();
-        e.stopPropagation();
-        suppressClick = false;
-      }
-    }, true);
+    var moved = false;
+    var id = card.getAttribute("data-video-id") || "";
 
     card.addEventListener("touchstart", function (e) {
       if (!e.touches || !e.touches[0]) return;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       previewArmed = false;
-      suppressClick = false;
+      moved = false;
+      card.__cfpSuppressClick = false;
       clearTimeout(touchTimer);
+      // Warm proxy immediately so video is ready when hold threshold hits
+      warmPreview(id);
       touchTimer = setTimeout(function () {
         previewArmed = true;
-        suppressClick = true;
+        card.__cfpSuppressClick = true;
         startPreview(card);
-      }, 180);
+      }, 200);
     }, { passive: true });
 
     card.addEventListener("touchmove", function (e) {
       if (!e.touches || !e.touches[0]) return;
       var dx = Math.abs(e.touches[0].clientX - startX);
       var dy = Math.abs(e.touches[0].clientY - startY);
-      if (dx > 12 || dy > 12) {
+      // Generous threshold — finger jitter shouldn't cancel hold
+      if (dx > 36 || dy > 36) {
+        moved = true;
         clearTimeout(touchTimer);
         if (previewArmed) stopPreview(card);
         previewArmed = false;
-        suppressClick = false;
+        card.__cfpSuppressClick = false;
       }
     }, { passive: true });
 
     card.addEventListener("touchend", function () {
       clearTimeout(touchTimer);
+      var wasPreview = previewArmed;
       stopPreview(card);
       previewArmed = false;
-      // keep suppressClick until click handler runs (same gesture)
-      setTimeout(function () { suppressClick = false; }, 350);
+      if (wasPreview || moved) {
+        // Hold preview or scroll — don't navigate
+        card.__cfpSuppressClick = true;
+        setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
+      }
     });
     card.addEventListener("touchcancel", function () {
       clearTimeout(touchTimer);
       stopPreview(card);
       previewArmed = false;
-      suppressClick = false;
+      card.__cfpSuppressClick = true;
+      setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
     });
   }
 
-  // Capture-phase: kill link long-press menus even if a child is the event target
   document.addEventListener("contextmenu", function (e) {
     if (e.target && e.target.closest && e.target.closest(".cfp-card, .cfp-rail-card")) {
       e.preventDefault();

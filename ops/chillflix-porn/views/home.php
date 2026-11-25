@@ -46,10 +46,10 @@ $heading = $activeCatName ?: ($isFiltered ? 'Results' : 'Newest videos');
   <div class="cfp-rail" data-cfp-rail>
     <div class="cfp-rail-track">
       <?php foreach (array_slice($popular['items'], 0, 10) as $item): ?>
-        <a class="cfp-rail-card cfp-card" href="<?= cfp_e(cfp_url('/video/' . $item['slug'])) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>" draggable="false" oncontextmenu="return false">
+        <div class="cfp-rail-card cfp-card" role="link" tabindex="0" data-href="<?= cfp_e(cfp_url('/video/' . $item['slug'])) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>">
           <div class="cfp-card-media">
             <?php if (!empty($item['thumb'])): ?>
-              <img src="<?= cfp_e($item['thumb']) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+              <img src="<?= cfp_e($item['thumb']) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false">
             <?php else: ?>
               <div class="cfp-card-ph" aria-hidden="true"></div>
             <?php endif; ?>
@@ -59,7 +59,7 @@ $heading = $activeCatName ?: ($isFiltered ? 'Results' : 'Newest videos');
             <span class="cfp-card-play" aria-hidden="true"></span>
           </div>
           <h3 class="cfp-card-title"><?= cfp_e((string) $item['title']) ?></h3>
-        </a>
+        </div>
       <?php endforeach; ?>
     </div>
   </div>
