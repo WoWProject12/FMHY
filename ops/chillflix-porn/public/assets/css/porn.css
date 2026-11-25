@@ -587,22 +587,36 @@ a.cfp-dd-option { color: var(--cfp-text); }
   background: var(--cfp-surface-2); color: var(--cfp-accent); font-size: 0.65rem; font-weight: 800;
   flex: 0 0 auto;
 }
-.cfp-person-chip > strong {
+.cfp-person-chip-text {
+  display: flex; flex-direction: column; line-height: 1.1; min-width: 0;
+}
+.cfp-person-chip-text strong {
   font-size: 0.75rem; font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 9.5rem;
 }
-.cfp-person-chip-text {
-  display: none; flex-direction: column; line-height: 1.15; min-width: 0;
-}
-.cfp-person-chip-text strong {
-  font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 .cfp-person-chip-text em {
-  font-style: normal; color: var(--cfp-muted); font-size: 0.68rem; font-weight: 600;
+  font-style: normal; color: var(--cfp-muted); font-size: 0.62rem; font-weight: 600;
 }
-@media (min-width: 700px) {
-  .cfp-person-chip-text { display: flex; }
-  .cfp-person-chip > strong { display: none; }
+
+.cfp-quality {
+  display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
+  padding: 0.45rem 0.55rem; border-top: 1px solid var(--cfp-border);
+  background: var(--cfp-surface);
+}
+.cfp-quality[hidden] { display: none !important; }
+.cfp-quality-label {
+  font-size: 0.7rem; font-weight: 700; color: var(--cfp-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.cfp-quality-opts { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.cfp-quality-btn {
+  border: 1px solid var(--cfp-border); background: transparent;
+  color: var(--cfp-text); border-radius: 999px;
+  padding: 0.25rem 0.65rem; font: inherit; font-size: 0.75rem; font-weight: 700;
+  cursor: pointer;
+}
+.cfp-quality-btn.is-on {
+  background: var(--cfp-accent); color: #1a1208; border-color: var(--cfp-accent);
 }
 .cfp-chips-watch { margin: 0; gap: 0.25rem; }
 .cfp-tags-more {

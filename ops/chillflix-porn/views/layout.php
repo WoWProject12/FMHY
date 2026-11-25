@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=30oneup')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=31quality')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
   <style>
     html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
@@ -29,8 +29,9 @@ declare(strict_types=1);
     .cfp-people-row{display:flex!important;flex-wrap:wrap!important;gap:.3rem;margin:0 0 .35rem;max-width:100%}
     .cfp-person-chip{padding:.2rem .55rem .2rem .2rem!important;gap:.3rem!important}
     .cfp-person-chip-mark{width:1.25rem!important;height:1.25rem!important;font-size:.65rem!important}
-    .cfp-person-chip strong{font-size:.75rem!important;font-weight:600}
-    .cfp-person-chip-text,.cfp-person-chip em{display:none!important}
+    .cfp-person-chip-text{display:flex!important;flex-direction:column;line-height:1.1}
+    .cfp-person-chip-text strong{font-size:.75rem!important;font-weight:600}
+    .cfp-person-chip-text em{display:block!important;font-style:normal;color:#c2b08a;font-size:.62rem;font-weight:600}
     .cfp-chips,.cfp-chips-watch{display:flex!important;flex-wrap:wrap!important;gap:.25rem;max-width:100%;margin:0}
     .cfp-chip{padding:.18rem .45rem!important;font-size:.7rem!important}
     .cfp-chips-cats{display:none!important}
@@ -51,7 +52,6 @@ declare(strict_types=1);
       .cfp-card-sub{display:block}
       .cfp-rail-track{grid-auto-flow:column!important;grid-template-columns:none!important;grid-auto-columns:140px!important;overflow-x:auto}
       .cfp-rail-card{width:140px!important;max-width:140px!important}
-      .cfp-person-chip-text,.cfp-person-chip em{display:flex!important}
     }
   </style>
 </head>
@@ -116,6 +116,6 @@ declare(strict_types=1);
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=30oneup')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=31quality')) ?>" defer></script>
 </body>
 </html>

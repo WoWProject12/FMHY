@@ -16,6 +16,10 @@ $cats = $meta['categories'] ?? [];
       <video id="cfpPlayer" playsinline controls preload="metadata" poster="<?= cfp_e((string) ($video['thumb'] ?? '')) ?>"></video>
       <div class="cfp-player-status" id="cfpPlayerStatus">Loading stream…</div>
     </div>
+    <div class="cfp-quality" id="cfpQuality" hidden>
+      <span class="cfp-quality-label">Quality</span>
+      <div class="cfp-quality-opts" role="group" aria-label="Video quality"></div>
+    </div>
   </div>
 
   <header class="cfp-watch-head">
@@ -46,7 +50,10 @@ $cats = $meta['categories'] ?? [];
         <?php foreach ($peopleUnique as $a): ?>
           <a class="cfp-person-chip" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($a['slug']))) ?>">
             <span class="cfp-person-chip-mark"><?= cfp_e(strtoupper(substr((string) $a['name'], 0, 1))) ?></span>
-            <strong><?= cfp_e((string) $a['name']) ?></strong>
+            <span class="cfp-person-chip-text">
+              <strong><?= cfp_e((string) $a['name']) ?></strong>
+              <?php if (!empty($a['n'])): ?><em><?= (int) $a['n'] ?> videos</em><?php endif; ?>
+            </span>
           </a>
         <?php endforeach; ?>
       </div>

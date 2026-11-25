@@ -626,16 +626,14 @@
   var videoId = root.getAttribute("data-video-id") || "";
   var video = document.getElementById("cfpPlayer");
   var status = document.getElementById("cfpPlayerStatus");
+  var qualityBox = document.getElementById("cfpQuality");
+  var qualityOpts = qualityBox ? qualityBox.querySelector(".cfp-quality-opts") : null;
   if (!videoId || !video) return;
 
   function setStatus(msg, ready) {
     if (!status) return;
     status.textContent = msg || "";
     status.classList.toggle("is-ready", !!ready);
-  }
-
-  function pickUrl(streams) {
-    return streams.high || streams.low || streams.hls || "";
   }
 
   video.setAttribute("playsinline", "");
@@ -647,9 +645,10 @@
   video.referrerPolicy = "no-referrer";
 
   var proxyUrl = "/porn/api/preview?id=" + encodeURIComponent(videoId);
-  var queue = [];
-  var qIdx = 0;
+  var qualities = []; // [{id,label,url}]
+  var activeQ = "";
   var loadGen = 0;
+  var failFallback = false;
 
   function tryPlay() {
     var p = video.play();
@@ -660,21 +659,66 @@
     }
   }
 
-  function loadNext(reason) {
-    if (qIdx >= queue.length) {
-      setStatus("Stream unavailable — try again later.");
-      return;
-    }
+  function markQuality(id) {
+    activeQ = id;
+    if (!qualityOpts) return;
+    qualityOpts.querySelectorAll("button").forEach(function (btn) {
+      btn.classList.toggle("is-on", btn.getAttribute("data-q") === id);
+    });
+  }
+
+  function playSource(url, id, seekTo, wasPlaying) {
     var my = ++loadGen;
-    var url = queue[qIdx++];
-    setStatus(reason || "Loading…");
+    failFallback = false;
+    markQuality(id);
+    setStatus("Loading…");
     video.referrerPolicy = "no-referrer";
     video.src = url;
     try { video.load(); } catch (e) {}
-    // Ignore spurious error events from the previous src swap
+    var onMeta = function () {
+      video.removeEventListener("loadedmetadata", onMeta);
+      if (my !== loadGen) return;
+      if (seekTo && isFinite(seekTo) && seekTo > 0.5) {
+        try { video.currentTime = seekTo; } catch (e2) {}
+      }
+      if (wasPlaying !== false) tryPlay();
+      setStatus("", true);
+    };
+    video.addEventListener("loadedmetadata", onMeta);
     setTimeout(function () {
-      if (my === loadGen) tryPlay();
-    }, 30);
+      if (my === loadGen && video.readyState < 1) tryPlay();
+    }, 40);
+  }
+
+  function buildQualityUi(streams) {
+    qualities = [];
+    if (streams.low) qualities.push({ id: "low", label: "240p", url: streams.low });
+    if (streams.high) qualities.push({ id: "high", label: "360p", url: streams.high });
+    // Label from URL hint when possible
+    qualities.forEach(function (q) {
+      var m = String(q.url).match(/(\d{3,4})p/i);
+      if (m) q.label = m[1] + "p";
+      else if (q.id === "high") q.label = "HQ";
+      else if (q.id === "low") q.label = "LQ";
+    });
+    if (!qualityBox || !qualityOpts || qualities.length < 1) {
+      if (qualityBox) qualityBox.hidden = true;
+      return;
+    }
+    qualityOpts.innerHTML = "";
+    qualities.forEach(function (q) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cfp-quality-btn";
+      btn.setAttribute("data-q", q.id);
+      btn.textContent = q.label;
+      btn.addEventListener("click", function () {
+        if (q.id === activeQ) return;
+        playSource(q.url, q.id, video.currentTime || 0, !video.paused);
+      });
+      qualityOpts.appendChild(btn);
+    });
+    qualityBox.hidden = qualities.length < 2;
   }
 
   video.addEventListener("loadeddata", function () {
@@ -684,15 +728,21 @@
     setStatus("", true);
   });
   video.addEventListener("error", function () {
-    var errGen = loadGen;
-    setTimeout(function () {
-      if (errGen !== loadGen) return;
-      loadNext("Retrying…");
-    }, 50);
+    if (failFallback) {
+      setStatus("Stream unavailable — try again later.");
+      return;
+    }
+    // Current quality failed → try the other CDN quality, then proxy
+    var next = qualities.find(function (q) { return q.id !== activeQ; });
+    if (next) {
+      failFallback = true;
+      playSource(next.url, next.id, video.currentTime || 0, true);
+      return;
+    }
+    failFallback = true;
+    playSource(proxyUrl, "proxy", video.currentTime || 0, true);
   });
 
-  // Same path as working card previews: CDN mp4 + no-referrer.
-  // Mobile prefers low → high → same-origin proxy.
   fetch("/porn/api/stream?id=" + encodeURIComponent(videoId), {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
@@ -700,27 +750,27 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data || !data.ok || !data.streams) {
-        queue = [proxyUrl];
-        loadNext("Loading…");
+        playSource(proxyUrl, "proxy", 0, true);
         return;
       }
       var s = data.streams;
       if (s.poster) video.setAttribute("poster", s.poster);
+      buildQualityUi(s);
       var coarse = false;
       try { coarse = window.matchMedia("(pointer: coarse)").matches; } catch (e1) {}
+      var start = null;
       if (coarse) {
-        if (s.low) queue.push(s.low);
-        if (s.high) queue.push(s.high);
+        start = qualities.find(function (q) { return q.id === "low"; }) || qualities[0];
       } else {
-        if (s.high) queue.push(s.high);
-        if (s.low) queue.push(s.low);
+        start = qualities.find(function (q) { return q.id === "high"; }) || qualities[0];
       }
-      queue.push(proxyUrl);
-      queue = queue.filter(function (u, i, a) { return u && a.indexOf(u) === i; });
-      loadNext("Loading…");
+      if (!start) {
+        playSource(proxyUrl, "proxy", 0, true);
+        return;
+      }
+      playSource(start.url, start.id, 0, true);
     })
     .catch(function () {
-      queue = [proxyUrl];
-      loadNext("Loading…");
+      playSource(proxyUrl, "proxy", 0, true);
     });
 })();
