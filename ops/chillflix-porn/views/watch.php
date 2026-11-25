@@ -95,7 +95,7 @@ $viewsLabel = cfp_fmt_views((int) ($video['source_views'] ?? $video['views'] ?? 
 
         <button type="button" class="cfp-player-bigplay" id="cfpBigPlay" aria-label="Play">
           <span class="cfp-player-bigplay-box" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="34" height="34" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
           </span>
         </button>
 

@@ -897,7 +897,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-player-status.is-ready { opacity: 0; transition: opacity .4s ease; }
 
-/* xvideos-style chrome — gold instead of red */
+/* xvideos chrome — gold accents (not red) */
 .cfp-player-bigplay {
   position: absolute; inset: 0; z-index: 5;
   display: grid; place-items: center;
@@ -906,18 +906,20 @@ a.cfp-dd-option { color: var(--cfp-text); }
   opacity: 0; pointer-events: none;
   transition: opacity 0.12s ease;
 }
-/* xvideos play: large translucent CIRCLE + white triangle */
+/* Center: frosted WHITE circle + play triangle (xvideos) */
 .cfp-player-bigplay-box {
   display: grid; place-items: center;
-  width: 78px; height: 78px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22);
-  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 1px 10px rgba(0,0,0,0.4);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
 }
 .cfp-player-bigplay-box svg {
   display: block;
-  width: 36px; height: 36px;
-  margin-left: 4px;
+  width: 32px; height: 32px;
+  margin-left: 3px;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
 }
 .cfp-player-stage.is-paused .cfp-player-bigplay {
@@ -926,10 +928,10 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-player-stage.is-playing .cfp-player-bigplay {
   opacity: 0 !important; pointer-events: none !important;
 }
-/* Top-right: circular gear + camera (xvideos) */
+/* Top-right: circular gear + camera */
 .cfp-player-top {
-  position: absolute; top: 0.4rem; right: 0.4rem; z-index: 7;
-  display: flex; align-items: center; gap: 0.4rem;
+  position: absolute; top: 8px; right: 8px; z-index: 7;
+  display: flex; align-items: center; gap: 8px;
   opacity: 0; pointer-events: none;
   transition: opacity 0.12s ease;
 }
@@ -940,94 +942,105 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-overlay-btn {
   display: inline-grid; place-items: center;
-  width: 34px; height: 34px; padding: 0;
-  border: 0; border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
+  width: 36px; height: 36px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
   color: #fff;
   cursor: pointer;
   -webkit-appearance: none; appearance: none;
 }
 .cfp-overlay-btn:hover,
 .cfp-overlay-btn[aria-expanded="true"] {
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.72);
 }
 .cfp-player-gear { position: relative; }
-/* Chrome glued to bottom edge of the VIDEO frame */
+/*
+  Bottom chrome (xvideos):
+  [○ mute] 00:00 / 11:21 ………… [○ fs]
+  ════════════════════════════════ seek (flush bottom, gold)
+*/
 .cfp-player-chrome {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
-  padding: 1.25rem 0.55rem 0.2rem;
-  background: linear-gradient(transparent, rgba(0,0,0,0.78));
+  padding: 28px 6px 0;
+  background: linear-gradient(transparent 0%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.85) 100%);
   opacity: 0; pointer-events: none;
   transition: opacity 0.12s ease;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 2px;
   box-sizing: border-box;
 }
 .cfp-player-stage.is-chrome .cfp-player-chrome,
 .cfp-player-stage.is-paused .cfp-player-chrome {
   opacity: 1; pointer-events: auto;
 }
-/* xvideos order: mute · time ………… fs, THEN seek flush to bottom */
 .cfp-player-bar {
-  display: flex; align-items: center; gap: 0.3rem;
-  min-height: 1.7rem;
+  display: flex; align-items: center; gap: 6px;
+  min-height: 36px;
   width: 100%;
-  padding: 0 0.1rem;
+  padding: 0 2px 2px;
 }
-.cfp-player-spacer { flex: 1 1 auto; }
+.cfp-player-spacer { flex: 1 1 auto; min-width: 8px; }
+/* Mute / FS: same circular dark pills as top overlays */
 .cfp-ctrl-btn {
   display: inline-grid; place-items: center;
-  width: 2rem; height: 2rem; padding: 0;
-  border: 0; border-radius: 3px;
-  background: transparent; color: #fff;
+  width: 34px; height: 34px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
   cursor: pointer; flex: 0 0 auto;
+  -webkit-appearance: none; appearance: none;
 }
-.cfp-ctrl-btn:hover { background: rgba(255,255,255,0.1); }
+.cfp-ctrl-btn:hover { background: rgba(0, 0, 0, 0.7); }
+.cfp-ctrl-btn svg { display: block; }
 .cfp-player-time {
   color: #fff;
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
   white-space: nowrap;
   flex: 0 0 auto;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.65);
+  line-height: 1;
 }
 .cfp-seek {
   position: relative;
   width: 100%;
-  height: 14px;
-  display: flex; align-items: center;
+  height: 16px;
+  display: flex; align-items: flex-end;
   touch-action: none;
   cursor: pointer;
   flex: 0 0 auto;
   margin: 0;
+  padding: 0 0 3px;
+  box-sizing: border-box;
 }
 .cfp-seek-track {
   position: relative;
   width: 100%;
-  height: 2.5px;
-  border-radius: 1px;
-  background: rgba(255,255,255,0.3);
+  height: 3px;
+  border-radius: 0;
+  background: rgba(255,255,255,0.28);
 }
 .cfp-seek-fill {
   position: absolute; left: 0; top: 0; bottom: 0;
   width: 0%;
-  border-radius: 1px;
+  border-radius: 0;
   background: var(--cfp-accent);
 }
 .cfp-seek-knob {
   position: absolute; top: 50%;
   left: 0%;
-  width: 11px; height: 11px;
-  margin: -5.5px 0 0 -5.5px;
+  width: 12px; height: 12px;
+  margin: -6px 0 0 -6px;
   border-radius: 50%;
   background: var(--cfp-accent);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.45);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
   opacity: 1;
 }
 .cfp-seek:hover .cfp-seek-track,
-.cfp-seek.is-dragging .cfp-seek-track { height: 3.5px; }
+.cfp-seek.is-dragging .cfp-seek-track { height: 4px; }
 .cfp-player-stage.is-muted .cfp-ico-vol { display: none; }
 .cfp-player-stage:not(.is-muted) .cfp-ico-mute { display: none !important; }
 .cfp-player-stage.is-muted .cfp-ico-mute { display: block !important; }
@@ -1036,7 +1049,8 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-player-stage.is-fs .cfp-ico-fs-exit { display: block !important; }
 @media (min-width: 900px) {
   .cfp-player { border-radius: 6px; border: 1px solid var(--cfp-border); }
-  .cfp-player-bigplay-box { width: 88px; height: 88px; }
+  .cfp-player-bigplay-box { width: 84px; height: 84px; }
+  .cfp-player-bigplay-box svg { width: 36px; height: 36px; }
   .cfp-player-frame { max-height: min(70vh, 720px); }
 }
 .cfp-watch-meta {
