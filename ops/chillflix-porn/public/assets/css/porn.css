@@ -172,7 +172,8 @@ body.page-porn .aurora-bg {
   border: 0; border-radius: 0; background: transparent;
 }
 .cfp-toolbar-row {
-  display: flex; flex-wrap: nowrap; align-items: center; gap: 0.3rem;
+  display: flex; flex-wrap: nowrap; align-items: center; justify-content: center;
+  gap: 0.22rem;
   overflow-x: auto; overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -193,8 +194,8 @@ body.page-porn .aurora-bg {
 
 .cfp-dd { position: relative; flex: 0 0 auto; }
 .cfp-toolbar .cfp-dd-btn, .cfp-adv-toggle {
-  display: inline-flex; align-items: center; gap: 0.28rem;
-  padding: 0.28rem 0.55rem 0.28rem 0.6rem; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 0.22rem;
+  padding: 0.26rem 0.45rem; border-radius: 999px;
   border: 1px solid var(--cfp-border); background: var(--cfp-surface-2);
   color: var(--cfp-text); cursor: pointer; font: inherit; text-align: left;
   white-space: nowrap; line-height: 1.15;
@@ -224,8 +225,8 @@ body.page-porn .aurora-bg {
   letter-spacing: 0.08em; color: var(--cfp-muted); line-height: 1;
 }
 .cfp-toolbar .cfp-dd-value {
-  display: inline; font-size: 0.74rem; font-weight: 600; line-height: 1.2;
-  max-width: 8.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: inline; font-size: 0.7rem; font-weight: 600; line-height: 1.2;
+  max-width: 6.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cfp-dd-value { display: block; font-size: 0.82rem; font-weight: 700; line-height: 1.15; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cfp-dd-caret {
@@ -306,6 +307,16 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-section-head h1, .cfp-section-head h2 {
   margin: 0; font-family: Georgia, "Times New Roman", serif;
   font-weight: 600; color: #f7f4ee; font-size: 1rem;
+}
+.cfp-section-head > a {
+  color: var(--cfp-accent);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.cfp-section-head > a:hover {
+  color: var(--cfp-accent-hi);
 }
 
 /* Horizontal rails — dense thumbs */
