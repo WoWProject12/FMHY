@@ -3,7 +3,9 @@ declare(strict_types=1);
 /** @var array $person */
 /** @var array $results */
 /** @var array $filters */
+/** @var list<array> $personTags */
 $sort = (string) ($filters['sort'] ?? 'views');
+$personTags = $personTags ?? [];
 ?>
 <section class="cfp-section cfp-section-tight">
   <header class="cfp-person-head">
@@ -22,6 +24,17 @@ $sort = (string) ($filters['sort'] ?? 'views');
       </div>
     </div>
   </header>
+
+  <?php if ($personTags): ?>
+  <div class="cfp-person-tags" aria-label="Tags">
+    <?php foreach ($personTags as $t): ?>
+      <a class="cfp-chip cfp-chip-soft" href="<?= cfp_e(cfp_url('/tag/' . rawurlencode($t['slug']))) ?>">
+        <?= cfp_e((string) $t['name']) ?>
+        <span><?= (int) $t['n'] ?></span>
+      </a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
 
   <div class="cfp-person-sort">
     <a class="<?= $sort !== 'new' ? 'is-on' : '' ?>" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($person['slug']))) ?>">Popular</a>

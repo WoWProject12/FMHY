@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS videos (
   tracking_url VARCHAR(800) DEFAULT NULL,
   embed TEXT,
   views INT UNSIGNED NOT NULL DEFAULT 0,
+  enriched_at DATETIME NULL DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS videos (
   KEY idx_created (created_at),
   KEY idx_views (views),
   KEY idx_slug (slug),
+  KEY idx_enriched (enriched_at),
   FULLTEXT KEY ft_title (title)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

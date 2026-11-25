@@ -266,6 +266,164 @@ function cfp_xv_fetch_streams(PDO $pdo, string $videoId): ?array
 }
 
 /**
+ * Parse models / channel / keyword tags from an xvideos watch HTML page.
+ * @return array{people:list<array{name:string,slug:string,role:string}>,tags:list<string>}
+ */
+function cfp_xv_parse_video_page_meta(string $html): array
+{
+    $people = [];
+    $tags = [];
+    $seenPeople = [];
+    $seenTags = [];
+    if ($html === '') {
+        return ['people' => [], 'tags' => []];
+    }
+
+    $addPerson = static function (string $href, string $name, string $role) use (&$people, &$seenPeople): void {
+        $name = trim(html_entity_decode(strip_tags($name), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $name = preg_replace('/\s+/', ' ', $name) ?? $name;
+        if ($name === '') {
+            return;
+        }
+        $href = trim($href);
+        $slug = '';
+        if (preg_match('~/(?:models|amateurs|profiles|pornstar(?:s)?|channels|amateur-channels)/([^/?#]+)~i', $href, $m)) {
+            $slug = strtolower($m[1]);
+        } elseif (preg_match('~^/([a-z0-9][a-z0-9\-_]+)$~i', $href, $m)) {
+            $slug = strtolower($m[1]);
+        }
+        if ($slug === '') {
+            $slug = cfp_slug($name);
+        }
+        $key = $slug !== '' ? $slug : strtolower($name);
+        if (isset($seenPeople[$key])) {
+            return;
+        }
+        $seenPeople[$key] = true;
+        $people[] = ['name' => $name, 'slug' => $slug, 'role' => $role];
+    };
+
+    // Channel / uploader
+    if (preg_match_all(
+        '/<li[^>]*class="[^"]*main-uploader[^"]*"[\s\S]*?<a[^>]+href="([^"]+)"[\s\S]*?<span[^>]*class="name"[^>]*>(?:<span[^>]*>[\s\S]*?<\/span>\s*)?([^<]+)/i',
+        $html,
+        $ups,
+        PREG_SET_ORDER
+    )) {
+        foreach ($ups as $u) {
+            $addPerson($u[1], $u[2], 'channel');
+        }
+    }
+
+    // Models / pornstars
+    if (preg_match_all(
+        '/<li[^>]*class="[^"]*\bmodel\b[^"]*"[\s\S]*?<a[^>]+href="([^"]+)"[\s\S]*?<span[^>]*class="name"[^>]*>([^<]+)/i',
+        $html,
+        $mods,
+        PREG_SET_ORDER
+    )) {
+        foreach ($mods as $mod) {
+            $addPerson($mod[1], $mod[2], 'model');
+        }
+    }
+
+    // Keyword tags (xvideos "is-keyword")
+    if (preg_match_all(
+        '/<a[^>]+href="\/tags\/([^"?#]+)"[^>]*class="[^"]*is-keyword[^"]*"[^>]*>([^<]+)<\/a>/i',
+        $html,
+        $tms,
+        PREG_SET_ORDER
+    )) {
+        foreach ($tms as $tm) {
+            $label = trim(html_entity_decode($tm[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if ($label === '') {
+                $label = str_replace('-', ' ', rawurldecode($tm[1]));
+            }
+            $key = strtolower($label);
+            if ($label === '' || isset($seenTags[$key])) {
+                continue;
+            }
+            $seenTags[$key] = true;
+            $tags[] = $label;
+        }
+    }
+
+    return ['people' => $people, 'tags' => $tags];
+}
+
+/**
+ * Fetch watch page and attach real models + keyword tags (xvideos-style).
+ * @return bool true when meta was written
+ */
+function cfp_xv_enrich_video(PDO $pdo, array $video, bool $force = false): bool
+{
+    $id = (int) ($video['id'] ?? 0);
+    if ($id < 1) {
+        return false;
+    }
+    if (!$force && !empty($video['enriched_at'])) {
+        return false;
+    }
+
+    $url = trim((string) ($video['tracking_url'] ?? ''));
+    if ($url === '' || stripos($url, 'xvideos.com') === false) {
+        // Mark so we do not keep retrying dead rows
+        $pdo->prepare('UPDATE videos SET enriched_at = NOW() WHERE id = ?')->execute([$id]);
+        return false;
+    }
+
+    $html = cfp_xv_http_get($url, 20);
+    if ($html === '') {
+        // Network/temporary failure — leave enriched_at NULL so we retry later
+        return false;
+    }
+    $meta = cfp_xv_parse_video_page_meta($html);
+    if (!$meta['people'] && !$meta['tags']) {
+        // Page loaded but no metadata (deleted/region) — stamp to stop retry loops
+        $pdo->prepare('UPDATE videos SET enriched_at = NOW() WHERE id = ?')->execute([$id]);
+        return false;
+    }
+
+    foreach ($meta['people'] as $person) {
+        $aid = cfp_upsert_actor($pdo, (string) $person['name'], (string) $person['slug']);
+        if ($aid) {
+            $pdo->prepare('INSERT IGNORE INTO video_actors (video_id, actor_id) VALUES (?,?)')->execute([$id, $aid]);
+        }
+    }
+    foreach ($meta['tags'] as $tagName) {
+        $tid = cfp_upsert_tag($pdo, (string) $tagName);
+        if ($tid) {
+            $pdo->prepare('INSERT IGNORE INTO video_tags (video_id, tag_id) VALUES (?,?)')->execute([$id, $tid]);
+        }
+    }
+
+    $pdo->prepare('UPDATE videos SET enriched_at = NOW() WHERE id = ?')->execute([$id]);
+    return true;
+}
+
+/**
+ * Enrich up to $limit videos that still need models/tags from xvideos.
+ */
+function cfp_xv_enrich_pending(PDO $pdo, int $limit = 8): int
+{
+    $limit = max(1, min(40, $limit));
+    $st = $pdo->prepare(
+        'SELECT * FROM videos
+         WHERE enriched_at IS NULL AND tracking_url IS NOT NULL AND tracking_url <> \'\'
+         ORDER BY views DESC, id DESC
+         LIMIT ?'
+    );
+    $st->execute([$limit]);
+    $n = 0;
+    foreach ($st->fetchAll() as $row) {
+        if (cfp_xv_enrich_video($pdo, $row, true)) {
+            $n++;
+        }
+    }
+    return $n;
+}
+
+/**
  * Import one listing page into DB.
  * @return int inserted or updated count
  */

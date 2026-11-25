@@ -552,6 +552,10 @@ a.cfp-dd-option { color: var(--cfp-text); }
   display: flex; align-items: center; gap: 0.85rem;
 }
 .cfp-person-count { margin: 0.15rem 0 0; color: var(--cfp-muted); font-size: 0.88rem; }
+.cfp-person-tags {
+  display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.85rem;
+}
+.cfp-chips-cats { margin-top: 0.35rem; opacity: 0.92; }
 .cfp-person-sort {
   display: flex; gap: 0.35rem; margin: 0 0 0.85rem;
 }

@@ -12,3 +12,9 @@ require __DIR__ . '/db.php';
 require __DIR__ . '/xvideos.php';
 
 date_default_timezone_set('UTC');
+
+try {
+    cfp_ensure_schema(cfp_pdo());
+} catch (Throwable $e) {
+    // DB may be unavailable during first install
+}

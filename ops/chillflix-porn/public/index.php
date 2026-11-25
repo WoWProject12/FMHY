@@ -180,6 +180,14 @@ try {
             $view = '404';
         } else {
             cfp_bump_views($pdo, (int) $video['id']);
+            // Pull real models + keyword tags from xvideos watch page (once)
+            if (empty($video['enriched_at'])) {
+                cfp_xv_enrich_video($pdo, $video, true);
+                $fresh = cfp_get_video_by_slug($pdo, $m[1]);
+                if ($fresh) {
+                    $video = $fresh;
+                }
+            }
             $meta = cfp_video_meta($pdo, (int) $video['id']);
             $fromPeople = cfp_more_from_people($pdo, (int) $video['id'], 8);
             $exclude = [];
@@ -218,8 +226,9 @@ try {
                 'per' => $filters['per'],
                 'sort' => $personSort,
             ]);
+            $personTags = cfp_person_tags($pdo, (int) $person['id'], 36);
             $view = 'person';
-            $viewData = compact('person', 'results', 'filters');
+            $viewData = compact('person', 'results', 'filters', 'personTags');
             $pageTitle = $person['name'] . ' — ' . CFP_SITE_NAME;
             $pageDescription = 'Videos from ' . $person['name'];
             if ($filters['density'] === 'compact') {

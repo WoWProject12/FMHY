@@ -39,13 +39,17 @@ $cats = $meta['categories'] ?? [];
       </div>
     <?php endif; ?>
 
-    <?php if ($cats || $tags): ?>
-      <div class="cfp-chips">
-        <?php foreach ($cats as $c): ?>
-          <a class="cfp-chip" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>"><?= cfp_e($c['name']) ?></a>
-        <?php endforeach; ?>
+    <?php if ($tags): ?>
+      <div class="cfp-chips" aria-label="Tags">
         <?php foreach ($tags as $t): ?>
           <a class="cfp-chip cfp-chip-soft" href="<?= cfp_e(cfp_url('/tag/' . rawurlencode($t['slug']))) ?>"><?= cfp_e($t['name']) ?></a>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+    <?php if ($cats): ?>
+      <div class="cfp-chips cfp-chips-cats" aria-label="Categories">
+        <?php foreach ($cats as $c): ?>
+          <a class="cfp-chip" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>"><?= cfp_e($c['name']) ?></a>
         <?php endforeach; ?>
       </div>
     <?php endif; ?>

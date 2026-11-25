@@ -56,10 +56,18 @@ for ($i = 0; $i < 2; $i++) {
     $offset++;
 }
 
+// Enrich pending rows with real models + keyword tags from watch pages
+$enriched = 0;
+try {
+    $enriched = cfp_xv_enrich_pending($pdo, 10);
+} catch (Throwable $e) {
+    echo "enrich ERR " . $e->getMessage() . "\n";
+}
+
 $newState = json_encode(['offset' => $offset, 'page' => $page], JSON_UNESCAPED_SLASHES);
 $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
 $up->execute(['xvideos_bulk', $newState]);
-echo "done total=$total state=$newState\n";
+echo "done total=$total enriched=$enriched state=$newState\n";
 
 flock($fh, LOCK_UN);
 fclose($fh);

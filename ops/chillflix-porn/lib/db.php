@@ -72,18 +72,44 @@ function cfp_upsert_tag(PDO $pdo, string $name): int
     return (int) $st->fetchColumn();
 }
 
-function cfp_upsert_actor(PDO $pdo, string $name): int
+function cfp_upsert_actor(PDO $pdo, string $name, ?string $slugOverride = null): int
 {
     $name = trim($name);
     if ($name === '') {
         return 0;
     }
-    $slug = cfp_slug($name);
+    $slug = trim((string) $slugOverride);
+    if ($slug === '') {
+        $slug = cfp_slug($name);
+    } else {
+        $slug = cfp_slug($slug);
+    }
+    if ($slug === '' || $slug === 'video') {
+        return 0;
+    }
     $st = $pdo->prepare('INSERT INTO actors (slug, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)');
     $st->execute([$slug, $name]);
     $st = $pdo->prepare('SELECT id FROM actors WHERE slug = ?');
     $st->execute([$slug]);
     return (int) $st->fetchColumn();
+}
+
+/** Ensure optional columns used by people/tag enrichment exist. */
+function cfp_ensure_schema(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM videos LIKE 'enriched_at'")->fetchAll();
+        if (!$cols) {
+            $pdo->exec('ALTER TABLE videos ADD COLUMN enriched_at DATETIME NULL DEFAULT NULL, ADD KEY idx_enriched (enriched_at)');
+        }
+    } catch (Throwable $e) {
+        // ignore — older MySQL or missing privilege; enrich will no-op safely
+    }
 }
 
 /**
@@ -596,7 +622,7 @@ function cfp_video_meta(PDO $pdo, int $id): array
 {
     $cats = $pdo->prepare('SELECT c.slug, c.name FROM categories c INNER JOIN video_categories vc ON vc.category_id = c.id WHERE vc.video_id = ?');
     $cats->execute([$id]);
-    $tags = $pdo->prepare('SELECT t.slug, t.name FROM tags t INNER JOIN video_tags vt ON vt.tag_id = t.id WHERE vt.video_id = ?');
+    $tags = $pdo->prepare('SELECT t.slug, t.name FROM tags t INNER JOIN video_tags vt ON vt.tag_id = t.id WHERE vt.video_id = ? ORDER BY t.name ASC');
     $tags->execute([$id]);
     $actors = $pdo->prepare(
         'SELECT a.id, a.slug, a.name,
@@ -612,4 +638,22 @@ function cfp_video_meta(PDO $pdo, int $id): array
         'tags' => $tags->fetchAll(),
         'actors' => $actors->fetchAll(),
     ];
+}
+
+/** Tags commonly used on a person's videos (xvideos-style profile tags). */
+function cfp_person_tags(PDO $pdo, int $actorId, int $limit = 32): array
+{
+    $limit = max(1, min(60, $limit));
+    $st = $pdo->prepare(
+        'SELECT t.slug, t.name, COUNT(*) AS n
+         FROM tags t
+         INNER JOIN video_tags vt ON vt.tag_id = t.id
+         INNER JOIN video_actors va ON va.video_id = vt.video_id
+         WHERE va.actor_id = ?
+         GROUP BY t.id
+         ORDER BY n DESC, t.name ASC
+         LIMIT ?'
+    );
+    $st->execute([$actorId, $limit]);
+    return $st->fetchAll();
 }
