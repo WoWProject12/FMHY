@@ -10,6 +10,7 @@ require $configFile;
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/xvideos.php';
+require __DIR__ . '/admin.php';
 
 date_default_timezone_set('UTC');
 

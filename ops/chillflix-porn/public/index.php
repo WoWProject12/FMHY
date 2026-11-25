@@ -144,7 +144,8 @@ if ($path === '/api/preview' && $method === 'GET') {
 
 $needsAge = !cfp_age_ok()
     && !str_starts_with($path, '/api/')
-    && $path !== '/age-confirm';
+    && $path !== '/age-confirm'
+    && !str_starts_with($path, '/admin');
 
 $pageTitle = CFP_SITE_NAME;
 $pageDescription = 'Watch free adult videos on Chillflix.';
@@ -233,13 +234,15 @@ try {
         }
     } elseif ($path === '/people') {
         $peopleQ = trim((string) ($_GET['q'] ?? ''));
+        $peopleLetter = strtoupper(trim((string) ($_GET['letter'] ?? '')));
         $people = cfp_list_people($pdo, [
             'q' => $peopleQ,
+            'letter' => $peopleLetter,
             'page' => $filters['page'],
             'per' => 60,
         ]);
         $view = 'people';
-        $viewData = compact('people', 'peopleQ');
+        $viewData = compact('people', 'peopleQ', 'peopleLetter');
         $pageTitle = 'People — ' . CFP_SITE_NAME;
     } elseif (preg_match('#^/people/([a-z0-9\-]+)$#', $path, $m)) {
         $person = cfp_get_person_by_slug($pdo, $m[1]);
@@ -289,6 +292,75 @@ try {
         $view = 'categories';
         $viewData = compact('cats');
         $pageTitle = 'Categories — ' . CFP_SITE_NAME;
+    } elseif ($path === '/admin/login') {
+        // GET preferred — Cloudflare often challenges POSTs from bots/datacenters
+        $pass = (string) ($_POST['password'] ?? $_GET['password'] ?? '');
+        $pageTitle = 'Admin — ' . CFP_SITE_NAME;
+        $bodyClass = 'page-porn page-porn-admin';
+        if ($pass !== '' && cfp_admin_login($pass)) {
+            header('Location: ' . cfp_url('/admin'), true, 302);
+            exit;
+        }
+        $view = 'admin-login';
+        $viewData = ['flashErr' => $pass !== '' ? 'Wrong password' : null];
+    } elseif ($path === '/admin/logout') {
+        cfp_admin_logout();
+        header('Location: ' . cfp_url('/admin'), true, 302);
+        exit;
+    } elseif ($path === '/admin/scraper') {
+        if (!cfp_admin_ok()) {
+            header('Location: ' . cfp_url('/admin'), true, 302);
+            exit;
+        }
+        $mode = (string) ($_GET['mode'] ?? $_POST['mode'] ?? 'preset');
+        if ($mode === 'custom') {
+            $saved = cfp_save_scraper_settings($pdo, [
+                'speed' => 'custom',
+                'niches_per_run' => (int) ($_GET['niches_per_run'] ?? $_POST['niches_per_run'] ?? 4),
+                'limit_per_niche' => (int) ($_GET['limit_per_niche'] ?? $_POST['limit_per_niche'] ?? 30),
+                'enrich_per_run' => (int) ($_GET['enrich_per_run'] ?? $_POST['enrich_per_run'] ?? 30),
+                'max_page' => (int) ($_GET['max_page'] ?? $_POST['max_page'] ?? 30),
+            ]);
+        } else {
+            $saved = cfp_save_scraper_settings($pdo, [
+                'speed' => (string) ($_GET['speed'] ?? $_POST['speed'] ?? 'fast'),
+            ]);
+        }
+        header('Location: ' . cfp_url('/admin?saved=1&speed=' . rawurlencode((string) $saved['speed'])), true, 302);
+        exit;
+    } elseif ($path === '/admin/scraper/run') {
+        if (!cfp_admin_ok()) {
+            header('Location: ' . cfp_url('/admin'), true, 302);
+            exit;
+        }
+        $ok = cfp_trigger_scrape_async();
+        header('Location: ' . cfp_url('/admin?' . ($ok ? 'running=1' : 'runerr=1')), true, 302);
+        exit;
+    } elseif ($path === '/admin') {
+        $pageTitle = 'Admin — ' . CFP_SITE_NAME;
+        $bodyClass = 'page-porn page-porn-admin';
+        if (!cfp_admin_ok()) {
+            $view = 'admin-login';
+            $viewData = [];
+        } else {
+            $stats = cfp_site_stats($pdo);
+            $settings = cfp_scraper_settings($pdo);
+            $scrapeState = cfp_scrape_state($pdo);
+            $presets = cfp_scraper_presets();
+            $flash = null;
+            $flashErr = null;
+            if (isset($_GET['saved'])) {
+                $flash = 'Scraper speed saved (' . (string) ($_GET['speed'] ?? $settings['speed']) . ').';
+            }
+            if (isset($_GET['running'])) {
+                $flash = 'Scrape started in the background.';
+            }
+            if (isset($_GET['runerr'])) {
+                $flashErr = 'Could not start scrape.';
+            }
+            $view = 'admin';
+            $viewData = compact('stats', 'settings', 'scrapeState', 'presets', 'flash', 'flashErr');
+        }
     } else {
         http_response_code(404);
         $view = '404';

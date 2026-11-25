@@ -680,6 +680,10 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
     $per = max(12, min(96, (int) ($opts['per'] ?? 48)));
     $offset = ($page - 1) * $per;
     $q = trim((string) ($opts['q'] ?? ''));
+    $letter = strtoupper(trim((string) ($opts['letter'] ?? '')));
+    if ($letter === 'NUM') {
+        $letter = '#';
+    }
     $role = (string) ($opts['role'] ?? 'model');
     if (!in_array($role, ['model', 'channel', 'any'], true)) {
         $role = 'model';
@@ -693,6 +697,12 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
     if ($q !== '') {
         $where[] = 'a.name LIKE ?';
         $args[] = '%' . $q . '%';
+    }
+    if ($letter === '#') {
+        $where[] = "(UPPER(LEFT(a.name, 1)) < 'A' OR UPPER(LEFT(a.name, 1)) > 'Z')";
+    } elseif ($letter !== '' && preg_match('/^[A-Z]$/', $letter)) {
+        $where[] = 'UPPER(LEFT(a.name, 1)) = ?';
+        $args[] = $letter;
     }
     $sqlWhere = implode(' AND ', $where);
 
@@ -720,7 +730,7 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
          INNER JOIN video_actors va ON va.actor_id = a.id
          WHERE $sqlWhere
          GROUP BY a.id
-         ORDER BY n DESC, a.name ASC
+         ORDER BY " . ($letter !== '' || $q !== '' ? 'a.name ASC' : 'n DESC, a.name ASC') . "
          LIMIT ? OFFSET ?"
     );
     $st->execute($listArgs);

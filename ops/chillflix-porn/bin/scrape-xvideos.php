@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Cron-friendly Xvideos importer (replaces WP mass-embedder cron).
  * Usage: php bin/scrape-xvideos.php
- * Suggested: every 10 minutes
+ * Speed is controlled via scrape_state.scraper_settings (admin panel).
  */
 
 require dirname(__DIR__) . '/lib/bootstrap.php';
@@ -16,6 +16,12 @@ if (!$fh || !flock($fh, LOCK_EX | LOCK_NB)) {
     echo "locked\n";
     exit(0);
 }
+
+$settings = cfp_scraper_settings($pdo);
+$nichesPerRun = (int) $settings['niches_per_run'];
+$limitPerNiche = (int) $settings['limit_per_niche'];
+$enrichPerRun = (int) $settings['enrich_per_run'];
+$maxPage = (int) $settings['max_page'];
 
 $st = $pdo->prepare('SELECT v FROM scrape_state WHERE k = ?');
 $st->execute(['xvideos_bulk']);
@@ -30,16 +36,20 @@ if ($offset >= count($keys)) {
     $offset = 0;
     $page++;
 }
-if ($page > 20) {
+if ($page > $maxPage) {
     $page = 0;
 }
 
 $total = 0;
-for ($i = 0; $i < 2; $i++) {
+$started = microtime(true);
+echo 'speed=' . $settings['speed']
+    . " niches=$nichesPerRun limit=$limitPerNiche enrich=$enrichPerRun max_page=$maxPage\n";
+
+for ($i = 0; $i < $nichesPerRun; $i++) {
     if ($offset >= count($keys)) {
         $offset = 0;
         $page++;
-        if ($page > 20) {
+        if ($page > $maxPage) {
             $page = 0;
         }
     }
@@ -47,27 +57,36 @@ for ($i = 0; $i < 2; $i++) {
     $slug = $niches[$label];
     echo "import $label ($slug) page=$page\n";
     try {
-        $n = cfp_xv_import_page($pdo, $slug, $label, $page, 24);
+        $n = cfp_xv_import_page($pdo, $slug, $label, $page, $limitPerNiche);
         echo "  +$n\n";
         $total += $n;
     } catch (Throwable $e) {
-        echo "  ERR " . $e->getMessage() . "\n";
+        echo '  ERR ' . $e->getMessage() . "\n";
     }
     $offset++;
 }
 
-// Enrich pending rows with real models + keyword tags from watch pages
 $enriched = 0;
-try {
-    $enriched = cfp_xv_enrich_pending($pdo, 10);
-} catch (Throwable $e) {
-    echo "enrich ERR " . $e->getMessage() . "\n";
+if ($enrichPerRun > 0) {
+    try {
+        $enriched = cfp_xv_enrich_pending($pdo, $enrichPerRun);
+    } catch (Throwable $e) {
+        echo 'enrich ERR ' . $e->getMessage() . "\n";
+    }
 }
 
-$newState = json_encode(['offset' => $offset, 'page' => $page], JSON_UNESCAPED_SLASHES);
+$newState = [
+    'offset' => $offset,
+    'page' => $page,
+    'last_run_at' => date('c'),
+    'last_imported' => $total,
+    'last_enriched' => $enriched,
+    'last_duration_sec' => round(microtime(true) - $started, 2),
+    'speed' => $settings['speed'],
+];
 $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
-$up->execute(['xvideos_bulk', $newState]);
-echo "done total=$total enriched=$enriched state=$newState\n";
+$up->execute(['xvideos_bulk', json_encode($newState, JSON_UNESCAPED_SLASHES)]);
+echo 'done total=' . $total . ' enriched=' . $enriched . ' state=' . json_encode($newState, JSON_UNESCAPED_SLASHES) . "\n";
 
 flock($fh, LOCK_UN);
 fclose($fh);
