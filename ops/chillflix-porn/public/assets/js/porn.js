@@ -3,17 +3,70 @@
     return el && el.closest ? el.closest(sel) : null;
   }
 
+  function isNarrow() {
+    try {
+      return window.matchMedia("(max-width: 900px)").matches;
+    } catch (e) {
+      return window.innerWidth <= 900;
+    }
+  }
+
+  function clearMenuPosition(menu) {
+    menu.style.position = "";
+    menu.style.left = "";
+    menu.style.right = "";
+    menu.style.top = "";
+    menu.style.bottom = "";
+    menu.style.width = "";
+    menu.style.maxHeight = "";
+  }
+
+  /** Always open the same way: bottom sheet on phone/tablet, below the button on desktop. */
+  function placeMenu(dd, menu) {
+    clearMenuPosition(menu);
+    if (isNarrow()) {
+      menu.style.position = "fixed";
+      menu.style.left = "0.5rem";
+      menu.style.right = "0.5rem";
+      menu.style.top = "auto";
+      menu.style.bottom = "calc(4.75rem + env(safe-area-inset-bottom, 0px))";
+      menu.style.width = "auto";
+      menu.style.maxHeight = "min(68vh, 560px)";
+      return;
+    }
+    var btn = dd.querySelector(".cfp-dd-btn");
+    if (!btn) return;
+    var rect = btn.getBoundingClientRect();
+    var menuWidth = Math.max(260, Math.min(340, window.innerWidth - 24));
+    var left = rect.left;
+    if (left + menuWidth > window.innerWidth - 12) {
+      left = Math.max(12, window.innerWidth - menuWidth - 12);
+    }
+    menu.style.position = "fixed";
+    menu.style.left = left + "px";
+    menu.style.right = "auto";
+    menu.style.top = Math.round(rect.bottom + 6) + "px";
+    menu.style.bottom = "auto";
+    menu.style.width = menuWidth + "px";
+    menu.style.maxHeight = "min(420px, calc(100vh - " + Math.round(rect.bottom + 18) + "px))";
+  }
+
   function setMenuOpen(dd, open) {
     var btn = dd.querySelector(".cfp-dd-btn");
     var menu = dd.querySelector(".cfp-dd-menu");
     if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
-    if (menu) {
-      if (open) {
-        menu.hidden = false;
-        menu.classList.add("is-open");
-      } else {
-        menu.classList.remove("is-open");
-        menu.hidden = true;
+    if (!menu) return;
+    if (open) {
+      menu.hidden = false;
+      menu.classList.add("is-open");
+      placeMenu(dd, menu);
+      document.documentElement.classList.add("cfp-dd-open");
+    } else {
+      menu.classList.remove("is-open");
+      menu.hidden = true;
+      clearMenuPosition(menu);
+      if (!document.querySelector(".cfp-dd-menu.is-open")) {
+        document.documentElement.classList.remove("cfp-dd-open");
       }
     }
   }
@@ -44,7 +97,6 @@
           filter.dispatchEvent(new Event("input"));
         }
         if (list) list.scrollTop = 0;
-        // Focus search only on fine pointers so mobile keyboards don't crush the sheet
         if (filter && window.matchMedia("(pointer: fine)").matches) {
           setTimeout(function () {
             try { filter.focus(); } catch (err) {}
@@ -100,6 +152,12 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") closeAllMenus();
   });
+  window.addEventListener("resize", function () {
+    document.querySelectorAll("[data-cfp-dd]").forEach(function (dd) {
+      var menu = dd.querySelector(".cfp-dd-menu.is-open");
+      if (menu) placeMenu(dd, menu);
+    });
+  });
 
   // Categories page live filter
   var catFilter = document.querySelector("[data-cfp-cats-filter]");
@@ -119,14 +177,9 @@
     });
   }
 
-  // Hover / long-press card previews
-  var previewCache = Object.create(null);
+  // Hover / long-press card previews via same-origin proxy
   var activePreview = null;
   var previewTimer = null;
-
-  function pickPreviewUrl(streams) {
-    return streams.low || streams.high || streams.hls || "";
-  }
 
   function stopPreview(card) {
     if (!card) return;
@@ -134,8 +187,10 @@
     var vid = card.querySelector(".cfp-card-preview");
     if (vid) {
       try { vid.pause(); } catch (e) {}
-      vid.removeAttribute("src");
-      vid.load();
+      try {
+        vid.removeAttribute("src");
+        vid.load();
+      } catch (e2) {}
       vid.hidden = true;
     }
     if (activePreview === card) activePreview = null;
@@ -155,42 +210,38 @@
       vid = document.createElement("video");
       vid.className = "cfp-card-preview";
       vid.muted = true;
+      vid.defaultMuted = true;
       vid.playsInline = true;
       vid.loop = true;
-      vid.preload = "metadata";
+      vid.preload = "auto";
       vid.setAttribute("muted", "");
       vid.setAttribute("playsinline", "");
+      vid.setAttribute("webkit-playsinline", "");
+      vid.referrerPolicy = "no-referrer";
       media.appendChild(vid);
     }
 
-    function playUrl(url) {
-      if (activePreview !== card || !url) return;
-      vid.hidden = false;
-      if (vid.getAttribute("src") !== url) {
-        vid.src = url;
-      }
-      var p = vid.play();
-      if (p && typeof p.catch === "function") p.catch(function () {});
+    var proxyUrl = "/porn/api/preview?id=" + encodeURIComponent(id);
+    vid.hidden = false;
+    if (vid.getAttribute("src") !== proxyUrl) {
+      vid.src = proxyUrl;
     }
-
-    if (previewCache[id]) {
-      playUrl(previewCache[id]);
-      return;
+    var p = vid.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(function () {
+        // Retry once after metadata
+        vid.addEventListener(
+          "loadeddata",
+          function () {
+            if (activePreview === card) {
+              var again = vid.play();
+              if (again && again.catch) again.catch(function () {});
+            }
+          },
+          { once: true }
+        );
+      });
     }
-
-    fetch("/porn/api/stream?id=" + encodeURIComponent(id), {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (!data || !data.ok || !data.streams) return;
-        var url = pickPreviewUrl(data.streams);
-        if (!url) return;
-        previewCache[id] = url;
-        playUrl(url);
-      })
-      .catch(function () {});
   }
 
   function bindCardPreview(card) {
@@ -203,18 +254,17 @@
     card.addEventListener("pointerenter", function (e) {
       if (e.pointerType === "touch") return;
       clearTimeout(previewTimer);
-      previewTimer = setTimeout(function () { startPreview(card); }, 160);
+      previewTimer = setTimeout(function () { startPreview(card); }, 140);
     });
     card.addEventListener("pointerleave", function () {
       clearTimeout(previewTimer);
       stopPreview(card);
     });
 
-    // Mice / trackpads that don't emit pointerenter reliably
     card.addEventListener("mouseenter", function () {
       if (coarse) return;
       clearTimeout(previewTimer);
-      previewTimer = setTimeout(function () { startPreview(card); }, 160);
+      previewTimer = setTimeout(function () { startPreview(card); }, 140);
     });
     card.addEventListener("mouseleave", function () {
       clearTimeout(previewTimer);
@@ -226,7 +276,7 @@
       clearTimeout(touchTimer);
       touchTimer = setTimeout(function () {
         startPreview(card);
-      }, 420);
+      }, 380);
     }, { passive: true });
     card.addEventListener("touchend", function () {
       clearTimeout(touchTimer);
@@ -257,7 +307,7 @@
   }
 
   function pickUrl(streams) {
-    return streams.high || streams.hls || streams.low || "";
+    return streams.high || streams.low || streams.hls || "";
   }
 
   fetch("/porn/api/stream?id=" + encodeURIComponent(videoId), {
@@ -279,15 +329,18 @@
         setStatus("No playable source.");
         return;
       }
-      if (!streams.high && streams.hls && video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = streams.hls;
-      } else {
-        video.src = url;
-      }
+      video.referrerPolicy = "no-referrer";
+      video.src = url;
       setStatus("Ready", true);
       var p = video.play();
       if (p && typeof p.catch === "function") {
-        p.catch(function () { setStatus("Tap play to start", true); });
+        p.catch(function () {
+          // Fallback: same-origin proxy if CDN blocks the player
+          video.src = "/porn/api/preview?id=" + encodeURIComponent(videoId);
+          video.play().catch(function () {
+            setStatus("Tap play to start", true);
+          });
+        });
       }
     })
     .catch(function () {
