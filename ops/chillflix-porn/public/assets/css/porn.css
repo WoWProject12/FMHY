@@ -307,6 +307,10 @@ a.cfp-dd-option { color: var(--cfp-text); }
   -webkit-user-drag: none;
   touch-action: manipulation;
 }
+.cfp-card.is-previewing,
+.cfp-card.is-preview-loading {
+  touch-action: none; /* finger can slide without scrolling the page / killing preview */
+}
 .cfp-card img,
 .cfp-rail-card img {
   -webkit-touch-callout: none;

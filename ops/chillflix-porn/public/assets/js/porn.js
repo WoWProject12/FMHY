@@ -499,8 +499,35 @@
     var startX = 0;
     var startY = 0;
     var previewArmed = false;
-    var scrolledAway = false;
+    var fingerDown = false;
     var id = card.getAttribute("data-video-id") || "";
+
+    function lockScroll() {
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+      document.body.style.touchAction = "none";
+      card.style.touchAction = "none";
+    }
+
+    function unlockScroll() {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      document.body.style.touchAction = "";
+      card.style.touchAction = "";
+    }
+
+    function endHold(suppressClick) {
+      clearTimeout(touchTimer);
+      var wasPreview = previewArmed;
+      fingerDown = false;
+      previewArmed = false;
+      unlockScroll();
+      stopPreview(card);
+      if (wasPreview || suppressClick) {
+        card.__cfpSuppressClick = true;
+        setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
+      }
+    }
 
     card.addEventListener("touchstart", function (e) {
       if (!e.touches || !e.touches[0]) return;
@@ -508,64 +535,55 @@
       startY = e.touches[0].clientY;
       holdScrollY = window.scrollY || window.pageYOffset || 0;
       previewArmed = false;
-      scrolledAway = false;
+      fingerDown = true;
       scrubbing = false;
       card.__cfpSuppressClick = false;
       clearTimeout(touchTimer);
       resolveStreamUrl(id);
       touchTimer = setTimeout(function () {
+        if (!fingerDown) return;
         previewArmed = true;
         card.__cfpSuppressClick = true;
+        lockScroll();
         startPreview(card);
       }, 140);
     }, { passive: true });
 
+    // NON-passive: while previewing, block scroll so finger moves never steal the gesture
     card.addEventListener("touchmove", function (e) {
       if (!e.touches || !e.touches[0]) return;
-      var x = e.touches[0].clientX;
-      var y = e.touches[0].clientY;
-      var adx = Math.abs(x - startX);
-      var ady = Math.abs(y - startY);
-      var scrollY = window.scrollY || window.pageYOffset || 0;
-      var scrollDelta = Math.abs(scrollY - holdScrollY);
-
-      if (scrollDelta > 48) {
-        clearTimeout(touchTimer);
-        if (previewArmed) stopPreview(card);
-        previewArmed = false;
-        scrolledAway = true;
-        card.__cfpSuppressClick = true;
-        return;
-      }
+      var adx = Math.abs(e.touches[0].clientX - startX);
+      var ady = Math.abs(e.touches[0].clientY - startY);
 
       if (!previewArmed) {
-        if (scrollDelta > 20 || (ady > 50 && ady > adx * 1.5)) {
-          clearTimeout(touchTimer);
-          scrolledAway = true;
-        }
+        // Scrolling before hold engages — cancel pending preview only (don't stop anything live)
+        if (ady > 45 && ady > adx) clearTimeout(touchTimer);
         return;
       }
 
-      // Keep video playing; deliberate horizontal drag jumps between parts
-      if (adx > 40 && adx > ady) {
-        scrubPreview(card, x);
-      }
-    }, { passive: true });
+      // Preview playing: keep it alive no matter how the finger moves
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
 
     card.addEventListener("touchend", function () {
-      clearTimeout(touchTimer);
-      var wasPreview = previewArmed;
-      stopPreview(card);
-      previewArmed = false;
-      if (wasPreview || scrolledAway) {
-        card.__cfpSuppressClick = true;
-        setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
-      }
+      endHold(false);
     });
+
+    // Android fires touchcancel when it steals the gesture for scrolling.
+    // We preventDefault on move once armed, so this should be rare. If it still
+    // fires during a finger-move, do NOT kill the preview — keep the clip tour going.
     card.addEventListener("touchcancel", function () {
       clearTimeout(touchTimer);
-      stopPreview(card);
+      if (!previewArmed) {
+        fingerDown = false;
+        unlockScroll();
+        return;
+      }
+      // Gesture stream ended but user wanted continuous play while moving —
+      // leave video running; next tap anywhere will stop it via document handler.
+      fingerDown = false;
       previewArmed = false;
+      unlockScroll();
       card.__cfpSuppressClick = true;
       setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
     });
@@ -577,16 +595,17 @@
     }
   }, true);
 
-  window.addEventListener("scroll", function () {
+  // Tap anywhere else stops an orphaned preview (left running after touchcancel)
+  document.addEventListener("touchstart", function (e) {
     if (!activePreview) return;
-    var scrollY = window.scrollY || window.pageYOffset || 0;
-    if (Math.abs(scrollY - holdScrollY) < 48) return;
-    var r = activePreview.getBoundingClientRect();
-    var vh = window.innerHeight || 0;
-    if (r.bottom < 60 || r.top > vh - 60) {
-      stopPreview(activePreview);
+    if (e.target && e.target.closest && e.target.closest(".cfp-card.is-previewing, .cfp-card.is-preview-loading")) {
+      return;
     }
-  }, { passive: true });
+    stopPreview(activePreview);
+    document.documentElement.style.overflow = "";
+    document.body.style.overflow = "";
+    document.body.style.touchAction = "";
+  }, { passive: true, capture: true });
 
   document.querySelectorAll(".cfp-card[data-video-id], .cfp-rail-card[data-video-id]").forEach(bindCardPreview);
 
