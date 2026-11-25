@@ -72,6 +72,53 @@ function cfp_upsert_tag(PDO $pdo, string $name): int
     return (int) $st->fetchColumn();
 }
 
+/**
+ * One-shot: listing scrapes used to tag channel/group names as people (role=model).
+ * Flip those links to channel and queue enriched videos for a clean re-parse.
+ */
+function cfp_repair_actor_roles(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS scrape_state (
+               k VARCHAR(64) NOT NULL PRIMARY KEY,
+               v TEXT NULL
+             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+        );
+    } catch (Throwable $e) {
+        return;
+    }
+    $st = $pdo->prepare('SELECT v FROM scrape_state WHERE k = ?');
+    $st->execute(['people_roles_v1']);
+    if ($st->fetchColumn()) {
+        return;
+    }
+
+    // Unenriched rows only ever got the listing-card channel name.
+    $pdo->exec(
+        'UPDATE video_actors va
+         INNER JOIN videos v ON v.id = va.video_id
+         SET va.role = \'channel\'
+         WHERE va.role = \'model\' AND v.enriched_at IS NULL'
+    );
+
+    // Drop stale people links on enriched videos and re-parse from xvideos.
+    $pdo->exec(
+        'DELETE va FROM video_actors va
+         INNER JOIN videos v ON v.id = va.video_id
+         WHERE v.enriched_at IS NOT NULL'
+    );
+    $pdo->exec('UPDATE videos SET enriched_at = NULL WHERE enriched_at IS NOT NULL');
+
+    $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
+    $up->execute(['people_roles_v1', date('c')]);
+}
+
 function cfp_upsert_actor(PDO $pdo, string $name, ?string $slugOverride = null): int
 {
     $name = trim($name);
@@ -150,6 +197,11 @@ function cfp_ensure_schema(PDO $pdo): void
         } catch (Throwable $e2) {
             // ignore
         }
+    }
+    try {
+        cfp_repair_actor_roles($pdo);
+    } catch (Throwable $e) {
+        // ignore
     }
 }
 
@@ -306,10 +358,23 @@ function cfp_upsert_video(PDO $pdo, array $row, array $cats = [], array $tags = 
             $pdo->prepare('INSERT IGNORE INTO video_tags (video_id, tag_id) VALUES (?,?)')->execute([$id, $tid]);
         }
     }
-    foreach ($actors as $actorName) {
-        $aid = cfp_upsert_actor($pdo, (string) $actorName);
+    foreach ($actors as $actor) {
+        $actorName = '';
+        $role = 'model';
+        if (is_array($actor)) {
+            $actorName = (string) ($actor['name'] ?? '');
+            $role = (($actor['role'] ?? '') === 'channel') ? 'channel' : 'model';
+            $slugOverride = isset($actor['slug']) ? (string) $actor['slug'] : null;
+        } else {
+            $actorName = (string) $actor;
+            $slugOverride = null;
+        }
+        $aid = cfp_upsert_actor($pdo, $actorName, $slugOverride);
         if ($aid) {
-            $pdo->prepare('INSERT IGNORE INTO video_actors (video_id, actor_id) VALUES (?,?)')->execute([$id, $aid]);
+            $pdo->prepare(
+                'INSERT INTO video_actors (video_id, actor_id, role) VALUES (?,?,?)
+                 ON DUPLICATE KEY UPDATE role = VALUES(role)'
+            )->execute([$id, $aid, $role]);
         }
     }
 
@@ -554,13 +619,26 @@ function cfp_related(PDO $pdo, int $id, int $limit = 12, array $excludeIds = [])
  */
 function cfp_more_from_people(PDO $pdo, int $videoId, int $perPerson = 8): array
 {
+    // Prefer real people (models) linked to the video — not channels/groups.
     $st = $pdo->prepare(
         'SELECT a.id, a.slug, a.name FROM actors a
          INNER JOIN video_actors va ON va.actor_id = a.id
-         WHERE va.video_id = ? ORDER BY a.name ASC'
+         WHERE va.video_id = ? AND va.role = \'model\'
+         ORDER BY a.name ASC'
     );
     $st->execute([$videoId]);
     $people = $st->fetchAll();
+    if (!$people) {
+        // Fallback: channel/uploader when no models are attached yet
+        $st = $pdo->prepare(
+            'SELECT a.id, a.slug, a.name FROM actors a
+             INNER JOIN video_actors va ON va.actor_id = a.id
+             WHERE va.video_id = ?
+             ORDER BY CASE WHEN va.role = \'channel\' THEN 0 ELSE 1 END, a.name ASC'
+        );
+        $st->execute([$videoId]);
+        $people = $st->fetchAll();
+    }
     $sections = [];
     foreach ($people as $person) {
         $q = $pdo->prepare(
@@ -593,7 +671,7 @@ function cfp_top_categories(PDO $pdo, int $limit = 24): array
 }
 
 /**
- * People / channels with video counts (and a sample thumb).
+ * People (models/pornstars) with video counts — excludes channels/groups.
  * @return array{items:list<array>,total:int,page:int,per:int,pages:int}
  */
 function cfp_list_people(PDO $pdo, array $opts = []): array
@@ -602,8 +680,16 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
     $per = max(12, min(96, (int) ($opts['per'] ?? 48)));
     $offset = ($page - 1) * $per;
     $q = trim((string) ($opts['q'] ?? ''));
+    $role = (string) ($opts['role'] ?? 'model');
+    if (!in_array($role, ['model', 'channel', 'any'], true)) {
+        $role = 'model';
+    }
     $where = ['1=1'];
     $args = [];
+    if ($role !== 'any') {
+        $where[] = 'va.role = ?';
+        $args[] = $role;
+    }
     if ($q !== '') {
         $where[] = 'a.name LIKE ?';
         $args[] = '%' . $q . '%';
@@ -762,7 +848,7 @@ function cfp_video_meta(PDO $pdo, int $id): array
          FROM actors a
          INNER JOIN video_actors va ON va.actor_id = a.id
          WHERE va.video_id = ?
-         ORDER BY CASE WHEN va.role = \'channel\' THEN 0 ELSE 1 END, a.name ASC'
+         ORDER BY CASE WHEN va.role = \'model\' THEN 0 ELSE 1 END, a.name ASC'
     );
     $actors->execute([$id]);
     return [

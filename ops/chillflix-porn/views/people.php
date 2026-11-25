@@ -26,7 +26,7 @@ $letters = array_keys($groups);
   <form class="cfp-people-tools" action="<?= cfp_e(cfp_url('/people')) ?>" method="get" role="search">
     <label class="cfp-cats-search">
       <span class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Find people</span>
-      <input type="search" name="q" placeholder="Find a person or channel…" value="<?= cfp_e($peopleQ) ?>" autocomplete="off">
+      <input type="search" name="q" placeholder="Find a person…" value="<?= cfp_e($peopleQ) ?>" autocomplete="off">
     </label>
     <?php if ($peopleQ !== ''): ?>
       <a class="cfp-chip" href="<?= cfp_e(cfp_url('/people')) ?>">Clear</a>

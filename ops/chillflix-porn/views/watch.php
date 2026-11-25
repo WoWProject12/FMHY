@@ -28,7 +28,8 @@ foreach ($peopleUnique as $a) {
         $models[] = $a;
     }
 }
-$primaryChannel = $channels[0] ?? ($models[0] ?? null);
+// Prefer a real channel/group for the Subscribe row; never invent one from models.
+$primaryChannel = $channels[0] ?? null;
 $tagList = array_values($tags);
 $chipAll = [];
 foreach ($cats as $c) {
@@ -120,22 +121,26 @@ $channelHandle = $primaryChannel
       </div>
     </div>
 
-    <?php if ($channels || $models): ?>
+    <?php if ($models): ?>
       <div class="cfp-xv-people" aria-label="People">
-        <?php foreach ($channels as $a): ?>
-          <a class="cfp-xv-chip cfp-xv-chip-channel" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($a['slug']))) ?>">
-            <span class="cfp-xv-ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm0 2v8h16V8H4zm6 1.5 5 2.5-5 2.5v-5z"/></svg>
-            </span>
+        <?php foreach ($models as $a): ?>
+          <a class="cfp-xv-chip cfp-xv-chip-model" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($a['slug']))) ?>">
+            <span class="cfp-xv-ico" aria-hidden="true">★</span>
             <span class="cfp-xv-name"><?= cfp_e((string) $a['name']) ?></span>
             <?php if (!empty($a['n'])): ?>
               <span class="cfp-xv-count"><?= cfp_e(cfp_fmt_views((int) $a['n'])) ?></span>
             <?php endif; ?>
           </a>
         <?php endforeach; ?>
-        <?php foreach ($models as $a): ?>
-          <a class="cfp-xv-chip cfp-xv-chip-model" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($a['slug']))) ?>">
-            <span class="cfp-xv-ico" aria-hidden="true">★</span>
+      </div>
+    <?php endif; ?>
+    <?php if ($channels): ?>
+      <div class="cfp-xv-people cfp-xv-channels" aria-label="Channel">
+        <?php foreach ($channels as $a): ?>
+          <a class="cfp-xv-chip cfp-xv-chip-channel" href="<?= cfp_e(cfp_url('/people/' . rawurlencode($a['slug']))) ?>">
+            <span class="cfp-xv-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm0 2v8h16V8H4zm6 1.5 5 2.5-5 2.5v-5z"/></svg>
+            </span>
             <span class="cfp-xv-name"><?= cfp_e((string) $a['name']) ?></span>
             <?php if (!empty($a['n'])): ?>
               <span class="cfp-xv-count"><?= cfp_e(cfp_fmt_views((int) $a['n'])) ?></span>

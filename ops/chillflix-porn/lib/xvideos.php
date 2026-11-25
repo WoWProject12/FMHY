@@ -388,31 +388,45 @@ function cfp_xv_parse_video_page_meta(string $html): array
         return ['people' => [], 'tags' => []];
     }
 
-    $addPerson = static function (string $href, string $name, string $role) use (&$people, &$seenPeople): void {
+    $addPerson = static function (string $href, string $name, string $roleHint) use (&$people, &$seenPeople): void {
         $name = trim(html_entity_decode(strip_tags($name), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $name = preg_replace('/\s+/', ' ', $name) ?? $name;
         if ($name === '') {
             return;
         }
-        $href = trim($href);
+        $href = trim(html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $slug = '';
-        if (preg_match('~/(?:models|amateurs|profiles|pornstar(?:s)?|channels|amateur-channels)/([^/?#]+)~i', $href, $m)) {
+        $role = ($roleHint === 'channel') ? 'channel' : 'model';
+        // URL path is the source of truth: channels/groups vs real people
+        if (preg_match('~/(?:channels|amateur-channels)/([^/?#]+)~i', $href, $m)) {
             $slug = strtolower($m[1]);
+            $role = 'channel';
+        } elseif (preg_match('~/(?:models|amateurs|profiles|pornstar(?:s)?)/([^/?#]+)~i', $href, $m)) {
+            $slug = strtolower($m[1]);
+            $role = 'model';
         } elseif (preg_match('~^/([a-z0-9][a-z0-9\-_]+)$~i', $href, $m)) {
+            // Bare profile path used by channel uploaders (e.g. /pornporn851)
             $slug = strtolower($m[1]);
+            if ($roleHint === 'channel') {
+                $role = 'channel';
+            }
         }
         if ($slug === '') {
             $slug = cfp_slug($name);
         }
         $key = $slug !== '' ? $slug : strtolower($name);
         if (isset($seenPeople[$key])) {
+            // Prefer model role if the same slug was first seen as channel by mistake
+            if ($role === 'model' && ($people[$seenPeople[$key]]['role'] ?? '') === 'channel') {
+                $people[$seenPeople[$key]]['role'] = 'model';
+            }
             return;
         }
-        $seenPeople[$key] = true;
+        $seenPeople[$key] = count($people);
         $people[] = ['name' => $name, 'slug' => $slug, 'role' => $role];
     };
 
-    // Channel / uploader
+    // Channel / uploader / group
     if (preg_match_all(
         '/<li[^>]*class="[^"]*main-uploader[^"]*"[\s\S]*?<a[^>]+href="([^"]+)"[\s\S]*?<span[^>]*class="name"[^>]*>(?:<span[^>]*>[\s\S]*?<\/span>\s*)?([^<]+)/i',
         $html,
@@ -424,7 +438,7 @@ function cfp_xv_parse_video_page_meta(string $html): array
         }
     }
 
-    // Models / pornstars
+    // Models / pornstars (real people)
     if (preg_match_all(
         '/<li[^>]*class="[^"]*\bmodel\b[^"]*"[\s\S]*?<a[^>]+href="([^"]+)"[\s\S]*?<span[^>]*class="name"[^>]*>([^<]+)/i',
         $html,
@@ -494,6 +508,8 @@ function cfp_xv_enrich_video(PDO $pdo, array $video, bool $force = false): bool
     }
 
     cfp_ensure_schema($pdo);
+    // Replace prior links so listing-card "channel" names don't stay tagged as people
+    $pdo->prepare('DELETE FROM video_actors WHERE video_id = ?')->execute([$id]);
     foreach ($meta['people'] as $person) {
         $aid = cfp_upsert_actor($pdo, (string) $person['name'], (string) $person['slug']);
         if ($aid) {
@@ -553,7 +569,10 @@ function cfp_xv_import_page(PDO $pdo, string $categorySlug, string $categoryLabe
             $embedKey = cfp_xv_key_from_url((string) ($item['href'] ?? '')) ?: (string) $item['id'];
         }
         $embed = '<iframe src="https://www.xvideos.com/embedframe/' . $embedKey . '" frameborder="0" width="510" height="400" scrolling="no" allowfullscreen="allowfullscreen"></iframe>';
-        $actors = $item['actors'] !== '' ? [$item['actors']] : [];
+        // Listing cards expose the channel/group name — not performers.
+        $actors = $item['actors'] !== ''
+            ? [['name' => $item['actors'], 'role' => 'channel']]
+            : [];
         cfp_upsert_video($pdo, [
             'partner' => 'xvideos',
             'video_id' => $item['id'],
