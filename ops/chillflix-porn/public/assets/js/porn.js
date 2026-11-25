@@ -711,18 +711,104 @@
       if (shareBtn) {
         e.preventDefault();
         var url = window.location.href;
+        var label = shareBtn.querySelector("span:last-child");
         if (navigator.share) {
           navigator.share({ title: document.title, url: url }).catch(function () {});
         } else if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(url).then(function () {
-            shareBtn.querySelector("strong").textContent = "Copied";
-            setTimeout(function () {
-              shareBtn.querySelector("strong").textContent = "Share";
-            }, 1400);
+            if (label) {
+              label.textContent = "Copied";
+              setTimeout(function () { label.textContent = "Share"; }, 1400);
+            }
           }).catch(function () {});
         }
+        return;
+      }
+      var saveBtn = closest(e.target, "[data-cfp-save]");
+      if (saveBtn) {
+        e.preventDefault();
+        var key = "cfp_saved";
+        var list = [];
+        try { list = JSON.parse(localStorage.getItem(key) || "[]"); } catch (err) { list = []; }
+        if (!Array.isArray(list)) list = [];
+        var id = bar.getAttribute("data-video-id") || "";
+        var idx = list.indexOf(id);
+        var on = idx === -1;
+        if (on) list.push(id);
+        else list.splice(idx, 1);
+        try { localStorage.setItem(key, JSON.stringify(list)); } catch (err2) {}
+        saveBtn.classList.toggle("is-on", on);
+        saveBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        var sl = saveBtn.querySelector("[data-cfp-save-label]");
+        if (sl) sl.textContent = on ? "Saved" : "Save";
       }
     });
+    // hydrate save state
+    try {
+      var saved = JSON.parse(localStorage.getItem("cfp_saved") || "[]");
+      var saveBtn0 = bar.querySelector("[data-cfp-save]");
+      if (saveBtn0 && Array.isArray(saved) && saved.indexOf(bar.getAttribute("data-video-id") || "") !== -1) {
+        saveBtn0.classList.add("is-on");
+        saveBtn0.setAttribute("aria-pressed", "true");
+        var sl0 = saveBtn0.querySelector("[data-cfp-save-label]");
+        if (sl0) sl0.textContent = "Saved";
+      }
+    } catch (err3) {}
+  })();
+
+  // Local comments (YouTube-style box)
+  (function initComments() {
+    var box = document.querySelector("[data-cfp-comments]");
+    if (!box) return;
+    var vid = box.getAttribute("data-video-id") || "";
+    var listEl = box.querySelector("[data-cfp-comment-list]");
+    var countEl = box.querySelector("[data-cfp-comment-count]");
+    var form = box.querySelector("[data-cfp-comment-form]");
+    var key = "cfp_comments_" + vid;
+    function load() {
+      try {
+        var rows = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(rows) ? rows : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    function render() {
+      var rows = load();
+      if (countEl) countEl.textContent = String(rows.length);
+      if (!listEl) return;
+      listEl.innerHTML = "";
+      rows.slice().reverse().forEach(function (row) {
+        var li = document.createElement("li");
+        var av = document.createElement("span");
+        av.className = "cfp-comments-avatar";
+        av.textContent = (row.name || "Y").charAt(0).toUpperCase();
+        var body = document.createElement("div");
+        var who = document.createElement("strong");
+        who.textContent = row.name || "You";
+        var text = document.createElement("div");
+        text.textContent = row.body || "";
+        body.appendChild(who);
+        body.appendChild(text);
+        li.appendChild(av);
+        li.appendChild(body);
+        listEl.appendChild(li);
+      });
+    }
+    if (form) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var input = form.querySelector('input[name="body"]');
+        var body = ((input && input.value) || "").trim();
+        if (!body) return;
+        var rows = load();
+        rows.push({ name: "You", body: body, t: Date.now() });
+        try { localStorage.setItem(key, JSON.stringify(rows.slice(-40))); } catch (err) {}
+        if (input) input.value = "";
+        render();
+      });
+    }
+    render();
   })();
 
   // Full player (watch page) — MP4 + HLS ladder (480p/720p/1080p/2K/4K)
@@ -731,29 +817,38 @@
   var videoId = root.getAttribute("data-video-id") || "";
   var video = document.getElementById("cfpPlayer");
   var status = document.getElementById("cfpPlayerStatus");
-  var qualityBox = document.getElementById("cfpQuality");
-  var qualityOpts = qualityBox ? qualityBox.querySelector(".cfp-quality-opts") : null;
+  var qualityOpts = document.querySelector("#cfpQualityMenu .cfp-quality-opts") || document.getElementById("cfpQuality");
   var gearBtn = document.getElementById("cfpGearBtn");
   var gearLabel = document.getElementById("cfpGearLabel");
   var qualityMenu = document.getElementById("cfpQualityMenu");
+  var downloadBtn = document.getElementById("cfpDownload");
   if (!videoId || !video) return;
 
   function setGearOpen(open) {
     if (!gearBtn || !qualityMenu) return;
     gearBtn.setAttribute("aria-expanded", open ? "true" : "false");
     qualityMenu.hidden = !open;
+    try {
+      document.documentElement.style.overflow = open ? "hidden" : "";
+    } catch (eLock) {}
   }
   if (gearBtn) {
     gearBtn.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
-      setGearOpen(qualityMenu && qualityMenu.hidden);
+      setGearOpen(!!(qualityMenu && qualityMenu.hidden));
     });
   }
-  document.addEventListener("click", function (e) {
-    if (!qualityMenu || qualityMenu.hidden) return;
-    if (closest(e.target, "#cfpQuality")) return;
-    setGearOpen(false);
+  if (qualityMenu) {
+    qualityMenu.addEventListener("click", function (e) {
+      if (closest(e.target, "[data-cfp-qclose]")) {
+        e.preventDefault();
+        setGearOpen(false);
+      }
+    });
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") setGearOpen(false);
   });
 
   function setStatus(msg, ready) {
@@ -821,6 +916,17 @@
     if (on) {
       setTitleQualityLabel(on.label);
       if (gearLabel) gearLabel.textContent = on.label;
+      if (downloadBtn && on.type !== "hls") {
+        downloadBtn.hidden = false;
+        downloadBtn.href = on.url;
+      } else if (downloadBtn) {
+        // Prefer any mp4 for download
+        var mp4 = qualities.find(function (q) { return q.type !== "hls"; });
+        if (mp4) {
+          downloadBtn.hidden = false;
+          downloadBtn.href = mp4.url;
+        }
+      }
     }
   }
 
