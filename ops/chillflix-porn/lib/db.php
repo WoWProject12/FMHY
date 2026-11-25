@@ -110,6 +110,138 @@ function cfp_ensure_schema(PDO $pdo): void
     } catch (Throwable $e) {
         // ignore — older MySQL or missing privilege; enrich will no-op safely
     }
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM video_actors LIKE 'role'")->fetchAll();
+        if (!$cols) {
+            $pdo->exec("ALTER TABLE video_actors ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'model'");
+            // One-shot: re-enrich so channel vs model roles populate on next view
+            $pdo->exec(
+                'UPDATE videos v
+                 INNER JOIN video_actors va ON va.video_id = v.id
+                 SET v.enriched_at = NULL'
+            );
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM videos LIKE 'likes'")->fetchAll();
+        if (!$cols) {
+            $pdo->exec('ALTER TABLE videos ADD COLUMN likes INT UNSIGNED NOT NULL DEFAULT 0, ADD COLUMN dislikes INT UNSIGNED NOT NULL DEFAULT 0');
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+    try {
+        $pdo->query('SELECT 1 FROM video_votes LIMIT 1');
+    } catch (Throwable $e) {
+        try {
+            $pdo->exec(
+                'CREATE TABLE IF NOT EXISTS video_votes (
+                   video_id BIGINT UNSIGNED NOT NULL,
+                   voter_key VARCHAR(64) NOT NULL,
+                   vote TINYINT NOT NULL,
+                   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                   PRIMARY KEY (video_id, voter_key),
+                   KEY idx_vote (video_id, vote),
+                   CONSTRAINT fk_vv_video FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+            );
+        } catch (Throwable $e2) {
+            // ignore
+        }
+    }
+}
+
+/** Stable anonymous voter id (cookie). */
+function cfp_voter_key(): string
+{
+    $key = (string) ($_COOKIE['cfp_voter'] ?? '');
+    if (!preg_match('/^[a-f0-9]{32}$/', $key)) {
+        $key = bin2hex(random_bytes(16));
+        setcookie('cfp_voter', $key, [
+            'expires' => time() + 60 * 60 * 24 * 400,
+            'path' => '/',
+            'secure' => true,
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
+        $_COOKIE['cfp_voter'] = $key;
+    }
+    return $key;
+}
+
+/**
+ * Apply like/dislike for a partner video_id. $vote: 1 like, -1 dislike, 0 clear.
+ * @return array{likes:int,dislikes:int,mine:int}
+ */
+function cfp_cast_vote(PDO $pdo, string $partnerVideoId, int $vote): array
+{
+    cfp_ensure_schema($pdo);
+    $vote = $vote >= 1 ? 1 : ($vote <= -1 ? -1 : 0);
+    $st = $pdo->prepare('SELECT id, likes, dislikes FROM videos WHERE video_id = ? LIMIT 1');
+    $st->execute([$partnerVideoId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['likes' => 0, 'dislikes' => 0, 'mine' => 0];
+    }
+    $id = (int) $row['id'];
+    $voter = cfp_voter_key();
+    $prevSt = $pdo->prepare('SELECT vote FROM video_votes WHERE video_id = ? AND voter_key = ?');
+    $prevSt->execute([$id, $voter]);
+    $prev = $prevSt->fetchColumn();
+    $prev = $prev === false ? 0 : (int) $prev;
+
+    $likes = (int) $row['likes'];
+    $dislikes = (int) $row['dislikes'];
+    if ($prev === 1) {
+        $likes = max(0, $likes - 1);
+    } elseif ($prev === -1) {
+        $dislikes = max(0, $dislikes - 1);
+    }
+
+    if ($vote === 0) {
+        $pdo->prepare('DELETE FROM video_votes WHERE video_id = ? AND voter_key = ?')->execute([$id, $voter]);
+    } else {
+        $pdo->prepare(
+            'INSERT INTO video_votes (video_id, voter_key, vote) VALUES (?,?,?)
+             ON DUPLICATE KEY UPDATE vote = VALUES(vote)'
+        )->execute([$id, $voter, $vote]);
+        if ($vote === 1) {
+            $likes++;
+        } else {
+            $dislikes++;
+        }
+    }
+    $pdo->prepare('UPDATE videos SET likes = ?, dislikes = ? WHERE id = ?')->execute([$likes, $dislikes, $id]);
+    return ['likes' => $likes, 'dislikes' => $dislikes, 'mine' => $vote];
+}
+
+/** @return array{likes:int,dislikes:int,mine:int} */
+function cfp_vote_state(PDO $pdo, string $partnerVideoId): array
+{
+    cfp_ensure_schema($pdo);
+    $st = $pdo->prepare('SELECT id, likes, dislikes FROM videos WHERE video_id = ? LIMIT 1');
+    $st->execute([$partnerVideoId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['likes' => 0, 'dislikes' => 0, 'mine' => 0];
+    }
+    $mine = 0;
+    $voter = (string) ($_COOKIE['cfp_voter'] ?? '');
+    if (preg_match('/^[a-f0-9]{32}$/', $voter)) {
+        $prev = $pdo->prepare('SELECT vote FROM video_votes WHERE video_id = ? AND voter_key = ?');
+        $prev->execute([(int) $row['id'], $voter]);
+        $v = $prev->fetchColumn();
+        if ($v !== false) {
+            $mine = (int) $v;
+        }
+    }
+    return [
+        'likes' => (int) $row['likes'],
+        'dislikes' => (int) $row['dislikes'],
+        'mine' => $mine,
+    ];
 }
 
 /**
@@ -625,12 +757,12 @@ function cfp_video_meta(PDO $pdo, int $id): array
     $tags = $pdo->prepare('SELECT t.slug, t.name FROM tags t INNER JOIN video_tags vt ON vt.tag_id = t.id WHERE vt.video_id = ? ORDER BY t.name ASC');
     $tags->execute([$id]);
     $actors = $pdo->prepare(
-        'SELECT a.id, a.slug, a.name,
+        'SELECT a.id, a.slug, a.name, va.role,
                 (SELECT COUNT(*) FROM video_actors va2 WHERE va2.actor_id = a.id) AS n
          FROM actors a
          INNER JOIN video_actors va ON va.actor_id = a.id
          WHERE va.video_id = ?
-         ORDER BY a.name ASC'
+         ORDER BY CASE WHEN va.role = \'channel\' THEN 0 ELSE 1 END, a.name ASC'
     );
     $actors->execute([$id]);
     return [

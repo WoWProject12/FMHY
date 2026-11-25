@@ -640,7 +640,97 @@
 
   document.querySelectorAll(".cfp-card[data-video-id], .cfp-rail-card[data-video-id]").forEach(bindCardPreview);
 
-  // Full player (watch page)
+  // YouTube-style vote / share bar
+  (function initActions() {
+    var bar = document.querySelector("[data-cfp-actions]");
+    if (!bar) return;
+    var vid = bar.getAttribute("data-video-id") || "";
+    function fmt(n) {
+      n = Number(n) || 0;
+      if (n >= 1000000) return (Math.round(n / 100000) / 10) + "M";
+      if (n >= 1000) return (Math.round(n / 100) / 10) + "K";
+      return String(n);
+    }
+    function paint(state) {
+      var likes = bar.querySelector("[data-cfp-likes]");
+      var dislikes = bar.querySelector("[data-cfp-dislikes]");
+      var pct = bar.querySelector("[data-cfp-like-pct]");
+      if (likes) likes.textContent = fmt(state.likes);
+      if (dislikes) dislikes.textContent = fmt(state.dislikes);
+      var total = (Number(state.likes) || 0) + (Number(state.dislikes) || 0);
+      if (pct) {
+        pct.textContent = total > 0 ? Math.round((100 * state.likes) / total) + "%" : "";
+      }
+      bar.querySelectorAll("[data-cfp-vote]").forEach(function (btn) {
+        var v = parseInt(btn.getAttribute("data-cfp-vote") || "0", 10);
+        var on = v === state.mine;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      bar.setAttribute("data-mine", String(state.mine || 0));
+    }
+    bar.addEventListener("click", function (e) {
+      var voteBtn = closest(e.target, "[data-cfp-vote]");
+      if (voteBtn) {
+        e.preventDefault();
+        var next = parseInt(voteBtn.getAttribute("data-cfp-vote") || "0", 10);
+        var cur = parseInt(bar.getAttribute("data-mine") || "0", 10);
+        if (next === cur) next = 0;
+        // Optimistic UI, then sync (GET — Cloudflare often challenges POSTs)
+        var likesEl = bar.querySelector("[data-cfp-likes]");
+        var dislikesEl = bar.querySelector("[data-cfp-dislikes]");
+        var likesN = parseInt((likesEl && likesEl.textContent) || "0", 10) || 0;
+        var dislikesN = parseInt((dislikesEl && dislikesEl.textContent) || "0", 10) || 0;
+        // crude parse for K/M display back to approx int is skipped — use data attrs
+        likesN = parseInt(bar.getAttribute("data-likes") || String(likesN), 10) || 0;
+        dislikesN = parseInt(bar.getAttribute("data-dislikes") || String(dislikesN), 10) || 0;
+        if (cur === 1) likesN = Math.max(0, likesN - 1);
+        if (cur === -1) dislikesN = Math.max(0, dislikesN - 1);
+        if (next === 1) likesN += 1;
+        if (next === -1) dislikesN += 1;
+        bar.setAttribute("data-likes", String(likesN));
+        bar.setAttribute("data-dislikes", String(dislikesN));
+        paint({ likes: likesN, dislikes: dislikesN, mine: next });
+
+        var voteUrl = "/porn/api/vote?id=" + encodeURIComponent(vid) + "&vote=" + encodeURIComponent(String(next));
+        fetch(voteUrl, {
+          method: "GET",
+          credentials: "same-origin",
+          headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+        })
+          .then(function (r) {
+            if (!r.ok) throw new Error("vote " + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            if (data && data.ok) {
+              bar.setAttribute("data-likes", String(data.likes));
+              bar.setAttribute("data-dislikes", String(data.dislikes));
+              paint(data);
+            }
+          })
+          .catch(function () {});
+        return;
+      }
+      var shareBtn = closest(e.target, "[data-cfp-share]");
+      if (shareBtn) {
+        e.preventDefault();
+        var url = window.location.href;
+        if (navigator.share) {
+          navigator.share({ title: document.title, url: url }).catch(function () {});
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(function () {
+            shareBtn.querySelector("strong").textContent = "Copied";
+            setTimeout(function () {
+              shareBtn.querySelector("strong").textContent = "Share";
+            }, 1400);
+          }).catch(function () {});
+        }
+      }
+    });
+  })();
+
+  // Full player (watch page) — MP4 + HLS ladder (480p/720p/1080p/2K/4K)
   var root = document.querySelector(".cfp-player");
   if (!root) return;
   var videoId = root.getAttribute("data-video-id") || "";
@@ -665,10 +755,22 @@
   video.referrerPolicy = "no-referrer";
 
   var proxyUrl = "/porn/api/preview?id=" + encodeURIComponent(videoId);
-  var qualities = []; // [{id,label,url}]
+  var qualities = []; // [{id,label,url,type,height}]
   var activeQ = "";
   var loadGen = 0;
   var failFallback = false;
+  var hls = null;
+  var canNativeHls = false;
+  try {
+    canNativeHls = video.canPlayType("application/vnd.apple.mpegurl") !== "";
+  } catch (e0) {}
+
+  function destroyHls() {
+    if (hls) {
+      try { hls.destroy(); } catch (e1) {}
+      hls = null;
+    }
+  }
 
   function tryPlay() {
     var p = video.play();
@@ -679,15 +781,31 @@
     }
   }
 
+  var titleQuality = document.getElementById("cfpTitleQuality");
+
+  function setTitleQualityLabel(label) {
+    if (!titleQuality) return;
+    if (!label) {
+      titleQuality.hidden = true;
+      titleQuality.textContent = "";
+      return;
+    }
+    titleQuality.textContent = label;
+    titleQuality.hidden = false;
+  }
+
   function markQuality(id) {
     activeQ = id;
     if (!qualityOpts) return;
     qualityOpts.querySelectorAll("button").forEach(function (btn) {
       btn.classList.toggle("is-on", btn.getAttribute("data-q") === id);
     });
+    var on = qualities.find(function (q) { return q.id === id; });
+    if (on) setTitleQualityLabel(on.label);
   }
 
-  function playSource(url, id, seekTo, wasPlaying) {
+  function playMp4(url, id, seekTo, wasPlaying) {
+    destroyHls();
     var my = ++loadGen;
     failFallback = false;
     markQuality(id);
@@ -710,17 +828,100 @@
     }, 40);
   }
 
+  function playHls(url, id, seekTo, wasPlaying) {
+    var my = ++loadGen;
+    failFallback = false;
+    markQuality(id);
+    setStatus("Loading…");
+    destroyHls();
+
+    if (canNativeHls) {
+      video.src = url;
+      try { video.load(); } catch (e3) {}
+      var onMeta = function () {
+        video.removeEventListener("loadedmetadata", onMeta);
+        if (my !== loadGen) return;
+        if (seekTo && isFinite(seekTo) && seekTo > 0.5) {
+          try { video.currentTime = seekTo; } catch (e4) {}
+        }
+        if (wasPlaying !== false) tryPlay();
+        setStatus("", true);
+      };
+      video.addEventListener("loadedmetadata", onMeta);
+      return;
+    }
+
+    if (!window.Hls || !window.Hls.isSupported()) {
+      // Fall back to any mp4 quality
+      var mp4 = qualities.find(function (q) { return q.type !== "hls"; });
+      if (mp4) {
+        playMp4(mp4.url, mp4.id, seekTo, wasPlaying);
+        return;
+      }
+      playMp4(proxyUrl, "proxy", seekTo, wasPlaying);
+      return;
+    }
+
+    hls = new window.Hls({
+      enableWorker: true,
+      maxBufferLength: 30,
+      xhrSetup: function (xhr) {
+        try { xhr.withCredentials = false; } catch (e5) {}
+      },
+    });
+    hls.loadSource(url);
+    hls.attachMedia(video);
+    hls.on(window.Hls.Events.MANIFEST_PARSED, function () {
+      if (my !== loadGen) return;
+      if (seekTo && isFinite(seekTo) && seekTo > 0.5) {
+        try { video.currentTime = seekTo; } catch (e6) {}
+      }
+      if (wasPlaying !== false) tryPlay();
+      setStatus("", true);
+    });
+    hls.on(window.Hls.Events.ERROR, function (_ev, data) {
+      if (!data || !data.fatal || my !== loadGen) return;
+      destroyHls();
+      var mp4 = qualities.find(function (q) { return q.type !== "hls" && q.id !== activeQ; });
+      if (mp4) playMp4(mp4.url, mp4.id, video.currentTime || 0, true);
+      else playMp4(proxyUrl, "proxy", video.currentTime || 0, true);
+    });
+  }
+
+  function playSource(q, seekTo, wasPlaying) {
+    if (!q) return;
+    if (q.type === "hls") playHls(q.url, q.id, seekTo, wasPlaying);
+    else playMp4(q.url, q.id, seekTo, wasPlaying);
+  }
+
   function buildQualityUi(streams) {
     qualities = [];
-    if (streams.low) qualities.push({ id: "low", label: "240p", url: streams.low });
-    if (streams.high) qualities.push({ id: "high", label: "360p", url: streams.high });
-    // Label from URL hint when possible
-    qualities.forEach(function (q) {
-      var m = String(q.url).match(/(\d{3,4})p/i);
-      if (m) q.label = m[1] + "p";
-      else if (q.id === "high") q.label = "HQ";
-      else if (q.id === "low") q.label = "LQ";
+    var ladder = Array.isArray(streams.qualities) ? streams.qualities.slice() : [];
+    ladder.forEach(function (q) {
+      if (!q || !q.url) return;
+      qualities.push({
+        id: String(q.id || q.label || "hls"),
+        label: String(q.label || "HLS"),
+        url: String(q.url),
+        type: "hls",
+        height: Number(q.height) || 0,
+      });
     });
+    // Progressive MP4 only when that height isn't already in the HLS ladder
+    var haveH = Object.create(null);
+    qualities.forEach(function (q) {
+      if (q.height > 0) haveH[q.height] = true;
+    });
+    if (streams.low && !haveH[240]) {
+      qualities.push({ id: "mp4-low", label: "240p", url: streams.low, type: "mp4", height: 240 });
+    }
+    if (streams.high && !haveH[360]) {
+      qualities.push({ id: "mp4-high", label: "360p", url: streams.high, type: "mp4", height: 360 });
+    }
+    qualities.sort(function (a, b) {
+      return (a.height || 0) - (b.height || 0);
+    });
+
     if (!qualityBox || !qualityOpts || qualities.length < 1) {
       if (qualityBox) qualityBox.hidden = true;
       return;
@@ -734,11 +935,29 @@
       btn.textContent = q.label;
       btn.addEventListener("click", function () {
         if (q.id === activeQ) return;
-        playSource(q.url, q.id, video.currentTime || 0, !video.paused);
+        playSource(q, video.currentTime || 0, !video.paused);
       });
       qualityOpts.appendChild(btn);
     });
     qualityBox.hidden = qualities.length < 2;
+    if (qualities.length) {
+      setTitleQualityLabel(qualities[qualities.length - 1].label);
+    }
+  }
+
+  function pickStartQuality() {
+    if (!qualities.length) return null;
+    var coarse = false;
+    try { coarse = window.matchMedia("(pointer: coarse)").matches; } catch (e1) {}
+    // Prefer best HLS available; on phones start a bit lower to save data
+    var hlsQs = qualities.filter(function (q) { return q.type === "hls"; });
+    var pool = hlsQs.length ? hlsQs : qualities;
+    if (coarse) {
+      // ~720p max auto on phones when available, else highest under 720, else best
+      var under = pool.filter(function (q) { return q.height > 0 && q.height <= 720; });
+      if (under.length) return under[under.length - 1];
+    }
+    return pool[pool.length - 1];
   }
 
   video.addEventListener("loadeddata", function () {
@@ -748,19 +967,19 @@
     setStatus("", true);
   });
   video.addEventListener("error", function () {
+    if (hls) return; // HLS errors handled separately
     if (failFallback) {
       setStatus("Stream unavailable — try again later.");
       return;
     }
-    // Current quality failed → try the other CDN quality, then proxy
     var next = qualities.find(function (q) { return q.id !== activeQ; });
     if (next) {
       failFallback = true;
-      playSource(next.url, next.id, video.currentTime || 0, true);
+      playSource(next, video.currentTime || 0, true);
       return;
     }
     failFallback = true;
-    playSource(proxyUrl, "proxy", video.currentTime || 0, true);
+    playMp4(proxyUrl, "proxy", video.currentTime || 0, true);
   });
 
   fetch("/porn/api/stream?id=" + encodeURIComponent(videoId), {
@@ -770,27 +989,20 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data || !data.ok || !data.streams) {
-        playSource(proxyUrl, "proxy", 0, true);
+        playMp4(proxyUrl, "proxy", 0, true);
         return;
       }
       var s = data.streams;
       if (s.poster) video.setAttribute("poster", s.poster);
       buildQualityUi(s);
-      var coarse = false;
-      try { coarse = window.matchMedia("(pointer: coarse)").matches; } catch (e1) {}
-      var start = null;
-      if (coarse) {
-        start = qualities.find(function (q) { return q.id === "low"; }) || qualities[0];
-      } else {
-        start = qualities.find(function (q) { return q.id === "high"; }) || qualities[0];
-      }
+      var start = pickStartQuality();
       if (!start) {
-        playSource(proxyUrl, "proxy", 0, true);
+        playMp4(proxyUrl, "proxy", 0, true);
         return;
       }
-      playSource(start.url, start.id, 0, true);
+      playSource(start, 0, true);
     })
     .catch(function () {
-      playSource(proxyUrl, "proxy", 0, true);
+      playMp4(proxyUrl, "proxy", 0, true);
     });
 })();

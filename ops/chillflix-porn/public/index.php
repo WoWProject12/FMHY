@@ -38,6 +38,34 @@ if ($path === '/api/stream' && $method === 'GET') {
     cfp_json(['ok' => true, 'streams' => $streams]);
 }
 
+// GET (preferred — Cloudflare often challenges POSTs) or POST
+if ($path === '/api/vote' && ($method === 'GET' || $method === 'POST')) {
+    $body = $_GET;
+    if ($method === 'POST') {
+        $raw = file_get_contents('php://input') ?: '';
+        $json = json_decode($raw, true);
+        if (is_array($json)) {
+            $body = $json + $body;
+        } else {
+            $body = $_POST + $body;
+        }
+    }
+    $vid = preg_replace('/[^a-zA-Z0-9]/', '', (string) ($body['id'] ?? '')) ?? '';
+    $voteRaw = $body['vote'] ?? 0;
+    if ($voteRaw === 'up' || $voteRaw === 'like') {
+        $vote = 1;
+    } elseif ($voteRaw === 'down' || $voteRaw === 'dislike') {
+        $vote = -1;
+    } else {
+        $vote = (int) $voteRaw;
+    }
+    if ($vid === '') {
+        cfp_json(['ok' => false, 'error' => 'missing id'], 400);
+    }
+    $state = cfp_cast_vote($pdo, $vid, $vote);
+    cfp_json(['ok' => true] + $state);
+}
+
 // Same-origin muted preview fallback (primary path plays CDN URL directly in JS).
 if ($path === '/api/preview' && $method === 'GET') {
     $vid = preg_replace('/[^a-zA-Z0-9]/', '', (string) ($_GET['id'] ?? '')) ?? '';

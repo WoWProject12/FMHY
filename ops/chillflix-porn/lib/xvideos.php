@@ -158,7 +158,7 @@ function cfp_xv_key_from_url(?string $url): string
 }
 
 /**
- * @return array{high?:string,low?:string,hls?:string,poster?:string}|null
+ * @return array{high?:string,low?:string,hls?:string,poster?:string,qualities?:list<array>}|null
  */
 function cfp_xv_parse_streams(string $body): ?array
 {
@@ -182,7 +182,103 @@ function cfp_xv_parse_streams(string $body): ?array
     if (empty($streams['high']) && empty($streams['hls']) && empty($streams['low'])) {
         return null;
     }
+    if (!empty($streams['hls'])) {
+        $qualities = cfp_xv_hls_qualities((string) $streams['hls']);
+        if ($qualities) {
+            $streams['qualities'] = $qualities;
+        }
+    }
     return $streams;
+}
+
+/**
+ * Resolve HLS master playlist into a quality ladder (250p…4K when available).
+ * @return list<array{id:string,label:string,height:int,url:string,type:string}>
+ */
+function cfp_xv_hls_qualities(string $masterUrl): array
+{
+    $masterUrl = trim($masterUrl);
+    if ($masterUrl === '') {
+        return [];
+    }
+    $body = cfp_xv_http_get($masterUrl, 12);
+    if ($body === '' || stripos($body, '#EXTM3U') === false) {
+        return [];
+    }
+    $base = preg_replace('#/[^/]*$#', '/', $masterUrl) ?? $masterUrl;
+    $out = [];
+    $lines = preg_split('/\R/', $body) ?: [];
+    $pending = null;
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+        if (str_starts_with($line, '#EXT-X-STREAM-INF:')) {
+            $height = 0;
+            $name = '';
+            if (preg_match('/RESOLUTION=\d+x(\d+)/i', $line, $m)) {
+                $height = (int) $m[1];
+            }
+            if (preg_match('/NAME="([^"]+)"/i', $line, $m)) {
+                $name = trim($m[1]);
+            }
+            $pending = ['height' => $height, 'name' => $name];
+            continue;
+        }
+        if ($pending === null || str_starts_with($line, '#')) {
+            continue;
+        }
+        $url = $line;
+        if (!preg_match('#^https?://#i', $url)) {
+            $url = $base . ltrim($url, '/');
+        }
+        $height = (int) ($pending['height'] ?? 0);
+        $label = (string) ($pending['name'] ?? '');
+        if ($label === '' && $height > 0) {
+            if ($height >= 2160) {
+                $label = '4K';
+            } elseif ($height >= 1440) {
+                $label = '2K';
+            } else {
+                $label = $height . 'p';
+            }
+        }
+        if ($label === '') {
+            $label = 'Auto';
+        }
+        // Prefer height from label like "1080p" when RESOLUTION missing
+        if ($height < 1 && preg_match('/(\d{3,4})\s*p/i', $label, $m)) {
+            $height = (int) $m[1];
+        }
+        if ($height >= 2160) {
+            $label = '4K';
+        } elseif ($height >= 1440) {
+            $label = '2K';
+        }
+        $id = 'hls-' . ($height > 0 ? $height : preg_replace('/\W+/', '', strtolower($label)));
+        $out[] = [
+            'id' => $id,
+            'label' => $label,
+            'height' => $height,
+            'url' => $url,
+            'type' => 'hls',
+        ];
+        $pending = null;
+    }
+    usort($out, static fn(array $a, array $b): int => ($a['height'] <=> $b['height']));
+    // de-dupe by height/label
+    $seen = [];
+    $unique = [];
+    foreach ($out as $q) {
+        $key = $q['height'] > 0 ? (string) $q['height'] : $q['label'];
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $unique[] = $q;
+    }
+    return $unique;
 }
 
 /**
@@ -202,6 +298,19 @@ function cfp_xv_fetch_streams(PDO $pdo, string $videoId): ?array
     if ($cached && strtotime((string) $cached['expires_at']) > time()) {
         $decoded = json_decode((string) $cached['payload_json'], true);
         if (is_array($decoded)) {
+            // Older cache only had 240/360 mp4 — fill HLS ladder when missing
+            if (empty($decoded['qualities']) && !empty($decoded['hls'])) {
+                $decoded['qualities'] = cfp_xv_hls_qualities((string) $decoded['hls']);
+                if (!empty($decoded['qualities'])) {
+                    try {
+                        $pdo->prepare(
+                            'UPDATE stream_cache SET payload_json = ? WHERE video_id = ?'
+                        )->execute([json_encode($decoded, JSON_UNESCAPED_SLASHES), $videoId]);
+                    } catch (Throwable $e) {
+                        // ignore cache refresh failure
+                    }
+                }
+            }
             return $decoded;
         }
     }
@@ -384,10 +493,15 @@ function cfp_xv_enrich_video(PDO $pdo, array $video, bool $force = false): bool
         return false;
     }
 
+    cfp_ensure_schema($pdo);
     foreach ($meta['people'] as $person) {
         $aid = cfp_upsert_actor($pdo, (string) $person['name'], (string) $person['slug']);
         if ($aid) {
-            $pdo->prepare('INSERT IGNORE INTO video_actors (video_id, actor_id) VALUES (?,?)')->execute([$id, $aid]);
+            $role = (($person['role'] ?? '') === 'channel') ? 'channel' : 'model';
+            $pdo->prepare(
+                'INSERT INTO video_actors (video_id, actor_id, role) VALUES (?,?,?)
+                 ON DUPLICATE KEY UPDATE role = VALUES(role)'
+            )->execute([$id, $aid, $role]);
         }
     }
     foreach ($meta['tags'] as $tagName) {

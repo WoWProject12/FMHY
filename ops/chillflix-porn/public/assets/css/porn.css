@@ -547,7 +547,78 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-cat-card span { color: var(--cfp-muted); font-size: 0.75rem; }
 
 /* Watch */
-.cfp-watch { display: grid; gap: 0.9rem; }
+.cfp-watch { display: grid; gap: 0.75rem; }
+/* xvideos-style title + people chips above the player */
+.cfp-watch-title {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.4rem;
+  margin: 0 0 0.45rem;
+  font-family: var(--cfp-font);
+  font-size: clamp(1.05rem, 3.6vw, 1.35rem);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--cfp-text);
+}
+.cfp-watch-title-text { min-width: 0; }
+.cfp-badge {
+  display: inline-flex; align-items: center;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.68rem; font-weight: 700; line-height: 1.2;
+  white-space: nowrap; flex: 0 0 auto;
+}
+.cfp-badge-dur {
+  background: #5a5a5a; color: #fff;
+}
+.cfp-badge-q {
+  background: #c62828; color: #fff;
+}
+.cfp-badge-q[hidden] { display: none !important; }
+.cfp-xv-people {
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+  margin: 0 0 0.4rem; max-width: 100%;
+}
+.cfp-xv-chip {
+  display: inline-flex; align-items: stretch; gap: 0;
+  border-radius: 4px;
+  text-decoration: none; color: #fff;
+  font-size: 0.78rem; font-weight: 700;
+  line-height: 1.2; max-width: 100%;
+  overflow: hidden;
+}
+.cfp-xv-chip-channel {
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.22);
+}
+.cfp-xv-chip-model {
+  background: #c62828;
+  border: 1px solid transparent;
+}
+.cfp-xv-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.28rem 0.35rem 0.28rem 0.45rem;
+  flex: 0 0 auto; font-size: 0.72rem; line-height: 1;
+}
+.cfp-xv-chip-channel .cfp-xv-ico { color: #ddd; }
+.cfp-xv-name {
+  display: inline-flex; align-items: center;
+  padding: 0.28rem 0.45rem 0.28rem 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 11rem;
+}
+.cfp-xv-count {
+  display: inline-flex; align-items: center;
+  margin: 0.15rem 0.2rem 0.15rem 0;
+  padding: 0.08rem 0.35rem;
+  border-radius: 3px;
+  background: #fff; color: #111;
+  font-size: 0.68rem; font-weight: 700;
+  flex: 0 0 auto;
+}
+.cfp-xv-chip-channel .cfp-xv-count {
+  background: transparent; color: #fff;
+  border: 1px solid rgba(255,255,255,0.35);
+}
+.cfp-xv-chip:hover { filter: brightness(1.08); }
 .cfp-player {
   border-radius: 12px; overflow: hidden; background: #000;
   border: 1px solid var(--cfp-border);
@@ -584,14 +655,9 @@ a.cfp-dd-option { color: var(--cfp-text); }
   z-index: 2;
 }
 .cfp-player-status.is-ready { opacity: 0; transition: opacity .4s ease; }
-.cfp-watch-head h1 {
-  margin: 0 0 0.3rem;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.15rem, 2.2vw, 1.65rem);
-}
 .cfp-watch-meta {
   display: flex; flex-wrap: wrap; gap: 0.75rem;
-  color: var(--cfp-muted); margin: 0 0 0.55rem; font-size: 0.85rem;
+  color: var(--cfp-muted); margin: 0 0 0.45rem; font-size: 0.8rem;
   max-width: 100%;
 }
 .cfp-chips {
@@ -665,6 +731,41 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-quality-btn.is-on {
   background: var(--cfp-accent); color: #1a1208; border-color: var(--cfp-accent);
 }
+
+/* YouTube-style action row under player */
+.cfp-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem;
+  margin: 0.15rem 0 0.25rem;
+  max-width: 100%;
+}
+.cfp-action {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--cfp-border);
+  background: var(--cfp-surface-2);
+  color: var(--cfp-text);
+  font: inherit; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  line-height: 1;
+}
+.cfp-action-stat { cursor: default; }
+.cfp-action strong { font-weight: 700; }
+.cfp-action em {
+  font-style: normal; color: var(--cfp-muted); font-size: 0.72rem; font-weight: 600;
+}
+.cfp-action-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1rem; height: 1rem; line-height: 1; flex: 0 0 auto;
+}
+.cfp-action-ico svg { display: block; }
+.cfp-action:hover { border-color: rgba(228, 194, 122, 0.45); color: var(--cfp-accent-hi); }
+.cfp-action.is-on {
+  background: rgba(228, 194, 122, 0.14);
+  border-color: rgba(228, 194, 122, 0.55);
+  color: var(--cfp-accent-hi);
+}
+button.cfp-action { -webkit-appearance: none; appearance: none; }
 .cfp-chips-watch { margin: 0; gap: 0.25rem; }
 .cfp-tags-more {
   display: inline-flex; flex-direction: column; gap: 0.25rem; max-width: 100%;
@@ -677,11 +778,6 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-tags-more > summary::-webkit-details-marker { display: none; }
 .cfp-tags-more[open] > summary { color: var(--cfp-accent); border-style: solid; }
-.cfp-watch-head h1 {
-  font-size: clamp(1.05rem, 3.5vw, 1.45rem);
-  line-height: 1.25;
-}
-
 .cfp-people-tools {
   display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center; margin: 0 0 0.9rem;
 }

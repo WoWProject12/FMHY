@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=37center')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=41vote')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
   <style>
     html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
@@ -24,14 +24,9 @@ declare(strict_types=1);
     .cfp-header-inner,.cfp-main,.cfp-watch,.cfp-player,.cfp-watch-head,.cfp-section,.cfp-footer{width:100%;max-width:100%;min-width:0}
     .cfp-player,.cfp-player-stage,#cfpPlayer{width:100%!important;max-width:100%!important;margin:0!important;left:auto!important;right:auto!important;transform:none!important}
     #cfpPlayer{display:block!important;position:static!important;height:auto!important;aspect-ratio:16/9;background:#000;object-fit:contain}
-    .cfp-watch-head h1{font-size:1.05rem;line-height:1.25;margin:0 0 .25rem}
-    .cfp-watch-meta{margin:0 0 .4rem;font-size:.78rem}
-    .cfp-people-row{display:flex!important;flex-wrap:wrap!important;gap:.3rem;margin:0 0 .35rem;max-width:100%}
-    .cfp-person-chip{padding:.2rem .55rem .2rem .2rem!important;gap:.3rem!important}
-    .cfp-person-chip-mark{width:1.25rem!important;height:1.25rem!important;font-size:.65rem!important}
-    .cfp-person-chip-text{display:flex!important;flex-direction:column;line-height:1.1}
-    .cfp-person-chip-text strong{font-size:.75rem!important;font-weight:600}
-    .cfp-person-chip-text em{display:block!important;font-style:normal;color:#c2b08a;font-size:.62rem;font-weight:600}
+    .cfp-watch-title{font-size:1.05rem!important;line-height:1.25;margin:0 0 .35rem}
+    .cfp-watch-meta{margin:0 0 .35rem;font-size:.78rem}
+    .cfp-xv-people{display:flex!important;flex-wrap:wrap!important;gap:.3rem;margin:0 0 .35rem;max-width:100%}
     .cfp-chips,.cfp-chips-watch{display:flex!important;flex-wrap:wrap!important;gap:.25rem;max-width:100%;margin:0}
     .cfp-chip{padding:.18rem .45rem!important;font-size:.7rem!important}
     .cfp-chips-cats{display:none!important}
@@ -152,6 +147,7 @@ declare(strict_types=1);
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=37center')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/hls.min.js?v=1')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=41vote')) ?>" defer></script>
 </body>
 </html>
