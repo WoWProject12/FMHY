@@ -16,7 +16,8 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=53admin')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=54auth')) ?>">
+  <?php $cfpUser = cfp_current_user(); ?>
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
   <style>
     html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
@@ -88,6 +89,14 @@ declare(strict_types=1);
         </div>
       </div>
       <a class="cfp-nav-main" href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
+      <?php if ($cfpUser): ?>
+        <a class="cfp-nav-user" href="<?= cfp_e(cfp_url('/library')) ?>" title="My library">
+          <span class="cfp-nav-avatar" aria-hidden="true"><?= cfp_e(strtoupper(substr((string) $cfpUser['username'], 0, 1))) ?></span>
+          <span class="cfp-nav-user-label"><?= cfp_e((string) $cfpUser['username']) ?></span>
+        </a>
+      <?php else: ?>
+        <a class="cfp-nav-login" href="<?= cfp_e(cfp_url('/login')) ?>">Login</a>
+      <?php endif; ?>
     </nav>
   </div>
   <?php
@@ -140,7 +149,11 @@ declare(strict_types=1);
   <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
   <a href="<?= cfp_e(cfp_url('/people')) ?>" class="<?= in_array(($view ?? ''), ['people', 'person'], true) ? 'is-on' : '' ?>">People</a>
   <a href="<?= cfp_e(cfp_url('/categories')) ?>" class="<?= ($view ?? '') === 'categories' ? 'is-on' : '' ?>">Cats</a>
-  <a href="<?= cfp_e(cfp_url('/search')) ?>">Search</a>
+  <?php if ($cfpUser): ?>
+    <a href="<?= cfp_e(cfp_url('/library')) ?>" class="<?= ($view ?? '') === 'library' ? 'is-on' : '' ?>">Me</a>
+  <?php else: ?>
+    <a href="<?= cfp_e(cfp_url('/login')) ?>" class="<?= in_array(($view ?? ''), ['login', 'register'], true) ? 'is-on' : '' ?>">Login</a>
+  <?php endif; ?>
 </nav>
 
 <footer class="cfp-footer">
@@ -148,6 +161,9 @@ declare(strict_types=1);
 </footer>
 
 <script src="<?= cfp_e(cfp_asset('js/hls.min.js?v=1')) ?>" defer></script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=52admin')) ?>" defer></script>
+<script>
+  window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username']] : null, JSON_UNESCAPED_SLASHES) ?>;
+</script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=54auth')) ?>" defer></script>
 </body>
 </html>

@@ -63,7 +63,57 @@ if ($path === '/api/vote' && ($method === 'GET' || $method === 'POST')) {
         cfp_json(['ok' => false, 'error' => 'missing id'], 400);
     }
     $state = cfp_cast_vote($pdo, $vid, $vote);
+    // Mirror likes into user library when signed in
+    $user = cfp_current_user($pdo);
+    if ($user) {
+        if ($vote === 1) {
+            cfp_library_add($pdo, (int) $user['id'], $vid, 'liked');
+        } else {
+            cfp_library_remove($pdo, (int) $user['id'], $vid, 'liked');
+        }
+    }
     cfp_json(['ok' => true] + $state);
+}
+
+// User library sync (history / saved / liked / downloaded) — GET preferred for CF
+if ($path === '/api/library' && ($method === 'GET' || $method === 'POST')) {
+    $user = cfp_current_user($pdo);
+    if (!$user) {
+        cfp_json(['ok' => false, 'error' => 'login required'], 401);
+    }
+    $body = $_GET;
+    if ($method === 'POST') {
+        $raw = file_get_contents('php://input') ?: '';
+        $json = json_decode($raw, true);
+        if (is_array($json)) {
+            $body = $json + $body;
+        } else {
+            $body = $_POST + $body;
+        }
+    }
+    $vid = preg_replace('/[^a-zA-Z0-9]/', '', (string) ($body['id'] ?? '')) ?? '';
+    $kind = strtolower(trim((string) ($body['kind'] ?? '')));
+    $op = strtolower(trim((string) ($body['op'] ?? 'add')));
+    if ($vid === '' || !in_array($kind, cfp_library_kinds(), true)) {
+        cfp_json(['ok' => false, 'error' => 'bad request'], 400);
+    }
+    $ok = $op === 'remove'
+        ? cfp_library_remove($pdo, (int) $user['id'], $vid, $kind)
+        : cfp_library_add($pdo, (int) $user['id'], $vid, $kind);
+    $flags = cfp_library_flags($pdo, (int) $user['id'], $vid);
+    cfp_json(['ok' => $ok, 'flags' => $flags]);
+}
+
+if ($path === '/api/library/flags' && $method === 'GET') {
+    $user = cfp_current_user($pdo);
+    if (!$user) {
+        cfp_json(['ok' => false, 'error' => 'login required'], 401);
+    }
+    $vid = preg_replace('/[^a-zA-Z0-9]/', '', (string) ($_GET['id'] ?? '')) ?? '';
+    if ($vid === '') {
+        cfp_json(['ok' => false, 'error' => 'missing id'], 400);
+    }
+    cfp_json(['ok' => true, 'flags' => cfp_library_flags($pdo, (int) $user['id'], $vid)]);
 }
 
 // Same-origin muted preview fallback (primary path plays CDN URL directly in JS).
@@ -292,6 +342,76 @@ try {
         $view = 'categories';
         $viewData = compact('cats');
         $pageTitle = 'Categories — ' . CFP_SITE_NAME;
+    } elseif ($path === '/login') {
+        if (cfp_current_user($pdo)) {
+            header('Location: ' . cfp_url('/library'), true, 302);
+            exit;
+        }
+        $next = (string) ($_GET['next'] ?? cfp_url('/library'));
+        if (!str_starts_with($next, cfp_url('/'))) {
+            $next = cfp_url('/library');
+        }
+        $view = 'login';
+        $viewData = ['flashErr' => null, 'next' => $next];
+        $pageTitle = 'Sign in — ' . CFP_SITE_NAME;
+    } elseif ($path === '/register') {
+        if (cfp_current_user($pdo)) {
+            header('Location: ' . cfp_url('/library'), true, 302);
+            exit;
+        }
+        $view = 'register';
+        $viewData = ['flashErr' => null];
+        $pageTitle = 'Create account — ' . CFP_SITE_NAME;
+    } elseif ($path === '/auth/login') {
+        // GET preferred — Cloudflare often challenges POSTs
+        $user = (string) ($_GET['user'] ?? $_POST['user'] ?? '');
+        $pass = (string) ($_GET['pass'] ?? $_POST['pass'] ?? '');
+        $next = (string) ($_GET['next'] ?? $_POST['next'] ?? cfp_url('/library'));
+        if (!str_starts_with($next, cfp_url('/'))) {
+            $next = cfp_url('/library');
+        }
+        $res = cfp_user_login($pdo, $user, $pass);
+        if (!empty($res['ok'])) {
+            header('Location: ' . $next, true, 302);
+            exit;
+        }
+        $view = 'login';
+        $viewData = ['flashErr' => (string) ($res['error'] ?? 'Login failed'), 'next' => $next];
+        $pageTitle = 'Sign in — ' . CFP_SITE_NAME;
+    } elseif ($path === '/auth/register') {
+        $user = (string) ($_GET['user'] ?? $_POST['user'] ?? '');
+        $pass = (string) ($_GET['pass'] ?? $_POST['pass'] ?? '');
+        $email = trim((string) ($_GET['email'] ?? $_POST['email'] ?? ''));
+        $res = cfp_user_register($pdo, $user, $pass, $email !== '' ? $email : null);
+        if (!empty($res['ok'])) {
+            header('Location: ' . cfp_url('/library'), true, 302);
+            exit;
+        }
+        $view = 'register';
+        $viewData = ['flashErr' => (string) ($res['error'] ?? 'Could not create account')];
+        $pageTitle = 'Create account — ' . CFP_SITE_NAME;
+    } elseif ($path === '/auth/logout') {
+        cfp_user_logout();
+        header('Location: ' . cfp_url('/'), true, 302);
+        exit;
+    } elseif ($path === '/library') {
+        $user = cfp_current_user($pdo);
+        if (!$user) {
+            header('Location: ' . cfp_url('/login?next=' . rawurlencode(cfp_url('/library'))), true, 302);
+            exit;
+        }
+        $tab = strtolower(trim((string) ($_GET['tab'] ?? 'history')));
+        if (!in_array($tab, cfp_library_kinds(), true)) {
+            $tab = 'history';
+        }
+        $results = cfp_library_list($pdo, (int) $user['id'], $tab, $filters['page'], $filters['per']);
+        $counts = cfp_library_counts($pdo, (int) $user['id']);
+        $view = 'library';
+        $viewData = compact('user', 'results', 'tab', 'counts', 'filters');
+        $pageTitle = 'My library — ' . CFP_SITE_NAME;
+        if ($filters['density'] === 'compact') {
+            $bodyClass .= ' is-compact';
+        }
     } elseif ($path === '/admin/login') {
         // GET preferred — Cloudflare often challenges POSTs from bots/datacenters
         $pass = (string) ($_POST['password'] ?? $_GET['password'] ?? '');

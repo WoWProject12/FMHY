@@ -205,9 +205,19 @@ function cfp_ensure_schema(PDO $pdo): void
     }
 }
 
-/** Stable anonymous voter id (cookie). */
+/** Stable voter id — logged-in user when available, else anonymous cookie. */
 function cfp_voter_key(): string
 {
+    if (function_exists('cfp_current_user')) {
+        try {
+            $u = cfp_current_user();
+            if ($u && !empty($u['id'])) {
+                return 'u' . (int) $u['id'];
+            }
+        } catch (Throwable $e) {
+            // fall through
+        }
+    }
     $key = (string) ($_COOKIE['cfp_voter'] ?? '');
     if (!preg_match('/^[a-f0-9]{32}$/', $key)) {
         $key = bin2hex(random_bytes(16));

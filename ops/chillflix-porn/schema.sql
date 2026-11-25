@@ -102,3 +102,25 @@ CREATE TABLE IF NOT EXISTS stream_cache (
   PRIMARY KEY (video_id),
   KEY idx_exp (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS users (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL,
+  email VARCHAR(190) NULL DEFAULT NULL,
+  pass_hash VARCHAR(255) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_username (username),
+  UNIQUE KEY uq_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_library (
+  user_id INT UNSIGNED NOT NULL,
+  video_id BIGINT UNSIGNED NOT NULL,
+  kind VARCHAR(20) NOT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, video_id, kind),
+  KEY idx_user_kind (user_id, kind, updated_at),
+  CONSTRAINT fk_ul_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ul_video FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

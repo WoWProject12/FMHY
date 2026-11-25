@@ -11,11 +11,14 @@ require __DIR__ . '/helpers.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/xvideos.php';
 require __DIR__ . '/admin.php';
+require __DIR__ . '/user.php';
 
 date_default_timezone_set('UTC');
 
 try {
-    cfp_ensure_schema(cfp_pdo());
+    $pdoBoot = cfp_pdo();
+    cfp_ensure_schema($pdoBoot);
+    cfp_ensure_user_schema($pdoBoot);
 } catch (Throwable $e) {
     // DB may be unavailable during first install
 }

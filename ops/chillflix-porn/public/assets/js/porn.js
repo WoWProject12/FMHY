@@ -3,6 +3,52 @@
     return el && el.closest ? el.closest(sel) : null;
   }
 
+  function cfpLoggedIn() {
+    return !!(window.CFP_USER && window.CFP_USER.id);
+  }
+
+  function cfpLibraryOp(vid, kind, op) {
+    if (!cfpLoggedIn() || !vid || !kind) return Promise.resolve(null);
+    var url =
+      "/porn/api/library?id=" +
+      encodeURIComponent(vid) +
+      "&kind=" +
+      encodeURIComponent(kind) +
+      "&op=" +
+      encodeURIComponent(op || "add");
+    return fetch(url, {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("library " + r.status);
+        return r.json();
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function cfpLibraryFlags(vid) {
+    if (!cfpLoggedIn() || !vid) return Promise.resolve(null);
+    return fetch("/porn/api/library/flags?id=" + encodeURIComponent(vid), {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("flags " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        return data && data.ok ? data.flags : null;
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
   function isNarrow() {
     try {
       return window.matchMedia("(max-width: 900px)").matches;
@@ -705,6 +751,7 @@
             }
           })
           .catch(function () {});
+        // Server also mirrors liked into library when logged in
         return;
       }
       var shareBtn = closest(e.target, "[data-cfp-share]");
@@ -727,6 +774,10 @@
       var saveBtn = closest(e.target, "[data-cfp-save]");
       if (saveBtn) {
         e.preventDefault();
+        if (!cfpLoggedIn()) {
+          window.location.href = "/porn/login?next=" + encodeURIComponent(window.location.pathname + window.location.search);
+          return;
+        }
         var key = "cfp_saved";
         var list = [];
         try { list = JSON.parse(localStorage.getItem(key) || "[]"); } catch (err) { list = []; }
@@ -741,19 +792,30 @@
         saveBtn.setAttribute("aria-pressed", on ? "true" : "false");
         var sl = saveBtn.querySelector("[data-cfp-save-label]");
         if (sl) sl.textContent = on ? "Saved" : "Save";
+        cfpLibraryOp(id, "saved", on ? "add" : "remove");
       }
     });
-    // hydrate save state
-    try {
-      var saved = JSON.parse(localStorage.getItem("cfp_saved") || "[]");
+    // hydrate save state — prefer server when logged in
+    (function hydrateSave() {
       var saveBtn0 = bar.querySelector("[data-cfp-save]");
-      if (saveBtn0 && Array.isArray(saved) && saved.indexOf(bar.getAttribute("data-video-id") || "") !== -1) {
-        saveBtn0.classList.add("is-on");
-        saveBtn0.setAttribute("aria-pressed", "true");
+      if (!saveBtn0) return;
+      function paintSaved(on) {
+        saveBtn0.classList.toggle("is-on", !!on);
+        saveBtn0.setAttribute("aria-pressed", on ? "true" : "false");
         var sl0 = saveBtn0.querySelector("[data-cfp-save-label]");
-        if (sl0) sl0.textContent = "Saved";
+        if (sl0) sl0.textContent = on ? "Saved" : "Save";
       }
-    } catch (err3) {}
+      if (cfpLoggedIn()) {
+        cfpLibraryFlags(vid).then(function (flags) {
+          if (flags) paintSaved(!!flags.saved);
+        });
+        return;
+      }
+      try {
+        var saved = JSON.parse(localStorage.getItem("cfp_saved") || "[]");
+        if (Array.isArray(saved) && saved.indexOf(vid) !== -1) paintSaved(true);
+      } catch (err3) {}
+    })();
   })();
 
   // Full player (watch page) — MP4 + HLS ladder (480p/720p/1080p/2K/4K)
@@ -768,6 +830,20 @@
   var qualityMenu = document.getElementById("cfpQualityMenu");
   var downloadBtn = document.getElementById("cfpDownload");
   if (!videoId || !video) return;
+
+  // Watch history for signed-in users (once per page load after play starts)
+  var historyLogged = false;
+  function logHistoryOnce() {
+    if (historyLogged || !cfpLoggedIn()) return;
+    historyLogged = true;
+    cfpLibraryOp(videoId, "history", "add");
+  }
+  video.addEventListener("playing", logHistoryOnce);
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", function () {
+      if (cfpLoggedIn()) cfpLibraryOp(videoId, "downloaded", "add");
+    });
+  }
 
   var stage = root.querySelector(".cfp-player-stage") || root;
   var chromeTimer = 0;
