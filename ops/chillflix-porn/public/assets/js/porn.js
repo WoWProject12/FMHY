@@ -178,10 +178,11 @@
 
   // xvideos-style in-thumb previews: desktop hover + mobile press-and-hold.
   // Cards are <div role="link"> (not <a>) so Chrome never shows the link long-press menu.
+  // Play CDN MP4 directly (fast); proxy only as fallback. Keep thumb visible until a real frame.
   var activePreview = null;
   var previewTimer = null;
   var previewUrlCache = Object.create(null);
-  var warmCache = Object.create(null);
+  var streamInflight = Object.create(null);
 
   function cardHref(card) {
     return card.getAttribute("data-href") || card.getAttribute("href") || "";
@@ -226,6 +227,9 @@
     vid.setAttribute("webkit-playsinline", "");
     vid.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
     vid.setAttribute("disablepictureinpicture", "");
+    // Critical: no-referrer lets xvideos CDN accept the request from our page
+    vid.setAttribute("referrerpolicy", "no-referrer");
+    vid.referrerPolicy = "no-referrer";
     vid.hidden = true;
     media.appendChild(vid);
     return vid;
@@ -235,17 +239,27 @@
     return "/porn/api/preview?id=" + encodeURIComponent(id);
   }
 
-  function warmPreview(id) {
-    if (!id || warmCache[id]) return;
-    warmCache[id] = true;
-    // Kick the proxy early so hold feels instant (cache stream lookup + CDN warm).
-    try {
-      fetch(previewProxyUrl(id), {
-        method: "GET",
-        credentials: "same-origin",
-        headers: { Range: "bytes=0-1", Accept: "video/*,*/*" },
-      }).catch(function () {});
-    } catch (e) {}
+  function resolveStreamUrl(id) {
+    if (!id) return Promise.resolve("");
+    if (previewUrlCache[id]) return Promise.resolve(previewUrlCache[id]);
+    if (streamInflight[id]) return streamInflight[id];
+    streamInflight[id] = fetch("/porn/api/stream?id=" + encodeURIComponent(id), {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        delete streamInflight[id];
+        if (!data || !data.ok || !data.streams) return "";
+        var url = data.streams.low || data.streams.high || "";
+        if (url) previewUrlCache[id] = url;
+        return url;
+      })
+      .catch(function () {
+        delete streamInflight[id];
+        return "";
+      });
+    return streamInflight[id];
   }
 
   function playPreview(card, url) {
@@ -254,20 +268,25 @@
     if (!media) return;
     var vid = ensurePreviewVideo(media);
 
-    // Must be visible BEFORE play() — many mobile browsers refuse display:none video.
+    // Keep thumb visible under a spinner until we have a decoded frame (no black flash).
+    card.classList.add("is-preview-loading");
+    card.classList.remove("is-previewing");
     vid.hidden = false;
-    card.classList.add("is-preview-loading", "is-previewing");
+    vid.style.opacity = "0";
 
-    var markPlaying = function () {
+    var reveal = function () {
       if (activePreview !== card) return;
+      if (!(vid.videoWidth > 0) && vid.readyState < 2) return;
+      vid.style.opacity = "1";
       card.classList.remove("is-preview-loading");
       card.classList.add("is-previewing");
     };
 
-    vid.onplaying = markPlaying;
-    vid.onloadeddata = markPlaying;
+    vid.onplaying = reveal;
+    vid.onloadeddata = reveal;
+    vid.oncanplay = reveal;
 
-    var tryPlay = function (src) {
+    var tryPlay = function (src, allowFallback) {
       if (activePreview !== card) return;
       if (vid.getAttribute("data-src") !== src) {
         vid.setAttribute("data-src", src);
@@ -278,19 +297,19 @@
       vid.volume = 0;
       var p = vid.play();
       if (p && typeof p.then === "function") {
-        p.then(markPlaying).catch(function () {
+        p.then(reveal).catch(function () {
           if (activePreview !== card) return;
-          var proxy = previewProxyUrl(card.getAttribute("data-video-id") || "");
-          if (src === proxy) {
+          if (!allowFallback) {
             card.classList.remove("is-preview-loading", "is-previewing");
+            vid.hidden = true;
             return;
           }
-          tryPlay(proxy);
+          tryPlay(previewProxyUrl(card.getAttribute("data-video-id") || ""), false);
         });
       }
     };
 
-    tryPlay(url);
+    tryPlay(url, true);
   }
 
   function startPreview(card) {
@@ -298,10 +317,12 @@
     if (!id) return;
     if (activePreview && activePreview !== card) stopPreview(activePreview);
     activePreview = card;
-    card.classList.add("is-preview-loading", "is-previewing");
+    card.classList.add("is-preview-loading");
 
-    // Always prefer same-origin proxy for reliability (CDN often blocks mobile <video>).
-    playPreview(card, previewProxyUrl(id));
+    resolveStreamUrl(id).then(function (url) {
+      if (activePreview !== card) return;
+      playPreview(card, url || previewProxyUrl(id));
+    });
   }
 
   function bindCardPreview(card) {
@@ -315,7 +336,6 @@
     card.addEventListener("contextmenu", blockMenu, true);
     card.setAttribute("draggable", "false");
 
-    // Tap / keyboard → open video (cards are div[role=link], not <a>)
     card.addEventListener("click", function (e) {
       if (card.__cfpSuppressClick) {
         e.preventDefault();
@@ -334,7 +354,9 @@
 
     card.addEventListener("mouseenter", function () {
       clearTimeout(previewTimer);
-      previewTimer = setTimeout(function () { startPreview(card); }, 140);
+      var id = card.getAttribute("data-video-id") || "";
+      resolveStreamUrl(id); // warm
+      previewTimer = setTimeout(function () { startPreview(card); }, 120);
     });
     card.addEventListener("mouseleave", function () {
       clearTimeout(previewTimer);
@@ -356,20 +378,19 @@
       moved = false;
       card.__cfpSuppressClick = false;
       clearTimeout(touchTimer);
-      // Warm proxy immediately so video is ready when hold threshold hits
-      warmPreview(id);
+      // Resolve CDN URL immediately so hold can play within ~200ms
+      resolveStreamUrl(id);
       touchTimer = setTimeout(function () {
         previewArmed = true;
         card.__cfpSuppressClick = true;
         startPreview(card);
-      }, 200);
+      }, 160);
     }, { passive: true });
 
     card.addEventListener("touchmove", function (e) {
       if (!e.touches || !e.touches[0]) return;
       var dx = Math.abs(e.touches[0].clientX - startX);
       var dy = Math.abs(e.touches[0].clientY - startY);
-      // Generous threshold — finger jitter shouldn't cancel hold
       if (dx > 36 || dy > 36) {
         moved = true;
         clearTimeout(touchTimer);
@@ -385,7 +406,6 @@
       stopPreview(card);
       previewArmed = false;
       if (wasPreview || moved) {
-        // Hold preview or scroll — don't navigate
         card.__cfpSuppressClick = true;
         setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
       }

@@ -38,7 +38,7 @@ if ($path === '/api/stream' && $method === 'GET') {
     cfp_json(['ok' => true, 'streams' => $streams]);
 }
 
-// Same-origin muted preview — CDN MP4s often fail as cross-origin <video> src in browsers.
+// Same-origin muted preview fallback (primary path plays CDN URL directly in JS).
 if ($path === '/api/preview' && $method === 'GET') {
     $vid = preg_replace('/[^a-zA-Z0-9]/', '', (string) ($_GET['id'] ?? '')) ?? '';
     if ($vid === '') {
@@ -51,6 +51,9 @@ if ($path === '/api/preview' && $method === 'GET') {
         http_response_code(404);
         exit;
     }
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
     $range = (string) ($_SERVER['HTTP_RANGE'] ?? '');
     $headers = [
         'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -61,14 +64,19 @@ if ($path === '/api/preview' && $method === 'GET') {
         $headers[] = 'Range: ' . $range;
     }
 
-    $sentHeaders = false;
+    header('Content-Type: video/mp4');
+    header('Accept-Ranges: bytes');
+    header('Cache-Control: private, max-age=120');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Accel-Buffering: no');
+
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_HTTPHEADER => $headers,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_TIMEOUT => 60,
         CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_HEADERFUNCTION => static function ($ch, string $headerLine) use (&$sentHeaders): int {
+        CURLOPT_HEADERFUNCTION => static function ($ch, string $headerLine): int {
             $len = strlen($headerLine);
             $trim = trim($headerLine);
             if ($trim === '') {
@@ -84,7 +92,6 @@ if ($path === '/api/preview' && $method === 'GET') {
             foreach ($pass as $name) {
                 if (stripos($trim, $name . ':') === 0) {
                     header($trim, true);
-                    $sentHeaders = true;
                     break;
                 }
             }
@@ -92,15 +99,12 @@ if ($path === '/api/preview' && $method === 'GET') {
         },
         CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk): int {
             echo $chunk;
+            if (function_exists('fastcgi_finish_request') === false) {
+                flush();
+            }
             return strlen($chunk);
         },
     ]);
-    if (!$sentHeaders) {
-        header('Content-Type: video/mp4');
-        header('Accept-Ranges: bytes');
-    }
-    header('Cache-Control: private, max-age=90');
-    header('X-Content-Type-Options: nosniff');
     $ok = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
