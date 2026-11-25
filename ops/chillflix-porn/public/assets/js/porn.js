@@ -756,61 +756,6 @@
     } catch (err3) {}
   })();
 
-  // Local comments (YouTube-style box)
-  (function initComments() {
-    var box = document.querySelector("[data-cfp-comments]");
-    if (!box) return;
-    var vid = box.getAttribute("data-video-id") || "";
-    var listEl = box.querySelector("[data-cfp-comment-list]");
-    var countEl = box.querySelector("[data-cfp-comment-count]");
-    var form = box.querySelector("[data-cfp-comment-form]");
-    var key = "cfp_comments_" + vid;
-    function load() {
-      try {
-        var rows = JSON.parse(localStorage.getItem(key) || "[]");
-        return Array.isArray(rows) ? rows : [];
-      } catch (e) {
-        return [];
-      }
-    }
-    function render() {
-      var rows = load();
-      if (countEl) countEl.textContent = String(rows.length);
-      if (!listEl) return;
-      listEl.innerHTML = "";
-      rows.slice().reverse().forEach(function (row) {
-        var li = document.createElement("li");
-        var av = document.createElement("span");
-        av.className = "cfp-comments-avatar";
-        av.textContent = (row.name || "Y").charAt(0).toUpperCase();
-        var body = document.createElement("div");
-        var who = document.createElement("strong");
-        who.textContent = row.name || "You";
-        var text = document.createElement("div");
-        text.textContent = row.body || "";
-        body.appendChild(who);
-        body.appendChild(text);
-        li.appendChild(av);
-        li.appendChild(body);
-        listEl.appendChild(li);
-      });
-    }
-    if (form) {
-      form.addEventListener("submit", function (e) {
-        e.preventDefault();
-        var input = form.querySelector('input[name="body"]');
-        var body = ((input && input.value) || "").trim();
-        if (!body) return;
-        var rows = load();
-        rows.push({ name: "You", body: body, t: Date.now() });
-        try { localStorage.setItem(key, JSON.stringify(rows.slice(-40))); } catch (err) {}
-        if (input) input.value = "";
-        render();
-      });
-    }
-    render();
-  })();
-
   // Full player (watch page) — MP4 + HLS ladder (480p/720p/1080p/2K/4K)
   var root = document.querySelector(".cfp-player");
   if (!root) return;
@@ -828,9 +773,6 @@
     if (!gearBtn || !qualityMenu) return;
     gearBtn.setAttribute("aria-expanded", open ? "true" : "false");
     qualityMenu.hidden = !open;
-    try {
-      document.documentElement.style.overflow = open ? "hidden" : "";
-    } catch (eLock) {}
   }
   if (gearBtn) {
     gearBtn.addEventListener("click", function (e) {
@@ -839,14 +781,11 @@
       setGearOpen(!!(qualityMenu && qualityMenu.hidden));
     });
   }
-  if (qualityMenu) {
-    qualityMenu.addEventListener("click", function (e) {
-      if (closest(e.target, "[data-cfp-qclose]")) {
-        e.preventDefault();
-        setGearOpen(false);
-      }
-    });
-  }
+  document.addEventListener("click", function (e) {
+    if (!qualityMenu || qualityMenu.hidden) return;
+    if (closest(e.target, ".cfp-player-gear")) return;
+    setGearOpen(false);
+  });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") setGearOpen(false);
   });
