@@ -118,7 +118,7 @@ $densityVal = (string) ($filters['density'] ?? 'cozy');
             </button>
           <?php endforeach; ?>
         </div>
-        <div class="cfp-dd-foot"><span class="cfp-muted">Use navbar Categories to pick several</span></div>
+        <div class="cfp-dd-foot">Tip: use Categories in the nav for multi-select</div>
       </div>
     </div>
 
