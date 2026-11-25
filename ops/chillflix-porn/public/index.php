@@ -35,6 +35,39 @@ if ($path === '/api/stream' && $method === 'GET') {
     if (!$streams) {
         cfp_json(['ok' => false, 'error' => 'no streams'], 404);
     }
+    $maxQ = '';
+    $previewUrl = '';
+    $ladder = is_array($streams['qualities'] ?? null) ? $streams['qualities'] : [];
+    $bestH = 0;
+    $best720 = null;
+    foreach ($ladder as $q) {
+        if (!is_array($q)) {
+            continue;
+        }
+        $h = (int) ($q['height'] ?? 0);
+        $label = cfp_normalize_quality_label((string) ($q['label'] ?? ''), $h);
+        if ($h > $bestH) {
+            $bestH = $h;
+            $maxQ = $label !== '' ? $label : ($h . 'p');
+        }
+        if ($h >= 680 && $h <= 800) {
+            $best720 = $q;
+        }
+    }
+    if ($maxQ !== '') {
+        cfp_video_remember_quality($pdo, $vid, $maxQ);
+        $streams['max_quality'] = $maxQ;
+    }
+    // Card hover preview uses progressive MP4 (no hls.js on thumbs).
+    // Badge still shows 720p while previewing; prefer "high" (~360-720) over low.
+    if (!empty($streams['high'])) {
+        $streams['preview'] = (string) $streams['high'];
+    } elseif (!empty($streams['low'])) {
+        $streams['preview'] = (string) $streams['low'];
+    } elseif (is_array($best720) && !empty($best720['url']) && (($best720['type'] ?? '') !== 'hls')) {
+        $streams['preview'] = (string) $best720['url'];
+    }
+    $streams['preview_quality'] = '720p';
     cfp_json(['ok' => true, 'streams' => $streams]);
 }
 

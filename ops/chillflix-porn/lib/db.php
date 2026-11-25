@@ -520,7 +520,7 @@ function cfp_list_videos(PDO $pdo, array $opts = []): array
     }
 
     $order = match ($sort) {
-        'views' => 'v.views DESC, v.created_at DESC',
+        'views' => 'GREATEST(COALESCE(v.source_views,0), COALESCE(v.views,0)) DESC, v.created_at DESC',
         'az' => 'v.title ASC',
         'long' => 'v.duration_sec DESC, v.created_at DESC',
         'short' => 'CASE WHEN v.duration_sec = 0 THEN 1 ELSE 0 END ASC, v.duration_sec ASC, v.created_at DESC',

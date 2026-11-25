@@ -15,20 +15,17 @@ $gridClass = $gridClass ?? 'cfp-grid';
   $hasCc = !empty($item['has_cc']);
   $channelHref = $channel !== '' ? cfp_url('/people/' . rawurlencode(cfp_slug($channel))) : '';
 ?>
-  <div class="cfp-card" role="link" tabindex="0" data-href="<?= cfp_e($href) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>">
+  <div class="cfp-card" role="link" tabindex="0" data-href="<?= cfp_e($href) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>" data-max-quality="<?= cfp_e($quality) ?>">
     <div class="cfp-card-media">
       <?php if ($thumb): ?>
         <img src="<?= cfp_e($thumb) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable="false">
       <?php else: ?>
         <div class="cfp-card-ph" aria-hidden="true"></div>
       <?php endif; ?>
-      <?php if ($quality !== '' || $hasCc): ?>
-        <span class="cfp-card-tags" aria-hidden="true">
-          <?php if ($hasCc): ?><span class="cfp-card-cc">CC</span><?php endif; ?>
-          <?php if ($quality !== ''): ?><span class="cfp-card-quality"><?= cfp_e($quality) ?></span><?php endif; ?>
-        </span>
-      <?php endif; ?>
-      <span class="cfp-card-play" aria-hidden="true"></span>
+      <span class="cfp-card-tags<?= ($quality === '' && !$hasCc) ? ' is-empty' : '' ?>" aria-hidden="true">
+        <?php if ($hasCc): ?><span class="cfp-card-cc">CC</span><?php endif; ?>
+        <span class="cfp-card-quality"<?= $quality === '' ? ' hidden' : '' ?>><?= cfp_e($quality !== '' ? $quality : '') ?></span>
+      </span>
     </div>
     <div class="cfp-card-meta">
       <h3 class="cfp-card-title"><?= cfp_e((string) $item['title']) ?></h3>
@@ -40,7 +37,7 @@ $gridClass = $gridClass ?? 'cfp-grid';
             <?php else: ?>
               <span class="cfp-card-channel"><?= cfp_e($channel) ?></span>
             <?php endif; ?>
-            <?php if ($views > 0): ?><span class="cfp-card-sep">-</span><?php endif; ?>
+            <?php if ($views > 0): ?><span class="cfp-card-sep"> - </span><?php endif; ?>
           <?php endif; ?>
           <?php if ($views > 0): ?>
             <span class="cfp-card-views"><?= cfp_e(cfp_fmt_views($views)) ?> Views</span>

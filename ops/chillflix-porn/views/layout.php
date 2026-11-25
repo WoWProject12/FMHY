@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=61cards')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=62xv')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -40,12 +40,14 @@ declare(strict_types=1);
     .cfp-section{margin:.65rem 0}.cfp-section-head h2{font-size:.95rem}
     /* Phone: exactly 1 video per row everywhere */
     .cfp-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:.55rem;width:100%}
-    .cfp-card{min-width:0;max-width:100%;gap:.25rem}
-    .cfp-card-media{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:8px}
+    .cfp-card{min-width:0;max-width:100%;gap:.35rem}
+    .cfp-card-media{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:0;border:0}
     .cfp-card-media>img,.cfp-card-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-    .cfp-card-title{font-size:.9rem;line-height:1.25;-webkit-line-clamp:2}
-    .cfp-card-sub{display:flex!important;align-items:center;justify-content:space-between;gap:.45rem}
-    .cfp-card-tags{position:absolute;top:5px;right:5px;z-index:3;display:inline-flex;gap:3px}
+    .cfp-card-title{font-size:.98rem;line-height:1.3;font-weight:600;-webkit-line-clamp:2;color:#fff}
+    .cfp-card-sub{display:flex!important;align-items:center;justify-content:space-between;gap:.5rem;color:#bdbdbd;font-size:.82rem}
+    .cfp-card-tags{position:absolute;top:6px;right:6px;z-index:3;display:inline-flex;gap:4px}
+    .cfp-card-quality,.cfp-card-cc{background:rgba(0,0,0,.72);color:#fff;padding:.16rem .42rem;border-radius:2px;font-size:.78rem;font-weight:700}
+    .cfp-card-dur{background:#3a3a3a;color:#f2f2f2;padding:.16rem .48rem;border-radius:3px;font-size:.72rem;font-weight:600}
     .cfp-rail{max-width:100%;overflow:hidden}
     .cfp-rail-track{display:grid!important;grid-auto-flow:row!important;grid-template-columns:minmax(0,1fr)!important;grid-auto-columns:unset!important;gap:.55rem;overflow:visible;max-width:100%}
     .cfp-rail-card{width:100%!important;max-width:100%!important}
@@ -194,6 +196,6 @@ declare(strict_types=1);
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username']] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=61cards')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=62xv')) ?>" defer></script>
 </body>
 </html>

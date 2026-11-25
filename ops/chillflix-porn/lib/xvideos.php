@@ -257,26 +257,20 @@ function cfp_xv_hls_qualities(string $masterUrl): array
         }
         $height = (int) ($pending['height'] ?? 0);
         $label = (string) ($pending['name'] ?? '');
-        if ($label === '' && $height > 0) {
-            if ($height >= 2160) {
-                $label = '4K';
-            } elseif ($height >= 1440) {
-                $label = '2K';
-            } else {
-                $label = $height . 'p';
-            }
-        }
-        if ($label === '') {
-            $label = 'Auto';
-        }
         // Prefer height from label like "1080p" when RESOLUTION missing
         if ($height < 1 && preg_match('/(\d{3,4})\s*p/i', $label, $m)) {
             $height = (int) $m[1];
         }
-        if ($height >= 2160) {
-            $label = '4K';
-        } elseif ($height >= 1440) {
-            $label = '2K';
+        if (function_exists('cfp_normalize_quality_label')) {
+            $norm = cfp_normalize_quality_label($label, $height);
+            if ($norm !== '') {
+                $label = $norm;
+            }
+        } elseif ($height > 0) {
+            $label = $height >= 2160 ? '4K' : ($height . 'p');
+        }
+        if ($label === '') {
+            $label = 'Auto';
         }
         $id = 'hls-' . ($height > 0 ? $height : preg_replace('/\W+/', '', strtolower($label)));
         $out[] = [
@@ -523,6 +517,25 @@ function cfp_xv_enrich_video(PDO $pdo, array $video, bool $force = false): bool
         return false;
     }
     $meta = cfp_xv_parse_video_page_meta($html);
+    // Max quality badge from watch page when listing never captured it
+    if (preg_match('/class="video-hd-mark"[^>]*>([^<]+)</i', $html, $qm)) {
+        $qLabel = trim(html_entity_decode($qm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($qLabel !== '' && function_exists('cfp_video_remember_quality')) {
+            cfp_video_remember_quality($pdo, (string) ($video['video_id'] ?? ''), $qLabel);
+        }
+    } elseif (preg_match('/class="video-sd-mark"[^>]*>([^<]+)</i', $html, $qm)) {
+        $qLabel = trim(html_entity_decode($qm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($qLabel !== '' && function_exists('cfp_video_remember_quality')) {
+            cfp_video_remember_quality($pdo, (string) ($video['video_id'] ?? ''), $qLabel);
+        }
+    }
+    if (preg_match('/class="video-cc-mark"/i', $html)) {
+        try {
+            $pdo->prepare('UPDATE videos SET has_cc = 1 WHERE id = ?')->execute([$id]);
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
     if (!$meta['people'] && !$meta['tags']) {
         // Page loaded but no metadata (deleted/region) — stamp to stop retry loops
         $pdo->prepare('UPDATE videos SET enriched_at = NOW() WHERE id = ?')->execute([$id]);

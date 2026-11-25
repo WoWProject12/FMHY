@@ -413,39 +413,41 @@ a.cfp-dd-option { color: var(--cfp-text); }
   width: 118px;
   max-width: 118px;
 }
-.cfp-rail-card .cfp-card-title { font-size: 0.7rem; -webkit-line-clamp: 2; }
-.cfp-rail-card .cfp-card-sub { display: flex; }
+.cfp-rail-card .cfp-card-title { font-size: 0.72rem; -webkit-line-clamp: 2; }
+.cfp-rail-card .cfp-card-sub { display: flex; font-size: 0.62rem; }
 .cfp-rail-card .cfp-card-channel { max-width: 6.5rem; }
+.cfp-rail-card .cfp-card-dur { font-size: 0.58rem; padding: 0.1rem 0.3rem; }
+.cfp-rail-card .cfp-card-quality, .cfp-rail-card .cfp-card-cc { font-size: 0.6rem; padding: 0.1rem 0.28rem; }
 
 /* Grid — 1 video per row on phones; multi-col from tablet up */
 .cfp-grid {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) !important;
-  gap: 0.55rem;
+  gap: 0.85rem;
   width: 100%;
 }
 .cfp-grid-compact, body.is-compact .cfp-grid {
   grid-template-columns: minmax(0, 1fr) !important;
-  gap: 0.45rem;
+  gap: 0.65rem;
 }
 @media (min-width: 700px) {
   .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
-    gap: 0.55rem 0.45rem;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)) !important;
+    gap: 0.75rem 0.55rem;
   }
   .cfp-grid-compact, body.is-compact .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
   }
 }
 @media (min-width: 1100px) {
   .cfp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
   }
 }
 .cfp-card,
 .cfp-rail-card {
   text-decoration: none; color: inherit;
-  display: flex; flex-direction: column; gap: 0.2rem;
+  display: flex; flex-direction: column; gap: 0.35rem;
   cursor: pointer;
   min-width: 0;
   max-width: 100%;
@@ -466,14 +468,14 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-card-media {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10 !important;
+  aspect-ratio: 16 / 9 !important;
   height: auto !important;
   flex: 0 0 auto;
   min-height: 0;
-  border-radius: 6px;
+  border-radius: 0;
   overflow: hidden;
-  background: #16130f;
-  border: 1px solid var(--cfp-border);
+  background: #111;
+  border: 0;
   -webkit-touch-callout: none;
 }
 .cfp-card-media > img,
@@ -486,9 +488,8 @@ a.cfp-dd-option { color: var(--cfp-text); }
   max-height: none !important;
   object-fit: cover !important;
   display: block;
-  transition: transform .3s ease, opacity .15s ease;
+  transition: opacity .15s ease;
 }
-.cfp-card:hover .cfp-card-media > img { transform: scale(1.04); }
 .cfp-card-preview {
   position: absolute !important; inset: 0 !important;
   width: 100% !important; height: 100% !important;
@@ -502,8 +503,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-card-preview[hidden] { display: none !important; }
 /* Real video preview only — hide static thumb once motion is showing */
 .cfp-card.is-previewing .cfp-card-media > img { opacity: 0; }
-.cfp-card.is-previewing .cfp-card-play { opacity: 0; }
-.cfp-card.is-previewing .cfp-card-tags { z-index: 5; }
+.cfp-card.is-previewing .cfp-card-tags { z-index: 6; }
 .cfp-card.is-preview-loading .cfp-card-media::after {
   content: "";
   position: absolute; inset: 0; z-index: 3;
@@ -515,7 +515,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
   position: absolute; left: 50%; top: 50%; z-index: 4;
   width: 26px; height: 26px; margin: -13px 0 0 -13px;
   border: 2px solid rgba(255,255,255,.25);
-  border-top-color: #f0e6d8;
+  border-top-color: #fff;
   border-radius: 50%;
   animation: cfp-spin .7s linear infinite;
   pointer-events: none;
@@ -529,87 +529,81 @@ a.cfp-dd-option { color: var(--cfp-text); }
   background: rgba(255,255,255,.28);
   pointer-events: none;
 }
-.cfp-card-ph { width: 100%; height: 100%; background: linear-gradient(135deg, #221c16, #0f0d0a); }
+.cfp-card-ph { width: 100%; height: 100%; background: #1a1a1a; }
 .cfp-card-tags {
-  position: absolute; top: 5px; right: 5px; z-index: 3;
-  display: inline-flex; align-items: center; gap: 3px;
+  position: absolute; top: 6px; right: 6px; z-index: 3;
+  display: inline-flex; align-items: center; gap: 4px;
   pointer-events: none;
 }
+.cfp-card-tags.is-empty { display: none; }
 .cfp-card-quality,
 .cfp-card-cc {
   display: inline-block;
-  padding: 0.12rem 0.34rem;
-  border-radius: 3px;
-  background: rgba(20, 20, 20, 0.82);
+  padding: 0.16rem 0.42rem;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.72);
   color: #fff;
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: 0.01em;
 }
-.cfp-card-cc { font-size: 0.58rem; padding: 0.12rem 0.28rem; }
-.cfp-card-play {
-  position: absolute; inset: 0; margin: auto;
-  width: 26px; height: 26px; border-radius: 999px;
-  background: rgba(228, 194, 122, 0.92);
-  opacity: 0; transform: scale(0.9); transition: .2s ease;
-  pointer-events: none;
-}
-.cfp-card-play::before {
-  content: ""; position: absolute; left: 10px; top: 7px;
-  border-style: solid; border-width: 6px 0 6px 9px;
-  border-color: transparent transparent transparent #1a1208;
-}
-.cfp-card:hover .cfp-card-play { opacity: 1; transform: scale(1); }
-.cfp-card-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.18rem; }
+.cfp-card-quality[hidden] { display: none !important; }
+.cfp-card-cc { font-size: 0.66rem; padding: 0.16rem 0.34rem; }
+.cfp-card-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.22rem; padding: 0 0.05rem; }
 .cfp-card-title {
-  margin: 0; font-size: 0.78rem; line-height: 1.25; font-weight: 700; color: var(--cfp-text);
+  margin: 0; font-size: 0.92rem; line-height: 1.3; font-weight: 600; color: #fff;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.cfp-grid-compact .cfp-card-title, body.is-compact .cfp-card-title { font-size: 0.72rem; }
+.cfp-grid-compact .cfp-card-title, body.is-compact .cfp-card-title { font-size: 0.8rem; }
 .cfp-card-sub {
   margin: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.45rem;
-  color: var(--cfp-muted);
-  font-size: 0.68rem;
+  gap: 0.5rem;
+  color: #bdbdbd;
+  font-size: 0.78rem;
   line-height: 1.25;
   min-width: 0;
 }
 .cfp-card-sub-main {
-  display: inline-flex; align-items: center; gap: 0.28rem;
+  display: inline-flex; align-items: center; gap: 0;
   min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 .cfp-card-channel {
-  color: var(--cfp-muted);
+  color: #bdbdbd;
   text-decoration: underline;
   text-underline-offset: 2px;
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  max-width: 9.5rem;
+  max-width: 11rem;
 }
-.cfp-card-channel:hover { color: var(--cfp-accent-hi); }
-.cfp-card-sep { opacity: 0.7; flex: 0 0 auto; }
+.cfp-card-channel:hover { color: #fff; }
+.cfp-card-sep { opacity: 0.85; flex: 0 0 auto; white-space: pre; }
 .cfp-card-views { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
 .cfp-card-dur {
   flex: 0 0 auto;
-  padding: 0.1rem 0.34rem;
+  padding: 0.14rem 0.42rem;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #eee;
-  font-size: 0.62rem;
-  font-weight: 700;
+  background: #3a3a3a;
+  color: #f2f2f2;
+  font-size: 0.7rem;
+  font-weight: 600;
   line-height: 1.15;
   white-space: nowrap;
 }
 @media (max-width: 699px) {
-  .cfp-card-title { -webkit-line-clamp: 2; font-size: 0.9rem; }
-  .cfp-card-sub { display: flex; font-size: 0.74rem; }
-  .cfp-card-dur { font-size: 0.68rem; padding: 0.12rem 0.4rem; }
-  .cfp-card-quality, .cfp-card-cc { font-size: 0.68rem; }
-  .cfp-card-media { aspect-ratio: 16 / 9 !important; }
+  .cfp-card-title { -webkit-line-clamp: 2; font-size: 0.98rem; font-weight: 600; }
+  .cfp-card-sub { display: flex; font-size: 0.82rem; }
+  .cfp-card-dur { font-size: 0.72rem; padding: 0.16rem 0.48rem; }
+  .cfp-card-quality, .cfp-card-cc { font-size: 0.78rem; }
+  .cfp-card-media { aspect-ratio: 16 / 9 !important; border-radius: 0; }
+}
+@media (min-width: 700px) {
+  .cfp-card-media { border-radius: 2px; }
+  .cfp-card-title { font-size: 0.82rem; }
+  .cfp-card-sub { font-size: 0.7rem; }
 }
 
 .cfp-pager {

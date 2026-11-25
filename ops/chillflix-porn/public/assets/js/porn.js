@@ -288,10 +288,50 @@
     scrubbing = false;
   }
 
+  function setCardQualityBadge(card, label, opts) {
+    if (!card) return;
+    opts = opts || {};
+    var tags = card.querySelector(".cfp-card-tags");
+    var badge = card.querySelector(".cfp-card-quality");
+    if (!badge) {
+      if (!tags || !label) return;
+      badge = document.createElement("span");
+      badge.className = "cfp-card-quality";
+      tags.appendChild(badge);
+    }
+    if (!label) {
+      badge.hidden = true;
+      badge.textContent = "";
+      if (tags && !card.querySelector(".cfp-card-cc")) tags.classList.add("is-empty");
+      return;
+    }
+    badge.hidden = false;
+    badge.textContent = label;
+    if (tags) tags.classList.remove("is-empty");
+    if (opts.persistMax) {
+      var cur = card.getAttribute("data-max-quality") || "";
+      var rank = function (q) {
+        if (q === "4K") return 2160;
+        var m = String(q).match(/^(\d{3,4})p$/i);
+        return m ? parseInt(m[1], 10) : 0;
+      };
+      if (!cur || rank(label) >= rank(cur)) {
+        card.setAttribute("data-max-quality", label);
+      }
+    }
+  }
+
+  function restoreCardMaxQuality(card) {
+    if (!card) return;
+    var maxQ = card.getAttribute("data-max-quality") || "";
+    setCardQualityBadge(card, maxQ);
+  }
+
   function stopPreview(card) {
     if (!card) return;
     clearTours();
     card.classList.remove("is-previewing", "is-preview-loading", "is-scrubbing");
+    restoreCardMaxQuality(card);
     var vid = card.querySelector(".cfp-card-preview");
     if (vid) {
       try { vid.pause(); } catch (e) {}
@@ -350,8 +390,21 @@
       .then(function (data) {
         delete streamInflight[id];
         if (!data || !data.ok || !data.streams) return "";
-        var url = data.streams.low || data.streams.high || "";
+        var s = data.streams;
+        // Prefer ~720p for hover/hold preview (badge shows 720p while playing)
+        var url = s.preview || s.high || s.low || "";
+        if (!url && Array.isArray(s.qualities)) {
+          var near = s.qualities.filter(function (q) {
+            return q && q.url && q.height >= 680 && q.height <= 800;
+          });
+          if (near.length) url = near[near.length - 1].url;
+          else if (s.qualities.length) url = s.qualities[0].url || "";
+        }
         if (url) previewUrlCache[id] = url;
+        if (s.max_quality) {
+          var card = document.querySelector('.cfp-card[data-video-id="' + id + '"]');
+          if (card) setCardQualityBadge(card, s.max_quality, { persistMax: true });
+        }
         return url;
       })
       .catch(function () {
@@ -379,6 +432,8 @@
     vid.style.opacity = "1";
     card.classList.remove("is-preview-loading");
     card.classList.add("is-previewing");
+    // While preview is playing, badge shows 720p (xvideos-style)
+    setCardQualityBadge(card, "720p");
   }
 
   /**
@@ -480,6 +535,7 @@
 
     card.classList.add("is-preview-loading");
     card.classList.remove("is-previewing");
+    setCardQualityBadge(card, "720p");
     vid.hidden = false;
     vid.style.opacity = "0";
 
