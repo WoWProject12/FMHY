@@ -95,12 +95,12 @@ $viewsLabel = cfp_fmt_views((int) ($video['source_views'] ?? $video['views'] ?? 
 
         <button type="button" class="cfp-player-bigplay" id="cfpBigPlay" aria-label="Play">
           <span class="cfp-player-bigplay-box" aria-hidden="true">
-            <svg class="cfp-ico-play" viewBox="0 0 24 24" width="34" height="34" aria-hidden="true">
-              <path fill="#fff" stroke="#fff" stroke-width="1.2" stroke-linejoin="round" d="M9 6.2v11.6L19.2 12z"/>
+            <svg class="cfp-ico-play" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+              <path fill="rgba(255,255,255,0.72)" stroke="rgba(255,255,255,0.55)" stroke-width="0.8" stroke-linejoin="round" d="M8.6 5.4v13.2L19.4 12z"/>
             </svg>
-            <svg class="cfp-ico-pause" viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">
-              <rect x="6.5" y="5" width="3.8" height="14" rx="1.1" fill="#fff"/>
-              <rect x="13.7" y="5" width="3.8" height="14" rx="1.1" fill="#fff"/>
+            <svg class="cfp-ico-pause" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+              <rect x="6.2" y="4.6" width="4" height="14.8" rx="1.6" fill="rgba(255,255,255,0.7)"/>
+              <rect x="13.8" y="4.6" width="4" height="14.8" rx="1.6" fill="rgba(255,255,255,0.7)"/>
             </svg>
           </span>
         </button>
