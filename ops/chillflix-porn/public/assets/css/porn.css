@@ -906,26 +906,39 @@ a.cfp-dd-option { color: var(--cfp-text); }
   opacity: 0; pointer-events: none;
   transition: opacity 0.12s ease;
 }
-/* Center: frosted WHITE circle + play triangle (xvideos) */
+/* Center: frosted circle + white triangle / pause bars (xvideos) */
 .cfp-player-bigplay-box {
   display: grid; place-items: center;
-  width: 72px; height: 72px;
+  width: clamp(64px, 18vw, 88px);
+  height: clamp(64px, 18vw, 88px);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.32);
-  box-shadow: 0 1px 10px rgba(0,0,0,0.4);
-  backdrop-filter: blur(1px);
-  -webkit-backdrop-filter: blur(1px);
+  background: rgba(255, 255, 255, 0.34);
+  box-shadow: 0 2px 14px rgba(0,0,0,0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 .cfp-player-bigplay-box svg {
-  display: block;
-  width: 32px; height: 32px;
-  margin-left: 3px;
+  display: none;
+  width: 42%;
+  height: 42%;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
+  grid-area: 1 / 1;
 }
+.cfp-player-bigplay-box .cfp-ico-play {
+  width: 46%;
+  height: 46%;
+  margin-left: 6%;
+}
+.cfp-player-stage.is-paused .cfp-player-bigplay-box .cfp-ico-play { display: block; }
+.cfp-player-stage.is-playing .cfp-player-bigplay-box .cfp-ico-pause { display: block; }
+/* Show play while paused; show pause briefly when chrome is up while playing */
 .cfp-player-stage.is-paused .cfp-player-bigplay {
   opacity: 1; pointer-events: auto;
 }
-.cfp-player-stage.is-playing .cfp-player-bigplay {
+.cfp-player-stage.is-playing.is-chrome .cfp-player-bigplay {
+  opacity: 1; pointer-events: auto;
+}
+.cfp-player-stage.is-playing:not(.is-chrome) .cfp-player-bigplay {
   opacity: 0 !important; pointer-events: none !important;
 }
 /* Top-right: ONE merged dark pill for gear + camera (xvideos) */
@@ -964,19 +977,16 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-player-gear { position: relative; }
 /*
-  Bottom chrome (xvideos + gold):
-  [vol | time pill] ………… [fs]   ← same compact row
-  [======== thin seek ========]  ← flush bottom edge
+  Bottom ONE row (xvideos + gold):
+  [vol | time pill] [==== compact seek ====] [fs]
 */
 .cfp-player-chrome {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
-  padding: 20px 8px 0;
-  background: linear-gradient(transparent 0%, rgba(0,0,0,0.5) 55%, rgba(0,0,0,0.85) 100%);
+  padding: 22px 8px 8px;
+  background: linear-gradient(transparent 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.85) 100%);
   opacity: 0; pointer-events: none;
   transition: opacity 0.12s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: block;
   box-sizing: border-box;
 }
 .cfp-player-stage.is-chrome .cfp-player-chrome,
@@ -987,15 +997,15 @@ a.cfp-dd-option { color: var(--cfp-text); }
   display: flex; align-items: center; gap: 8px;
   min-height: 30px;
   width: 100%;
-  padding: 0 2px;
+  padding: 0;
 }
 .cfp-player-spacer { flex: 1 1 auto; min-width: 8px; }
 .cfp-vol-pill {
   display: inline-flex;
   align-items: center;
   gap: 0;
-  flex: 0 1 auto;
-  max-width: calc(100% - 44px);
+  flex: 0 0 auto;
+  max-width: 42%;
   padding: 3px 10px 3px 4px;
   border-radius: 999px;
   background: rgba(40, 40, 40, 0.72);
@@ -1036,30 +1046,30 @@ a.cfp-dd-option { color: var(--cfp-text); }
   text-overflow: ellipsis;
   line-height: 1;
 }
-/* Thin full-width seek under the control row (xvideos) */
+/* Compact seek IN the same row so fullscreen fits on the right */
 .cfp-seek {
   position: relative;
-  width: 100%;
-  height: 14px;
-  display: flex; align-items: flex-end;
+  flex: 1 1 auto;
+  min-width: 40px;
+  height: 18px;
+  display: flex; align-items: center;
   touch-action: none;
   cursor: pointer;
-  flex: 0 0 auto;
   margin: 0;
-  padding: 0 0 4px;
+  padding: 0;
   box-sizing: border-box;
 }
 .cfp-seek-track {
   position: relative;
   width: 100%;
   height: 2.5px;
-  border-radius: 0;
+  border-radius: 1px;
   background: rgba(255,255,255,0.28);
 }
 .cfp-seek-fill {
   position: absolute; left: 0; top: 0; bottom: 0;
   width: 0%;
-  border-radius: 0;
+  border-radius: 1px;
   background: var(--cfp-accent);
 }
 .cfp-seek-knob {
@@ -1082,8 +1092,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-player-stage.is-fs .cfp-ico-fs-exit { display: block !important; }
 @media (min-width: 900px) {
   .cfp-player { border-radius: 6px; border: 1px solid var(--cfp-border); }
-  .cfp-player-bigplay-box { width: 84px; height: 84px; }
-  .cfp-player-bigplay-box svg { width: 36px; height: 36px; }
+  .cfp-player-bigplay-box { width: 88px; height: 88px; }
   .cfp-player-frame { max-height: min(70vh, 720px); }
   .cfp-vol-pill { max-width: none; }
 }
