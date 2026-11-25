@@ -242,11 +242,11 @@ button.cfp-nav-acct[aria-expanded="true"] {
   box-shadow: 0 0 0 1.5px rgba(255,255,255,0.35);
 }
 .cfp-account-menu {
-  right: 0; left: auto; min-width: 14rem; padding: 0 !important;
-  border-radius: 2px !important;
-  border: 1px solid #4a4336 !important;
-  background: #1c1914 !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,.75);
+  right: 0; left: auto; min-width: 14rem; padding: 0.25rem !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--cfp-border) !important;
+  background: var(--cfp-surface) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,.55);
 }
 .cfp-account-menu-head {
   display: flex; align-items: center; gap: 0.55rem;
@@ -260,20 +260,19 @@ button.cfp-nav-acct[aria-expanded="true"] {
   display: block; font-style: normal; font-size: 0.72rem;
   color: var(--cfp-muted); font-weight: 500;
 }
-.cfp-account-menu .cfp-dd-list { padding: 0; }
+.cfp-account-menu .cfp-dd-list { padding: 0.1rem; }
 .cfp-account-menu .cfp-dd-option {
-  display: block; padding: 0.5rem 0.75rem; border-radius: 0;
-  text-decoration: none; color: #ddd5c4;
-  font-size: 0.82rem; font-weight: 600;
+  display: block; padding: 0.5rem 0.65rem; border-radius: 4px;
+  text-decoration: none; color: var(--cfp-text);
+  font-size: 0.82rem; font-weight: 550;
 }
 .cfp-account-menu .cfp-dd-option:hover {
-  background: #2a261f; color: #fff;
+  background: var(--cfp-surface-2); color: var(--cfp-text);
 }
-.cfp-account-menu .cfp-dd-option.is-on::after { content: none; }
-.cfp-account-menu .cfp-account-admin { color: #f0d7a4; }
+.cfp-account-menu .cfp-account-admin { color: var(--cfp-accent-hi); }
 .cfp-account-menu .cfp-account-logout {
-  margin-top: 0; border-top: 1px solid #333028;
-  border-radius: 0; color: #ffb4b4;
+  margin-top: 0.15rem; border-top: 1px solid var(--cfp-border);
+  border-radius: 0 0 4px 4px; color: #ffb4b4;
 }
 
 .cfp-main {
@@ -389,117 +388,110 @@ button.cfp-nav-acct[aria-expanded="true"] {
 }
 .cfp-clear {
   flex: 0 0 auto; order: 99;
-  color: #9a8b6e; text-decoration: none; font-size: 0.72rem; font-weight: 700;
+  color: var(--cfp-muted); text-decoration: none; font-size: 0.72rem; font-weight: 700;
   padding: 0.32rem 0.55rem;
-  border-radius: 2px; border: 1px solid #3a352c;
-  background: #1a1814;
+  border-radius: 5px; border: 1px solid var(--cfp-border);
+  background: var(--cfp-surface);
 }
-.cfp-clear:hover { color: #f0d7a4; border-color: #8a7345; }
+.cfp-clear:hover { color: var(--cfp-accent-hi); border-color: rgba(228, 194, 122, 0.4); }
 
 .cfp-dd { position: relative; flex: 0 0 auto; }
-/* Classic select-style chips — flat, boxy, no soft glow */
+/* Clean boxy chips — quiet, not flashy */
 .cfp-toolbar .cfp-dd-btn, .cfp-adv-toggle {
-  display: inline-flex; align-items: center; gap: 0.35rem;
-  padding: 0.36rem 0.55rem; border-radius: 2px;
-  border: 1px solid #3a352c;
-  background: #1a1814;
-  color: #e8e0d2;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.38rem 0.55rem; border-radius: 5px;
+  border: 1px solid var(--cfp-border);
+  background: var(--cfp-surface);
+  color: var(--cfp-text);
   cursor: pointer; font: inherit; text-align: left;
   white-space: nowrap; line-height: 1.15;
 }
 .cfp-dd-btn, .cfp-adv-toggle {
   display: inline-flex; align-items: center; gap: 0.35rem;
-  padding: 0.4rem 0.6rem; border-radius: 2px;
-  border: 1px solid #3a352c;
-  background: #1a1814;
+  padding: 0.4rem 0.65rem; border-radius: 5px;
+  border: 1px solid var(--cfp-border);
+  background: var(--cfp-surface);
   color: var(--cfp-text); cursor: pointer; font: inherit; text-align: left;
 }
 .cfp-toolbar .cfp-dd-btn:hover, .cfp-adv-toggle:hover,
 .cfp-dd-btn:hover {
-  border-color: #5a5040;
-  background: #22201b;
-  color: #fff;
+  border-color: rgba(244, 239, 230, 0.22);
+  background: var(--cfp-surface-2);
 }
-.cfp-toolbar .cfp-dd-btn.is-active, .cfp-adv-toggle.is-on {
-  border-color: #8a7345;
-  background: #2a2418;
-  color: #f0d7a4;
-}
+.cfp-toolbar .cfp-dd-btn.is-active, .cfp-adv-toggle.is-on,
 .cfp-dd-btn.is-active, .cfp-adv-toggle.is-on {
-  border-color: #8a7345;
-  background: #2a2418;
+  border-color: rgba(228, 194, 122, 0.4);
+  color: var(--cfp-accent-hi);
 }
 .cfp-dd-btn[aria-expanded="true"], .cfp-adv-toggle[aria-expanded="true"] {
-  border-color: #c9a45c;
-  background: #2a2418;
-  color: #f0d7a4;
+  border-color: rgba(228, 194, 122, 0.55);
+  color: var(--cfp-accent-hi);
 }
 /* Toolbar chips: value only (kickers stay for screen readers / desktop nav) */
 .cfp-toolbar .cfp-dd-kicker { display: none; }
 .cfp-dd-kicker {
   display: block; font-size: 0.62rem; text-transform: uppercase;
-  letter-spacing: 0.06em; color: #9a8b6e; line-height: 1;
+  letter-spacing: 0.06em; color: var(--cfp-muted); line-height: 1;
 }
 .cfp-toolbar .cfp-dd-value {
-  display: inline; font-size: 0.75rem; font-weight: 700; line-height: 1.2;
+  display: inline; font-size: 0.74rem; font-weight: 650; line-height: 1.2;
   max-width: 7.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cfp-dd-value {
-  display: block; font-size: 0.82rem; font-weight: 700; line-height: 1.15;
+  display: block; font-size: 0.82rem; font-weight: 650; line-height: 1.15;
   max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cfp-dd-caret {
-  width: 0; height: 0; margin-left: 0.15rem; flex: 0 0 auto;
-  border-left: 4px solid transparent; border-right: 4px solid transparent;
-  border-top: 5px solid #9a8b6e;
+  width: 0; height: 0; margin-left: 0.1rem; flex: 0 0 auto;
+  border-left: 3.5px solid transparent; border-right: 3.5px solid transparent;
+  border-top: 4.5px solid var(--cfp-muted);
 }
 .cfp-dd-btn[aria-expanded="true"] .cfp-dd-caret,
 .cfp-toolbar .cfp-dd-btn[aria-expanded="true"] .cfp-dd-caret,
 .cfp-toolbar .cfp-dd-btn.is-active .cfp-dd-caret {
-  border-top-color: #e4c27a;
+  border-top-color: var(--cfp-accent);
 }
-/* Menus — solid classic panel */
+/* Menus — clean solid panel */
 .cfp-dd-menu {
   position: fixed; z-index: 13100;
-  min-width: 240px; max-height: min(420px, 70vh);
+  min-width: 248px; max-height: min(420px, 70vh);
   display: none !important;
   flex-direction: column;
-  background: #1c1914;
-  border: 1px solid #4a4336;
-  border-radius: 2px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.75);
+  background: var(--cfp-surface);
+  border: 1px solid var(--cfp-border);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.55);
   overflow: hidden;
 }
 .cfp-dd-menu.is-open { display: flex !important; }
-.cfp-dd-menu-sm { min-width: 180px; }
+.cfp-dd-menu-sm { min-width: 184px; }
 .cfp-dd-sep {
-  margin: 0;
-  padding: 0.4rem 0.7rem 0.2rem;
-  border-top: 1px solid #333028;
-  color: #8a7c60;
+  margin: 0.25rem 0.5rem;
+  padding: 0.4rem 0.2rem 0.15rem;
+  border-top: 1px solid var(--cfp-border);
+  color: var(--cfp-muted);
   font-size: 0.68rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
 .cfp-dd-search {
   flex: 0 0 auto;
-  padding: 0.45rem;
-  border-bottom: 1px solid #333028;
-  background: #15130f;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--cfp-border);
 }
 .cfp-dd-search input {
-  width: 100%; box-sizing: border-box; border-radius: 2px;
-  border: 1px solid #4a4336;
-  background: #0e0c0a;
-  color: #f4efe6;
-  padding: 0.4rem 0.55rem;
-  font: inherit; font-size: 0.82rem;
+  width: 100%; box-sizing: border-box; border-radius: 4px;
+  border: 1px solid var(--cfp-border);
+  background: var(--cfp-bg);
+  color: var(--cfp-text);
+  padding: 0.45rem 0.6rem;
+  font: inherit; font-size: 0.84rem;
   outline: none;
 }
 .cfp-dd-search input::placeholder {
-  color: #6e6454;
+  color: rgba(244, 239, 230, 0.35);
 }
 .cfp-dd-search input:focus {
-  border-color: #8a7345;
+  border-color: rgba(228, 194, 122, 0.45);
 }
 /* Critical: min-height:0 so the list scrolls inside the flex menu instead of clipping to the footer */
 .cfp-dd-list {
@@ -507,7 +499,7 @@ button.cfp-nav-acct[aria-expanded="true"] {
   min-height: 0;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 0;
+  padding: 0.35rem;
 }
 .cfp-dd-foot { flex: 0 0 auto; }
 .cfp-dd-option {
@@ -515,62 +507,44 @@ button.cfp-nav-acct[aria-expanded="true"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.65rem;
   border: 0;
-  border-bottom: 1px solid #2a261f;
   background: transparent;
-  color: #ddd5c4;
+  color: var(--cfp-text);
   text-align: left;
-  padding: 0.48rem 0.7rem;
-  border-radius: 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 4px;
   cursor: pointer;
   font: inherit;
-  font-size: 0.84rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 550;
 }
-.cfp-dd-option:last-child { border-bottom: 0; }
 .cfp-dd-option:hover {
-  background: #2a261f;
-  color: #fff;
+  background: var(--cfp-surface-2);
 }
 .cfp-dd-option.is-on {
-  background: #2e2818;
-  color: #f0d7a4;
-  font-weight: 700;
-  box-shadow: none;
-}
-.cfp-dd-option.is-on::after {
-  content: "✓";
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: #e4c27a;
-  font-size: 0.8rem;
+  background: rgba(228, 194, 122, 0.12);
+  color: var(--cfp-accent-hi);
   font-weight: 700;
 }
 .cfp-dd-option em {
-  color: #7a6e58;
+  color: var(--cfp-muted);
   font-style: normal;
-  font-size: 0.72rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  order: 2;
-}
-.cfp-dd-option.is-on em { color: #b9a57a; }
-/* Keep count before the check */
-.cfp-dd-option span { order: 1; flex: 1 1 auto; min-width: 0; }
-.cfp-dd-option.is-on::after { order: 3; }
-.cfp-dd-foot {
-  border-top: 1px solid #333028;
-  padding: 0.45rem 0.65rem;
   font-size: 0.74rem;
-  color: #8a7c60;
-  background: #15130f;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
-.cfp-dd-foot a { color: #e4c27a; text-decoration: none; font-weight: 700; }
-.cfp-dd-foot .cfp-muted { color: #8a7c60; }
+.cfp-dd-option.is-on em { color: rgba(240, 215, 164, 0.75); }
+.cfp-dd-foot {
+  border-top: 1px solid var(--cfp-border);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.74rem;
+  color: var(--cfp-muted);
+}
+.cfp-dd-foot a { color: var(--cfp-accent); text-decoration: none; font-weight: 700; }
 
 .cfp-dd-option { text-decoration: none; box-sizing: border-box; }
-a.cfp-dd-option { color: #ddd5c4; }
+a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-cat-head { margin: 0 0 0.55rem; }
 .cfp-cat-sub { margin: 0.15rem 0 0; color: var(--cfp-muted); font-size: 0.82rem; }
 
@@ -1784,25 +1758,24 @@ a.cfp-dd-option { color: #ddd5c4; }
 .cfp-dock a.is-on,
 .cfp-dock button.cfp-dock-cats.is-on { color: #1a1208; background: var(--cfp-accent); }
 .cfp-cats-menu .cfp-dd-option.is-on {
-  background: #2e2818;
-  color: #f0d7a4;
+  background: rgba(228, 194, 122, 0.12);
+  color: var(--cfp-accent-hi);
 }
 .cfp-cats-foot {
   display: flex !important; align-items: center; justify-content: space-between; gap: 0.45rem;
-  padding: 0.45rem !important;
-  background: #15130f;
+  padding: 0.5rem !important;
 }
 .cfp-cats-clear,
 .cfp-cats-apply {
-  border: 1px solid #4a4336; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 700;
-  padding: 0.4rem 0.75rem; border-radius: 2px;
+  border: 1px solid var(--cfp-border); cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 700;
+  padding: 0.4rem 0.75rem; border-radius: 4px;
 }
-.cfp-cats-clear { background: #1c1914; color: #c2b08a; }
-.cfp-cats-clear:hover { color: #fff; border-color: #6a604e; }
+.cfp-cats-clear { background: transparent; color: var(--cfp-muted); }
+.cfp-cats-clear:hover { color: var(--cfp-text); border-color: rgba(244, 239, 230, 0.22); }
 .cfp-cats-apply {
-  background: #c9a45c; color: #1a1208; margin-left: auto; border-color: #c9a45c;
+  background: var(--cfp-accent); color: #1a1208; margin-left: auto; border-color: var(--cfp-accent);
 }
-.cfp-cats-apply:hover { background: #e4c27a; }
+.cfp-cats-apply:hover { background: var(--cfp-accent-hi); }
 .cfp-empty { color: var(--cfp-muted); font-size: 0.9rem; }
 
 @media (max-width: 900px) {
@@ -1827,8 +1800,7 @@ a.cfp-dd-option { color: #ddd5c4; }
     flex-direction: column;
     width: 100% !important;
     max-height: min(70vh, 520px);
-    border-radius: 2px 2px 0 0;
-    border-color: #4a4336;
+    border-radius: 8px 8px 0 0;
     overflow: hidden;
   }
   body.cfp-cats-sheet .cfp-nav-cats .cfp-dd-list { flex: 1 1 auto; max-height: none; }
