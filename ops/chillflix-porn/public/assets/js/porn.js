@@ -502,28 +502,13 @@
     var fingerDown = false;
     var id = card.getAttribute("data-video-id") || "";
 
-    function lockScroll() {
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
-      card.style.touchAction = "none";
-    }
-
-    function unlockScroll() {
-      document.documentElement.style.overflow = "";
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
-      card.style.touchAction = "";
-    }
-
-    function endHold(suppressClick) {
+    function endHold() {
       clearTimeout(touchTimer);
-      var wasPreview = previewArmed;
+      var wasPreview = previewArmed || activePreview === card;
       fingerDown = false;
       previewArmed = false;
-      unlockScroll();
       stopPreview(card);
-      if (wasPreview || suppressClick) {
+      if (wasPreview) {
         card.__cfpSuppressClick = true;
         setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
       }
@@ -544,48 +529,38 @@
         if (!fingerDown) return;
         previewArmed = true;
         card.__cfpSuppressClick = true;
-        lockScroll();
         startPreview(card);
-      }, 140);
+      }, 160);
     }, { passive: true });
 
-    // NON-passive: while previewing, block scroll so finger moves never steal the gesture
+    // Never stop preview on touchmove. Never preventDefault (that locked scrolling).
+    // Finger wiggle = keep playing. Real list scroll is handled by the scroll listener.
     card.addEventListener("touchmove", function (e) {
       if (!e.touches || !e.touches[0]) return;
       var adx = Math.abs(e.touches[0].clientX - startX);
       var ady = Math.abs(e.touches[0].clientY - startY);
-
       if (!previewArmed) {
-        // Scrolling before hold engages — cancel pending preview only (don't stop anything live)
-        if (ady > 45 && ady > adx) clearTimeout(touchTimer);
-        return;
+        // Cancel pending hold if user is clearly scrolling the feed
+        if (ady > 40 && ady > adx) clearTimeout(touchTimer);
       }
-
-      // Preview playing: keep it alive no matter how the finger moves
-      if (e.cancelable) e.preventDefault();
-    }, { passive: false });
+      // If preview is armed: do nothing. Keep playing.
+    }, { passive: true });
 
     card.addEventListener("touchend", function () {
-      endHold(false);
+      endHold();
     });
 
-    // Android fires touchcancel when it steals the gesture for scrolling.
-    // We preventDefault on move once armed, so this should be rare. If it still
-    // fires during a finger-move, do NOT kill the preview — keep the clip tour going.
+    // touchcancel = browser took the gesture (usually started scrolling). Stop so scroll works.
     card.addEventListener("touchcancel", function () {
       clearTimeout(touchTimer);
-      if (!previewArmed) {
-        fingerDown = false;
-        unlockScroll();
-        return;
-      }
-      // Gesture stream ended but user wanted continuous play while moving —
-      // leave video running; next tap anywhere will stop it via document handler.
       fingerDown = false;
       previewArmed = false;
-      unlockScroll();
-      card.__cfpSuppressClick = true;
-      setTimeout(function () { card.__cfpSuppressClick = false; }, 400);
+      // Only stop if the page actually moved — pure finger jitter shouldn't cancel
+      var scrollY = window.scrollY || window.pageYOffset || 0;
+      if (Math.abs(scrollY - holdScrollY) > 10) {
+        stopPreview(card);
+      }
+      // else keep the clip tour running (finger moved, page didn't scroll)
     });
   }
 
@@ -595,17 +570,13 @@
     }
   }, true);
 
-  // Tap anywhere else stops an orphaned preview (left running after touchcancel)
-  document.addEventListener("touchstart", function (e) {
+  // Stop preview when the feed actually scrolls (not when finger merely wiggles)
+  window.addEventListener("scroll", function () {
     if (!activePreview) return;
-    if (e.target && e.target.closest && e.target.closest(".cfp-card.is-previewing, .cfp-card.is-preview-loading")) {
-      return;
-    }
+    var scrollY = window.scrollY || window.pageYOffset || 0;
+    if (Math.abs(scrollY - holdScrollY) < 24) return;
     stopPreview(activePreview);
-    document.documentElement.style.overflow = "";
-    document.body.style.overflow = "";
-    document.body.style.touchAction = "";
-  }, { passive: true, capture: true });
+  }, { passive: true });
 
   document.querySelectorAll(".cfp-card[data-video-id], .cfp-rail-card[data-video-id]").forEach(bindCardPreview);
 
