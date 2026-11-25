@@ -176,23 +176,21 @@
     });
   }
 
-  // xvideos-style preview: cycle 8 scene thumbs (xv_N_t.jpg) + muted video underneath.
-  // Finger may move freely while held; only stop on release or real page scroll.
+  // xvideos-style preview: play ~2.5s of real video at 8 different parts, then jump.
+  // No photo slideshow. Finger may move; only stop on release or real page scroll.
   var activePreview = null;
   var previewTimer = null;
   var previewUrlCache = Object.create(null);
   var streamInflight = Object.create(null);
-  var sceneTimer = null;
   var segmentTimer = null;
   var scrubResumeTimer = null;
   var scrubbing = false;
   var holdScrollY = 0;
+  var partGen = 0;
 
-  // 8 evenly spaced scene frames (xvideos stores xv_1_t … xv_30_t)
-  var SCENE_IDX = [1, 5, 9, 13, 17, 21, 25, 30];
-  var SCENE_MS = 400; // ~3.2s to cycle all 8 scenes
-  var PART_FRACS = [0.06, 0.18, 0.30, 0.42, 0.54, 0.66, 0.78, 0.90];
-  var PART_HOLD_MS = 700;
+  // 8 parts across the movie; play each for ~2.5s like xvideos trailers
+  var PART_FRACS = [0.05, 0.17, 0.29, 0.41, 0.53, 0.65, 0.77, 0.89];
+  var PART_HOLD_MS = 2500;
 
   function cardHref(card) {
     return card.getAttribute("data-href") || card.getAttribute("href") || "";
@@ -203,32 +201,10 @@
     if (href) window.location.href = href;
   }
 
-  /** Build 8 scene URLs from a card's xv_N_t.jpg thumb (xvideos pattern). */
-  function sceneUrlsFromCard(card) {
-    var img = card.querySelector(".cfp-card-media img");
-    var src = (img && (img.currentSrc || img.getAttribute("src"))) || "";
-    var m = src.match(/^(https?:\/\/.+\/)xv_\d+_t(\.[a-zA-Z0-9]+)(?:\?.*)?$/i);
-    if (!m) return [];
-    return SCENE_IDX.map(function (n) {
-      return m[1] + "xv_" + n + "_t" + m[2];
-    });
-  }
-
-  function preloadScenes(urls) {
-    urls.forEach(function (u) {
-      var im = new Image();
-      im.referrerPolicy = "no-referrer";
-      im.src = u;
-    });
-  }
-
   function clearTours() {
-    if (sceneTimer) {
-      clearInterval(sceneTimer);
-      sceneTimer = null;
-    }
+    partGen += 1;
     if (segmentTimer) {
-      clearInterval(segmentTimer);
+      clearTimeout(segmentTimer);
       segmentTimer = null;
     }
     if (scrubResumeTimer) {
@@ -242,11 +218,6 @@
     if (!card) return;
     clearTours();
     card.classList.remove("is-previewing", "is-preview-loading", "is-scrubbing");
-    var scene = card.querySelector(".cfp-card-scene");
-    if (scene) {
-      scene.hidden = true;
-      scene.removeAttribute("src");
-    }
     var vid = card.querySelector(".cfp-card-preview");
     if (vid) {
       try { vid.pause(); } catch (e) {}
@@ -259,20 +230,6 @@
       vid.style.opacity = "";
     }
     if (activePreview === card) activePreview = null;
-  }
-
-  function ensureSceneImg(media) {
-    var el = media.querySelector(".cfp-card-scene");
-    if (el) return el;
-    el = document.createElement("img");
-    el.className = "cfp-card-scene";
-    el.alt = "";
-    el.draggable = false;
-    el.referrerPolicy = "no-referrer";
-    el.setAttribute("referrerpolicy", "no-referrer");
-    el.hidden = true;
-    media.appendChild(el);
-    return el;
   }
 
   function ensurePreviewVideo(media) {
@@ -329,149 +286,161 @@
 
   function seekSafe(vid, t) {
     try {
-      if (!isFinite(vid.duration) || vid.duration < 1) return;
-      var target = Math.max(0.05, Math.min(t, vid.duration - 0.2));
-      if (Math.abs(vid.currentTime - target) > 0.3) {
-        vid.currentTime = target;
-      }
-    } catch (e) {}
+      if (!isFinite(vid.duration) || vid.duration < 1) return false;
+      var target = Math.max(0.05, Math.min(t, Math.max(0.1, vid.duration - 0.35)));
+      vid.currentTime = target;
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  function showScene(card, urls, idx) {
-    var media = card.querySelector(".cfp-card-media");
-    if (!media || !urls.length) return;
-    var scene = ensureSceneImg(media);
-    var i = ((idx % urls.length) + urls.length) % urls.length;
-    scene.src = urls[i];
-    scene.hidden = false;
-    card.__cfpSceneIdx = i;
-    card.classList.add("is-previewing");
+  function revealVideo(card, vid) {
+    if (activePreview !== card) return;
+    if (!(vid.videoWidth > 0) && vid.readyState < 2) return;
+    vid.hidden = false;
+    vid.style.opacity = "1";
     card.classList.remove("is-preview-loading");
+    card.classList.add("is-previewing");
   }
 
-  /** Flip through 8 xvideos scene thumbs — instant, reliable "parts" preview. */
-  function startSceneTour(card, urls) {
-    if (sceneTimer) {
-      clearInterval(sceneTimer);
-      sceneTimer = null;
+  /**
+   * Play ~2.5s at part idx, then jump to the next part (xvideos trailer style).
+   * Waits for seeked so each scene actually plays motion, not a still.
+   */
+  function playPart(card, vid, idx, gen) {
+    if (activePreview !== card || gen !== partGen || scrubbing) return;
+    if (!isFinite(vid.duration) || vid.duration < 2) {
+      try { vid.loop = true; vid.play(); } catch (e) {}
+      return;
     }
-    if (!urls || urls.length < 2) return;
-    preloadScenes(urls);
-    card.__cfpScenes = urls;
-    var idx = typeof card.__cfpSceneIdx === "number" ? card.__cfpSceneIdx : 0;
-    showScene(card, urls, idx);
-    sceneTimer = setInterval(function () {
-      if (activePreview !== card) return;
-      if (scrubbing) return; // pause flips only while actively sliding
-      idx = ((card.__cfpSceneIdx || 0) + 1) % urls.length;
-      showScene(card, urls, idx);
-    }, SCENE_MS);
-  }
+    vid.loop = false;
+    var i = ((idx % PART_FRACS.length) + PART_FRACS.length) % PART_FRACS.length;
+    card.__cfpPartIdx = i;
+    var done = false;
 
-  function startSegmentTour(card, vid) {
-    if (segmentTimer) {
-      clearInterval(segmentTimer);
-      segmentTimer = null;
-    }
-    if (!vid || activePreview !== card) return;
-
-    var startTour = function () {
-      if (activePreview !== card || scrubbing) return;
-      var dur = vid.duration;
-      if (!isFinite(dur) || dur < 3) {
-        try { vid.loop = true; vid.play(); } catch (e) {}
-        return;
-      }
-      vid.loop = false;
-      var idx = 0;
-      seekSafe(vid, dur * PART_FRACS[0]);
-      try { vid.play(); } catch (e2) {}
-      segmentTimer = setInterval(function () {
-        if (activePreview !== card || scrubbing) return;
-        if (!isFinite(vid.duration) || vid.duration < 3) return;
-        idx = (idx + 1) % PART_FRACS.length;
-        seekSafe(vid, vid.duration * PART_FRACS[idx]);
-        if (vid.paused) {
-          try { vid.play(); } catch (e3) {}
-        }
+    var afterSeek = function () {
+      if (done) return;
+      done = true;
+      vid.removeEventListener("seeked", afterSeek);
+      if (activePreview !== card || gen !== partGen) return;
+      revealVideo(card, vid);
+      var p = vid.play();
+      if (p && typeof p.catch === "function") p.catch(function () {});
+      if (segmentTimer) clearTimeout(segmentTimer);
+      segmentTimer = setTimeout(function () {
+        if (activePreview !== card || gen !== partGen || scrubbing) return;
+        playPart(card, vid, i + 1, gen);
       }, PART_HOLD_MS);
     };
 
-    if (isFinite(vid.duration) && vid.duration > 0) startTour();
+    vid.addEventListener("seeked", afterSeek);
+    if (!seekSafe(vid, vid.duration * PART_FRACS[i])) {
+      afterSeek();
+      return;
+    }
+    // Fallback if seeked doesn't fire (already at target / stalled)
+    segmentTimer = setTimeout(function () {
+      if (activePreview !== card || gen !== partGen) return;
+      afterSeek();
+    }, 700);
+  }
+
+  function startSegmentTour(card, vid) {
+    clearTours();
+    if (!vid || activePreview !== card) return;
+    var gen = partGen;
+    var go = function () {
+      if (activePreview !== card || gen !== partGen) return;
+      playPart(card, vid, 0, gen);
+    };
+    if (isFinite(vid.duration) && vid.duration > 0) go();
     else {
       vid.addEventListener("loadedmetadata", function onMeta() {
         vid.removeEventListener("loadedmetadata", onMeta);
-        startTour();
+        go();
       });
     }
   }
 
-  /** Horizontal slide → pick scene by finger X; auto-tour resumes after slide stops. */
-  function scrubPreview(card, clientX, urls) {
+  function scrubPreview(card, clientX) {
     var media = card.querySelector(".cfp-card-media");
-    if (!media) return;
+    var vid = card.querySelector(".cfp-card-preview");
+    if (!media || !vid || !isFinite(vid.duration) || vid.duration < 1) return;
     scrubbing = true;
     card.classList.add("is-scrubbing");
+    if (segmentTimer) {
+      clearTimeout(segmentTimer);
+      segmentTimer = null;
+    }
     var rect = media.getBoundingClientRect();
     var ratio = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
     ratio = Math.max(0, Math.min(0.999, ratio));
-
-    if (urls && urls.length) {
-      var idx = Math.floor(ratio * urls.length);
-      showScene(card, urls, idx);
+    // Snap to nearest of the 8 parts while scrubbing
+    var idx = Math.min(PART_FRACS.length - 1, Math.floor(ratio * PART_FRACS.length));
+    card.__cfpPartIdx = idx;
+    seekSafe(vid, vid.duration * PART_FRACS[idx]);
+    if (vid.paused) {
+      try { vid.play(); } catch (e) {}
     }
-
-    var vid = card.querySelector(".cfp-card-preview");
-    if (vid && isFinite(vid.duration) && vid.duration > 1) {
-      seekSafe(vid, vid.duration * ratio);
-      if (vid.paused) {
-        try { vid.play(); } catch (e) {}
-      }
-    }
+    revealVideo(card, vid);
 
     if (scrubResumeTimer) clearTimeout(scrubResumeTimer);
     scrubResumeTimer = setTimeout(function () {
       scrubbing = false;
       card.classList.remove("is-scrubbing");
-    }, 450);
+      if (activePreview === card) {
+        playPart(card, vid, idx + 1, partGen);
+      }
+    }, 500);
   }
 
-  function playVideoUnderlay(card, url) {
+  function playPreview(card, url) {
     if (!url || activePreview !== card) return;
     var media = card.querySelector(".cfp-card-media");
     if (!media) return;
     var vid = ensurePreviewVideo(media);
-    vid.hidden = false;
-    vid.style.opacity = "0.92";
 
-    var onReady = function () {
+    card.classList.add("is-preview-loading");
+    card.classList.remove("is-previewing");
+    vid.hidden = false;
+    vid.style.opacity = "0";
+
+    var kickTour = function () {
       if (activePreview !== card) return;
-      if (vid.videoWidth > 0) {
-        // Soften scene overlay once motion is available
-        card.classList.add("is-preview-motion");
-        if (!scrubbing) startSegmentTour(card, vid);
+      revealVideo(card, vid);
+      if (!scrubbing) startSegmentTour(card, vid);
+    };
+
+    vid.onplaying = function () { revealVideo(card, vid); };
+    vid.onloadeddata = function () { revealVideo(card, vid); };
+
+    var tryPlay = function (src, allowFallback) {
+      if (activePreview !== card) return;
+      if (vid.getAttribute("data-src") !== src) {
+        vid.setAttribute("data-src", src);
+        vid.src = src;
+      }
+      vid.muted = true;
+      vid.defaultMuted = true;
+      vid.volume = 0;
+      var p = vid.play();
+      if (p && typeof p.then === "function") {
+        p.then(kickTour).catch(function () {
+          if (activePreview !== card) return;
+          if (!allowFallback) {
+            card.classList.remove("is-preview-loading", "is-previewing");
+            vid.hidden = true;
+            return;
+          }
+          tryPlay(previewProxyUrl(card.getAttribute("data-video-id") || ""), false);
+        });
+      } else {
+        kickTour();
       }
     };
-    vid.onplaying = onReady;
-    vid.onloadeddata = onReady;
 
-    if (vid.getAttribute("data-src") !== url) {
-      vid.setAttribute("data-src", url);
-      vid.src = url;
-    }
-    vid.muted = true;
-    vid.volume = 0;
-    var p = vid.play();
-    if (p && typeof p.catch === "function") {
-      p.catch(function () {
-        if (activePreview !== card) return;
-        var proxy = previewProxyUrl(card.getAttribute("data-video-id") || "");
-        if (vid.getAttribute("data-src") === proxy) return;
-        vid.setAttribute("data-src", proxy);
-        vid.src = proxy;
-        vid.play().catch(function () {});
-      });
-    }
+    tryPlay(url, true);
   }
 
   function startPreview(card) {
@@ -480,20 +449,12 @@
     if (activePreview && activePreview !== card) stopPreview(activePreview);
     activePreview = card;
     scrubbing = false;
-    card.__cfpSceneIdx = 0;
     card.classList.add("is-preview-loading");
-    card.classList.remove("is-preview-motion", "is-scrubbing");
+    card.classList.remove("is-scrubbing");
 
-    var scenes = sceneUrlsFromCard(card);
-    // Instant: flip 8 scene thumbs (this is what xvideos hover felt like)
-    if (scenes.length) {
-      startSceneTour(card, scenes);
-    }
-
-    // Also pull CDN video for motion under/with the scenes
     resolveStreamUrl(id).then(function (url) {
       if (activePreview !== card) return;
-      playVideoUnderlay(card, url || previewProxyUrl(id));
+      playPreview(card, url || previewProxyUrl(id));
     });
   }
 
@@ -527,7 +488,6 @@
     card.addEventListener("mouseenter", function () {
       clearTimeout(previewTimer);
       resolveStreamUrl(card.getAttribute("data-video-id") || "");
-      preloadScenes(sceneUrlsFromCard(card));
       previewTimer = setTimeout(function () { startPreview(card); }, 100);
     });
     card.addEventListener("mouseleave", function () {
@@ -541,7 +501,6 @@
     var previewArmed = false;
     var scrolledAway = false;
     var id = card.getAttribute("data-video-id") || "";
-    var scenes = [];
 
     card.addEventListener("touchstart", function (e) {
       if (!e.touches || !e.touches[0]) return;
@@ -553,8 +512,6 @@
       scrubbing = false;
       card.__cfpSuppressClick = false;
       clearTimeout(touchTimer);
-      scenes = sceneUrlsFromCard(card);
-      preloadScenes(scenes);
       resolveStreamUrl(id);
       touchTimer = setTimeout(function () {
         previewArmed = true;
@@ -572,7 +529,6 @@
       var scrollY = window.scrollY || window.pageYOffset || 0;
       var scrollDelta = Math.abs(scrollY - holdScrollY);
 
-      // Real page scroll → stop. Finger wiggling on the card does NOT stop.
       if (scrollDelta > 48) {
         clearTimeout(touchTimer);
         if (previewArmed) stopPreview(card);
@@ -583,7 +539,6 @@
       }
 
       if (!previewArmed) {
-        // Only cancel pending hold if user is scrolling the feed hard
         if (scrollDelta > 20 || (ady > 50 && ady > adx * 1.5)) {
           clearTimeout(touchTimer);
           scrolledAway = true;
@@ -591,9 +546,9 @@
         return;
       }
 
-      // Keep playing. Only deliberate horizontal drag scrubs scenes (small jitter ignored).
+      // Keep video playing; deliberate horizontal drag jumps between parts
       if (adx > 40 && adx > ady) {
-        scrubPreview(card, x, scenes.length ? scenes : sceneUrlsFromCard(card));
+        scrubPreview(card, x);
       }
     }, { passive: true });
 
@@ -622,7 +577,6 @@
     }
   }, true);
 
-  // Stop only when the held card actually scrolls off-screen
   window.addEventListener("scroll", function () {
     if (!activePreview) return;
     var scrollY = window.scrollY || window.pageYOffset || 0;
