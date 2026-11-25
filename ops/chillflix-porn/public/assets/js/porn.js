@@ -8,8 +8,13 @@
     var menu = dd.querySelector(".cfp-dd-menu");
     if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
     if (menu) {
-      menu.classList.toggle("is-open", !!open);
-      menu.hidden = !open;
+      if (open) {
+        menu.hidden = false;
+        menu.classList.add("is-open");
+      } else {
+        menu.classList.remove("is-open");
+        menu.hidden = true;
+      }
     }
   }
 
@@ -20,44 +25,47 @@
     });
   }
 
-  function initToolbar(form) {
-    form.querySelectorAll("[data-cfp-dd]").forEach(function (dd) {
-      var btn = dd.querySelector(".cfp-dd-btn");
-      var menu = dd.querySelector(".cfp-dd-menu");
-      if (!btn || !menu) return;
+  function initDropdown(dd) {
+    var btn = dd.querySelector(".cfp-dd-btn");
+    var menu = dd.querySelector(".cfp-dd-menu");
+    if (!btn || !menu) return;
 
-      btn.addEventListener("click", function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var willOpen = btn.getAttribute("aria-expanded") !== "true";
-        closeAllMenus(willOpen ? dd : null);
-        setMenuOpen(dd, willOpen);
-        if (willOpen) {
-          var filter = menu.querySelector("[data-cfp-dd-filter]");
-          if (filter) {
-            filter.value = "";
-            filter.dispatchEvent(new Event("input"));
-            setTimeout(function () { try { filter.focus(); } catch (err) {} }, 0);
-          }
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var willOpen = !menu.classList.contains("is-open");
+      closeAllMenus(willOpen ? dd : null);
+      setMenuOpen(dd, willOpen);
+      if (willOpen) {
+        var filter = menu.querySelector("[data-cfp-dd-filter]");
+        if (filter && window.matchMedia("(pointer: fine)").matches) {
+          filter.value = "";
+          filter.dispatchEvent(new Event("input"));
+          setTimeout(function () {
+            try { filter.focus(); } catch (err) {}
+          }, 0);
         }
-      });
-
-      // Clicks inside menu must not bubble to document closer incorrectly
-      menu.addEventListener("click", function (e) {
-        e.stopPropagation();
-      });
-
-      var filter = menu.querySelector("[data-cfp-dd-filter]");
-      if (filter) {
-        filter.addEventListener("input", function () {
-          var q = (filter.value || "").toLowerCase().trim();
-          menu.querySelectorAll(".cfp-dd-option").forEach(function (opt) {
-            var label = (opt.getAttribute("data-label") || opt.textContent || "").toLowerCase();
-            opt.hidden = q !== "" && label.indexOf(q) === -1;
-          });
-        });
       }
     });
+
+    menu.addEventListener("click", function (e) {
+      e.stopPropagation();
+    });
+
+    var filter = menu.querySelector("[data-cfp-dd-filter]");
+    if (filter) {
+      filter.addEventListener("input", function () {
+        var q = (filter.value || "").toLowerCase().trim();
+        menu.querySelectorAll(".cfp-dd-option, .cfp-cat-row").forEach(function (opt) {
+          var label = (opt.getAttribute("data-label") || opt.textContent || "").toLowerCase();
+          opt.hidden = q !== "" && label.indexOf(q) === -1;
+        });
+      });
+    }
+  }
+
+  function initToolbar(form) {
+    form.querySelectorAll("[data-cfp-dd]").forEach(initDropdown);
 
     form.addEventListener("click", function (e) {
       var opt = closest(e.target, "[data-cfp-set]");
@@ -70,44 +78,166 @@
       var input = form.querySelector('[data-cfp-field="' + field + '"]');
       if (input) input.value = value;
       closeAllMenus();
-      form.requestSubmit ? form.requestSubmit() : form.submit();
+      if (form.requestSubmit) form.requestSubmit();
+      else form.submit();
     });
-
-    form.querySelectorAll("[data-cfp-field-select]").forEach(function (sel) {
-      sel.addEventListener("change", function () {
-        var field = sel.getAttribute("data-cfp-field-select");
-        var input = form.querySelector('[data-cfp-field="' + field + '"]');
-        if (input) input.value = sel.value;
-      });
-    });
-
-    var advBtn = form.querySelector("[data-cfp-adv-toggle]");
-    var adv = form.querySelector("[data-cfp-adv]");
-    if (advBtn && adv) {
-      advBtn.addEventListener("click", function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        closeAllMenus();
-        var open = advBtn.getAttribute("aria-expanded") === "true";
-        advBtn.setAttribute("aria-expanded", open ? "false" : "true");
-        adv.hidden = open;
-        adv.classList.toggle("is-open", !open);
-      });
-    }
   }
 
   document.querySelectorAll("[data-cfp-toolbar]").forEach(initToolbar);
+  document.querySelectorAll("[data-cfp-dd]").forEach(function (dd) {
+    if (!closest(dd, "[data-cfp-toolbar]")) initDropdown(dd);
+  });
 
-  // Close when clicking outside any open dropdown (including elsewhere in toolbar)
   document.addEventListener("click", function (e) {
-    var insideMenu = closest(e.target, ".cfp-dd-menu.is-open, .cfp-dd-btn[aria-expanded='true']");
-    if (!insideMenu) closeAllMenus();
+    if (closest(e.target, ".cfp-dd-menu.is-open, .cfp-dd-btn")) return;
+    closeAllMenus();
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") closeAllMenus();
   });
 
-  // Player
+  // Categories page live filter
+  var catFilter = document.querySelector("[data-cfp-cats-filter]");
+  if (catFilter) {
+    catFilter.addEventListener("input", function () {
+      var q = (catFilter.value || "").toLowerCase().trim();
+      document.querySelectorAll("[data-cfp-cat-letter]").forEach(function (section) {
+        var visible = 0;
+        section.querySelectorAll(".cfp-cat-row").forEach(function (row) {
+          var label = (row.getAttribute("data-label") || row.textContent || "").toLowerCase();
+          var hide = q !== "" && label.indexOf(q) === -1;
+          row.hidden = hide;
+          if (!hide) visible++;
+        });
+        section.hidden = visible === 0;
+      });
+    });
+  }
+
+  // Hover / long-press card previews
+  var previewCache = Object.create(null);
+  var activePreview = null;
+  var previewTimer = null;
+
+  function pickPreviewUrl(streams) {
+    return streams.low || streams.high || streams.hls || "";
+  }
+
+  function stopPreview(card) {
+    if (!card) return;
+    card.classList.remove("is-previewing");
+    var vid = card.querySelector(".cfp-card-preview");
+    if (vid) {
+      try { vid.pause(); } catch (e) {}
+      vid.removeAttribute("src");
+      vid.load();
+      vid.hidden = true;
+    }
+    if (activePreview === card) activePreview = null;
+  }
+
+  function startPreview(card) {
+    var id = card.getAttribute("data-video-id") || "";
+    if (!id) return;
+    if (activePreview && activePreview !== card) stopPreview(activePreview);
+    activePreview = card;
+    card.classList.add("is-previewing");
+
+    var media = card.querySelector(".cfp-card-media");
+    if (!media) return;
+    var vid = card.querySelector(".cfp-card-preview");
+    if (!vid) {
+      vid = document.createElement("video");
+      vid.className = "cfp-card-preview";
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.loop = true;
+      vid.preload = "metadata";
+      vid.setAttribute("muted", "");
+      vid.setAttribute("playsinline", "");
+      media.appendChild(vid);
+    }
+
+    function playUrl(url) {
+      if (activePreview !== card || !url) return;
+      vid.hidden = false;
+      if (vid.getAttribute("src") !== url) {
+        vid.src = url;
+      }
+      var p = vid.play();
+      if (p && typeof p.catch === "function") p.catch(function () {});
+    }
+
+    if (previewCache[id]) {
+      playUrl(previewCache[id]);
+      return;
+    }
+
+    fetch("/porn/api/stream?id=" + encodeURIComponent(id), {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok || !data.streams) return;
+        var url = pickPreviewUrl(data.streams);
+        if (!url) return;
+        previewCache[id] = url;
+        playUrl(url);
+      })
+      .catch(function () {});
+  }
+
+  function bindCardPreview(card) {
+    if (!card.getAttribute("data-video-id")) return;
+    var coarse = false;
+    try {
+      coarse = window.matchMedia("(pointer: coarse)").matches;
+    } catch (e) {}
+
+    card.addEventListener("pointerenter", function (e) {
+      if (e.pointerType === "touch") return;
+      clearTimeout(previewTimer);
+      previewTimer = setTimeout(function () { startPreview(card); }, 160);
+    });
+    card.addEventListener("pointerleave", function () {
+      clearTimeout(previewTimer);
+      stopPreview(card);
+    });
+
+    // Mice / trackpads that don't emit pointerenter reliably
+    card.addEventListener("mouseenter", function () {
+      if (coarse) return;
+      clearTimeout(previewTimer);
+      previewTimer = setTimeout(function () { startPreview(card); }, 160);
+    });
+    card.addEventListener("mouseleave", function () {
+      clearTimeout(previewTimer);
+      stopPreview(card);
+    });
+
+    var touchTimer = null;
+    card.addEventListener("touchstart", function () {
+      clearTimeout(touchTimer);
+      touchTimer = setTimeout(function () {
+        startPreview(card);
+      }, 420);
+    }, { passive: true });
+    card.addEventListener("touchend", function () {
+      clearTimeout(touchTimer);
+    });
+    card.addEventListener("touchmove", function () {
+      clearTimeout(touchTimer);
+    }, { passive: true });
+    card.addEventListener("touchcancel", function () {
+      clearTimeout(touchTimer);
+      stopPreview(card);
+    });
+  }
+
+  document.querySelectorAll(".cfp-card[data-video-id], .cfp-rail-card[data-video-id]").forEach(bindCardPreview);
+
+  // Full player (watch page)
   var root = document.querySelector(".cfp-player");
   if (!root) return;
   var videoId = root.getAttribute("data-video-id") || "";

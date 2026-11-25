@@ -56,10 +56,29 @@ $hasFilters = $activeCatSlug !== ''
 <?php if ($showCatQuick && $cats): ?>
 <nav class="cfp-quickcats" aria-label="Popular categories">
   <a class="cfp-quickcat<?= $activeCatSlug === '' ? ' is-on' : '' ?>" href="<?= cfp_e(cfp_url('/')) ?>">All</a>
-  <?php foreach (array_slice($cats, 0, 14) as $c): ?>
+  <?php foreach (array_slice($cats, 0, 10) as $c): ?>
     <a class="cfp-quickcat<?= $activeCatSlug === $c['slug'] ? ' is-on' : '' ?>" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>"><?= cfp_e($c['name']) ?></a>
   <?php endforeach; ?>
-  <a class="cfp-quickcat cfp-quickcat-more" href="<?= cfp_e(cfp_url('/categories')) ?>">More…</a>
+  <div class="cfp-dd cfp-quickcat-dd" data-cfp-dd>
+    <button type="button" class="cfp-dd-btn cfp-quickcat cfp-quickcat-more" aria-expanded="false">
+      <span class="cfp-dd-value">More…</span>
+      <span class="cfp-dd-caret" aria-hidden="true"></span>
+    </button>
+    <div class="cfp-dd-menu" hidden>
+      <div class="cfp-dd-search">
+        <input type="search" placeholder="Find a category…" data-cfp-dd-filter autocomplete="off">
+      </div>
+      <div class="cfp-dd-list" role="listbox">
+        <?php foreach (array_slice($cats, 10) as $c): ?>
+          <a class="cfp-dd-option" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($c['slug']))) ?>" data-label="<?= cfp_e(strtolower($c['name'])) ?>">
+            <span><?= cfp_e($c['name']) ?></span>
+            <em><?= (int) $c['n'] ?></em>
+          </a>
+        <?php endforeach; ?>
+      </div>
+      <div class="cfp-dd-foot"><a href="<?= cfp_e(cfp_url('/categories')) ?>">A–Z category list</a></div>
+    </div>
+  </div>
 </nav>
 <?php endif; ?>
 

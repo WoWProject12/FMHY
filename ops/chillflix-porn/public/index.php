@@ -130,4 +130,13 @@ try {
 }
 
 extract($viewData, EXTR_SKIP);
+// Nav category dropdown needs cats on every page
+if (empty($cats) && empty($needsAge)) {
+    try {
+        $cats = cfp_top_categories($pdo, 80);
+    } catch (Throwable $e) {
+        $cats = [];
+    }
+}
+$navCats = $cats ?? [];
 require dirname(__DIR__) . '/views/layout.php';

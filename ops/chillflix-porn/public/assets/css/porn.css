@@ -19,9 +19,18 @@ html.cfp-app, body.page-porn {
 }
 body.page-porn { margin: 0; padding-bottom: 76px; }
 
+/* Aurora FX on main Chillflix sits at z-index ~12200 and was covering menus.
+   Keep FX decorative but under all porn UI chrome. */
+body.page-porn .aurora-bg,
+body.page-porn .aurora-leaves,
+body.page-porn .aurora-snow {
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Header */
 .cfp-header {
-  position: sticky; top: 0; z-index: 60;
+  position: sticky; top: 0; z-index: 13000;
   backdrop-filter: blur(14px);
   background: rgba(12, 11, 9, 0.82);
   border-bottom: 1px solid var(--cfp-border);
@@ -64,9 +73,22 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
 .cfp-nav a:hover, .cfp-nav a.is-on, .cfp-nav-main { color: var(--cfp-accent-hi); }
 
 .cfp-main {
-  position: relative; z-index: 1;
+  position: relative; z-index: 2;
   max-width: 1320px; margin: 0 auto;
   padding: 0.85rem 0.9rem 1.5rem;
+}
+.cfp-nav { position: relative; }
+.cfp-nav-dd { position: relative; }
+.cfp-nav-dd > .cfp-dd-btn {
+  border: 0; background: transparent; padding: 0.15rem 0.35rem;
+  color: var(--cfp-muted); font-size: 0.84rem; font-weight: 600;
+}
+.cfp-nav-dd > .cfp-dd-btn .cfp-dd-kicker { display: none; }
+.cfp-nav-dd > .cfp-dd-btn .cfp-dd-value { max-width: none; font-size: 0.84rem; font-weight: 600; color: inherit; }
+.cfp-nav-dd > .cfp-dd-btn[aria-expanded="true"],
+.cfp-nav-dd > .cfp-dd-btn.is-active { color: var(--cfp-accent-hi); }
+.cfp-nav-dd .cfp-dd-menu {
+  right: 0; left: auto; min-width: 280px; max-height: min(420px, 70vh);
 }
 
 .cfp-kicker {
@@ -112,14 +134,15 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
 .cfp-btn-primary { background: var(--cfp-accent); color: #1a1208; }
 .cfp-btn-ghost { background: transparent; color: var(--cfp-text); border-color: var(--cfp-border); }
 
-/* Toolbar / dropdowns */
+/* Toolbar / dropdowns — z-index must beat aurora FX */
 .cfp-toolbar {
-  position: sticky; top: 52px; z-index: 50;
+  position: sticky; top: 52px; z-index: 12900;
   margin: 0 0 0.85rem; padding: 0.45rem;
   border-radius: 12px;
   background: rgba(20, 19, 17, 0.92);
   border: 1px solid var(--cfp-border);
   backdrop-filter: blur(10px);
+  overflow: visible;
 }
 .cfp-toolbar-row {
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
@@ -157,17 +180,17 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
   border-left: 4px solid transparent; border-right: 4px solid transparent;
   border-top: 5px solid var(--cfp-muted);
 }
-/* Important: never use bare display:flex here — it overrides [hidden] and traps menus open */
+/* Class-only visibility with !important so UA [hidden] and parent CSS cannot trap menus */
 .cfp-dd-menu {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 70;
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 13100;
   min-width: 240px; max-height: min(360px, 70vh);
-  display: none;
+  display: none !important;
   flex-direction: column;
   background: #16130f; border: 1px solid var(--cfp-border);
-  border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.45);
+  border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.55);
   overflow: hidden;
 }
-.cfp-dd-menu.is-open { display: flex; }
+.cfp-dd-menu.is-open { display: flex !important; }
 .cfp-dd-menu-sm { min-width: 180px; }
 .cfp-dd-sep {
   margin: 0.35rem 0.4rem 0.15rem;
@@ -222,6 +245,17 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
   color: #1a1208; background: var(--cfp-accent); border-color: var(--cfp-accent);
 }
 .cfp-quickcat-more { color: var(--cfp-accent); }
+.cfp-quickcat-dd { flex: 0 0 auto; }
+.cfp-quickcat-dd > .cfp-dd-btn.cfp-quickcat {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font: inherit; cursor: pointer;
+}
+.cfp-quickcat-dd > .cfp-dd-btn .cfp-dd-value {
+  max-width: none; font-size: 0.78rem; font-weight: 700; color: inherit;
+}
+.cfp-quickcat-dd .cfp-dd-menu { left: auto; right: 0; }
+.cfp-dd-option { text-decoration: none; box-sizing: border-box; }
+a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-cat-head { margin: 0 0 0.55rem; }
 .cfp-cat-sub { margin: 0.15rem 0 0; color: var(--cfp-muted); font-size: 0.82rem; }
 
@@ -270,6 +304,13 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
 }
 .cfp-card-media img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s ease; }
 .cfp-card:hover .cfp-card-media img { transform: scale(1.04); }
+.cfp-card-preview {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; background: #000; z-index: 2; display: block;
+}
+.cfp-card-preview[hidden] { display: none !important; }
+.cfp-card.is-previewing .cfp-card-play { opacity: 0; }
+.cfp-card.is-previewing .cfp-card-dur { z-index: 3; }
 .cfp-card-ph { width: 100%; height: 100%; background: linear-gradient(135deg, #221c16, #0f0d0a); }
 .cfp-card-dur {
   position: absolute; right: 6px; bottom: 6px;
@@ -303,6 +344,46 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
 .cfp-pager a { color: var(--cfp-accent); text-decoration: none; font-weight: 700; }
 
 /* Categories page */
+.cfp-cats-tools {
+  display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center;
+  margin: 0 0 0.85rem;
+}
+.cfp-cats-search {
+  flex: 1 1 220px; max-width: 360px;
+  border: 1px solid var(--cfp-border); border-radius: 999px;
+  background: var(--cfp-surface); overflow: hidden;
+}
+.cfp-cats-search input {
+  width: 100%; box-sizing: border-box; border: 0; background: transparent;
+  color: var(--cfp-text); padding: 0.55rem 0.9rem; font: inherit; outline: none;
+}
+.cfp-alpha {
+  display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 0.85rem;
+}
+.cfp-alpha a {
+  min-width: 1.6rem; text-align: center; padding: 0.25rem 0.35rem;
+  border-radius: 6px; text-decoration: none; color: var(--cfp-muted);
+  font-size: 0.75rem; font-weight: 700; border: 1px solid transparent;
+}
+.cfp-alpha a:hover { color: var(--cfp-text); border-color: var(--cfp-border); }
+.cfp-cat-letter { margin: 0 0 1rem; }
+.cfp-cat-letter h2 {
+  margin: 0 0 0.4rem; font-size: 0.78rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--cfp-muted);
+}
+.cfp-cat-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.35rem;
+}
+.cfp-cat-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.55rem 0.7rem; border-radius: 9px;
+  background: var(--cfp-surface); border: 1px solid var(--cfp-border);
+  text-decoration: none; color: inherit; font-size: 0.88rem; font-weight: 600;
+}
+.cfp-cat-row:hover { border-color: rgba(228, 194, 122, 0.4); color: var(--cfp-accent-hi); }
+.cfp-cat-row em { color: var(--cfp-muted); font-style: normal; font-size: 0.75rem; font-weight: 600; }
 .cfp-cat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -358,13 +439,13 @@ body.page-porn { margin: 0; padding-bottom: 76px; }
 
 .cfp-footer {
   max-width: 1320px; margin: 0 auto; padding: 0.5rem 0.9rem 1.25rem;
-  color: var(--cfp-muted); font-size: 0.78rem; position: relative; z-index: 1;
+  color: var(--cfp-muted); font-size: 0.78rem; position: relative; z-index: 2;
 }
 .cfp-footer a { color: var(--cfp-accent); }
 
 .cfp-dock {
   position: fixed; left: 50%; bottom: max(8px, env(safe-area-inset-bottom));
-  transform: translateX(-50%); z-index: 80; display: none; gap: 0.25rem;
+  transform: translateX(-50%); z-index: 13050; display: none; gap: 0.25rem;
   padding: 0.35rem; border-radius: 999px;
   background: rgba(20, 19, 17, 0.94); border: 1px solid var(--cfp-border);
   backdrop-filter: blur(12px);

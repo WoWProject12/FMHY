@@ -17,7 +17,7 @@ declare(strict_types=1);
   <meta name="rating" content="adult">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/cinema.css?v=97fxovertoast1')) ?>">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/bridge.css?v=20261123notif22acctontop1phoneplayer5noshrink2nospa1fxuser5nocardfx1maylike1settingsback1')) ?>">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=3dd')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=4ui2')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
 </head>
 <body class="<?= cfp_e($bodyClass) ?>">
@@ -60,7 +60,28 @@ declare(strict_types=1);
     </form>
     <nav class="cfp-nav" aria-label="Primary">
       <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
-      <a href="<?= cfp_e(cfp_url('/categories')) ?>" class="<?= ($view ?? '') === 'categories' ? 'is-on' : '' ?>">Categories</a>
+      <div class="cfp-dd cfp-nav-dd" data-cfp-dd>
+        <button type="button" class="cfp-dd-btn<?= ($view ?? '') === 'categories' ? ' is-active' : '' ?>" aria-expanded="false" aria-haspopup="listbox">
+          <span class="cfp-dd-kicker">Browse</span>
+          <span class="cfp-dd-value">Categories</span>
+          <span class="cfp-dd-caret" aria-hidden="true"></span>
+        </button>
+        <div class="cfp-dd-menu" hidden>
+          <div class="cfp-dd-search">
+            <input type="search" placeholder="Find a category…" data-cfp-dd-filter autocomplete="off">
+          </div>
+          <div class="cfp-dd-list" role="listbox">
+            <a class="cfp-dd-option" href="<?= cfp_e(cfp_url('/')) ?>" data-label="all categories">All categories</a>
+            <?php foreach (($navCats ?? []) as $nc): ?>
+              <a class="cfp-dd-option" href="<?= cfp_e(cfp_url('/?category=' . rawurlencode($nc['slug']))) ?>" data-label="<?= cfp_e(strtolower($nc['name'])) ?>">
+                <span><?= cfp_e($nc['name']) ?></span>
+                <em><?= (int) $nc['n'] ?></em>
+              </a>
+            <?php endforeach; ?>
+          </div>
+          <div class="cfp-dd-foot"><a href="<?= cfp_e(cfp_url('/categories')) ?>">Full category list</a></div>
+        </div>
+      </div>
       <a class="cfp-nav-main" href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
     </nav>
   </div>
@@ -87,6 +108,6 @@ declare(strict_types=1);
 
 <script src="<?= cfp_e(cfp_main_asset('js/leaves.js?v=29fxuser')) ?>" defer></script>
 <script src="<?= cfp_e(cfp_main_asset('js/snow.js?v=5fxuser')) ?>" defer></script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=3dd')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=4ui2')) ?>" defer></script>
 </body>
 </html>
