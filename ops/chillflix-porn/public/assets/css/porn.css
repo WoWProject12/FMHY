@@ -75,12 +75,47 @@ body.page-porn .aurora-bg {
   border: 0; background: transparent; color: var(--cfp-accent);
   padding: 0 0.85rem; font-weight: 700; cursor: pointer; font-size: 0.85rem;
 }
-.cfp-nav { display: flex; gap: 0.75rem; margin-left: auto; }
-.cfp-nav a {
-  color: var(--cfp-muted); text-decoration: none;
-  font-size: 0.84rem; font-weight: 600;
+.cfp-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: auto;
 }
-.cfp-nav a:hover, .cfp-nav a.is-on, .cfp-nav-main { color: var(--cfp-accent-hi); }
+.cfp-nav > a,
+.cfp-nav-dd > .cfp-dd-btn {
+  color: rgba(244, 239, 230, 0.62);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.4rem;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.cfp-nav > a:hover,
+.cfp-nav-dd > .cfp-dd-btn:hover {
+  color: var(--cfp-text);
+  background: rgba(255, 255, 255, 0.05);
+}
+.cfp-nav > a.is-on,
+.cfp-nav-dd > .cfp-dd-btn.is-active,
+.cfp-nav-dd > .cfp-dd-btn[aria-expanded="true"] {
+  color: var(--cfp-accent-hi);
+  background: rgba(228, 194, 122, 0.1);
+  font-weight: 650;
+}
+.cfp-nav-main {
+  color: rgba(244, 239, 230, 0.78);
+}
+.cfp-nav-admin {
+  color: var(--cfp-accent-hi) !important;
+  font-weight: 650 !important;
+}
+.cfp-nav-admin:hover,
+.cfp-nav-admin.is-on {
+  background: rgba(228, 194, 122, 0.14) !important;
+}
 /* Chillflix-style account control: person icon when logged out, actor thumb when in */
 a.cfp-nav-acct,
 button.cfp-nav-acct,
@@ -182,13 +217,23 @@ button.cfp-nav-acct[aria-expanded="true"] {
 .cfp-nav { position: relative; }
 .cfp-nav-dd { position: relative; }
 .cfp-nav-dd > .cfp-dd-btn {
-  border: 0; background: transparent; padding: 0.15rem 0.35rem;
-  color: var(--cfp-muted); font-size: 0.84rem; font-weight: 600;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
 }
 .cfp-nav-dd > .cfp-dd-btn .cfp-dd-kicker { display: none; }
-.cfp-nav-dd > .cfp-dd-btn .cfp-dd-value { max-width: none; font-size: 0.84rem; font-weight: 600; color: inherit; }
-.cfp-nav-dd > .cfp-dd-btn[aria-expanded="true"],
-.cfp-nav-dd > .cfp-dd-btn.is-active { color: var(--cfp-accent-hi); }
+.cfp-nav-dd > .cfp-dd-btn .cfp-dd-value {
+  max-width: none;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  line-height: inherit;
+}
 .cfp-nav-dd .cfp-dd-menu {
   right: 0; left: auto; min-width: 280px; max-height: min(420px, 70vh);
 }
@@ -1534,9 +1579,21 @@ a.cfp-dd-option { color: var(--cfp-text); }
 }
 .cfp-dock a,
 .cfp-dock button.cfp-dock-cats {
-  color: var(--cfp-muted); text-decoration: none; font-size: 0.72rem; font-weight: 700;
-  padding: 0.45rem 0.75rem; border-radius: 999px;
-  border: 0; background: transparent; cursor: pointer; font: inherit;
+  color: rgba(244, 239, 230, 0.62);
+  text-decoration: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.cfp-dock a.cfp-dock-admin {
+  color: var(--cfp-accent-hi);
+  font-weight: 650;
 }
 .cfp-dock a.cfp-dock-acct {
   display: inline-grid; place-items: center;
