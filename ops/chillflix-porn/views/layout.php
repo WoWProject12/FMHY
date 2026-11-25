@@ -148,7 +148,7 @@ declare(strict_types=1);
 <nav class="cfp-dock" aria-label="Mobile navigation">
   <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
   <a href="<?= cfp_e(cfp_url('/people')) ?>" class="<?= in_array(($view ?? ''), ['people', 'person'], true) ? 'is-on' : '' ?>">People</a>
-  <a href="<?= cfp_e(cfp_url('/categories')) ?>" class="<?= ($view ?? '') === 'categories' ? 'is-on' : '' ?>">Cats</a>
+  <a href="<?= cfp_e(cfp_url('/categories')) ?>" class="<?= ($view ?? '') === 'categories' ? 'is-on' : '' ?>">Categories</a>
   <?php if ($cfpUser): ?>
     <a href="<?= cfp_e(cfp_url('/library')) ?>" class="<?= ($view ?? '') === 'library' ? 'is-on' : '' ?>">Me</a>
   <?php else: ?>
