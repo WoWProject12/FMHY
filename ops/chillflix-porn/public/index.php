@@ -513,7 +513,7 @@ try {
             }
             if (isset($_GET['auto'])) {
                 $flash = ((string) $_GET['auto'] === '1')
-                    ? 'Auto-import ON — cron runs every 5 minutes.'
+                    ? 'Auto-import ON — fills the catalog continuously until you turn it off.'
                     : 'Auto-import OFF — only Run now will import.';
             }
             $view = 'admin';

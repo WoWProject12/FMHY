@@ -53,11 +53,11 @@ if ($lastRun !== '' && ($ts = strtotime($lastRun)) !== false) {
 }
 
 $statusRows = [
-    ['Auto import', $autoOn ? 'Every 5 min' : 'Off'],
+    ['Auto import', $autoOn ? 'Continuous' : 'Off'],
     ['Speed', $presetLabels[$speed] ?? ucfirst($speed)],
-    ['Categories / run', (string) (int) ($settings['niches_per_run'] ?? 0)],
+    ['Categories / batch', (string) (int) ($settings['niches_per_run'] ?? 0)],
     ['Videos / category', (string) (int) ($settings['limit_per_niche'] ?? 0)],
-    ['Details / run', (string) (int) ($settings['enrich_per_run'] ?? 0)],
+    ['Details / batch', (string) (int) ($settings['enrich_per_run'] ?? 0)],
     ['Page depth', (string) (int) ($settings['max_page'] ?? 0)],
     ['Last finished', $lastRunLabel],
     ['Last new videos', (string) (int) ($scrapeState['last_imported'] ?? 0)],
@@ -105,7 +105,7 @@ $statusRows = [
             Scraper
             <span class="sh-status-pill<?= $running ? ' is-on' : '' ?>"><?= $running ? 'Running' : 'Idle' ?></span>
           </h2>
-          <p class="sh-muted">Green = importing now · Red = idle between runs</p>
+          <p class="sh-muted">Green = filling catalog · Red = stopped</p>
         </div>
         <a class="sh-btn sh-btn-outline sh-btn-sm" href="<?= cfp_e(cfp_url('/admin')) ?>">Refresh</a>
       </div>
@@ -113,7 +113,7 @@ $statusRows = [
         <div class="sh-auto">
           <div class="sh-auto-text">
             <strong>Auto import</strong>
-            <span>Server cron every 5 minutes<?= $autoOn ? ' (active)' : ' (paused)' ?></span>
+            <span><?= $autoOn ? 'Runs nonstop until you turn it off' : 'Paused — turn on to keep filling' ?></span>
           </div>
           <?php if ($autoOn): ?>
             <a class="sh-btn sh-btn-outline sh-btn-sm" href="<?= cfp_e(cfp_url('/admin/scraper/auto?on=0')) ?>">Turn off</a>
@@ -136,7 +136,7 @@ $statusRows = [
       <div class="sh-card-head">
         <div>
           <h2 class="sh-card-title">Import speed</h2>
-          <p class="sh-muted">How many videos each cron run pulls. Max = fastest.</p>
+          <p class="sh-muted">How many videos each batch pulls. Max = fastest.</p>
         </div>
       </div>
       <div class="sh-card-body">

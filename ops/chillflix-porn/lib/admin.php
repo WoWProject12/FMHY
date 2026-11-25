@@ -150,6 +150,10 @@ function cfp_scraper_set_auto(PDO $pdo, bool $on): array
     $cur['auto'] = $on;
     $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
     $up->execute(['scraper_settings', json_encode($cur, JSON_UNESCAPED_SLASHES)]);
+    if ($on) {
+        // Kick the continuous worker immediately (cron only restarts if it died)
+        cfp_trigger_scrape_auto_async();
+    }
     return $cur;
 }
 
@@ -282,8 +286,31 @@ function cfp_trigger_scrape_async(): bool
         // continue
     }
     $log = '/tmp/cfp-scrape-manual.log';
-    // --force bypasses auto-off so "Run now" always works
+    // --force = one batch; bypasses auto-off so "Run now" always works
     $cmd = 'CFP_SCRAPE_FORCE=1 nohup /usr/bin/php ' . escapeshellarg($bin) . ' --force >> ' . escapeshellarg($log) . ' 2>&1 &';
+    exec($cmd);
+    return true;
+}
+
+/**
+ * Start continuous auto importer (no --force). No-ops if already locked/running.
+ */
+function cfp_trigger_scrape_auto_async(): bool
+{
+    $bin = dirname(__DIR__) . '/bin/scrape-xvideos.php';
+    if (!is_file($bin)) {
+        return false;
+    }
+    if (cfp_scrape_is_running()) {
+        return true;
+    }
+    try {
+        cfp_scrape_set_running(cfp_pdo(), true);
+    } catch (Throwable $e) {
+        // continue
+    }
+    $log = '/tmp/cfp-scrape-auto.log';
+    $cmd = 'nohup /usr/bin/php ' . escapeshellarg($bin) . ' >> ' . escapeshellarg($log) . ' 2>&1 &';
     exec($cmd);
     return true;
 }
