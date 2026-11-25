@@ -1014,6 +1014,7 @@
   var bigPlay = document.getElementById("cfpBigPlay");
   var muteBtn = document.getElementById("cfpMuteBtn");
   var fsBtn = document.getElementById("cfpFsBtn");
+  var camBtn = document.getElementById("cfpCamBtn");
   var timeEl = document.getElementById("cfpPlayerTime");
   var seekEl = document.getElementById("cfpSeek");
   var seekFill = document.getElementById("cfpSeekFill");
@@ -1160,6 +1161,30 @@
       showChrome(false);
     });
   }
+  if (camBtn) {
+    camBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        var w = video.videoWidth || 0;
+        var h = video.videoHeight || 0;
+        if (w < 2 || h < 2) return;
+        var canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(video, 0, 0, w, h);
+        var a = document.createElement("a");
+        a.href = canvas.toDataURL("image/jpeg", 0.92);
+        a.download = "chillflix-" + videoId + ".jpg";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (eCam) {}
+      showChrome(false);
+    });
+  }
   if (seekEl) {
     seekEl.addEventListener("pointerdown", function (e) {
       e.preventDefault();
@@ -1189,7 +1214,7 @@
   }
 
   stage.addEventListener("click", function (e) {
-    if (closest(e.target, ".cfp-player-chrome, .cfp-player-top, .cfp-player-bigplay, .cfp-player-gear, .cfp-qdrop, .cfp-ctrl-btn, .cfp-seek")) {
+    if (closest(e.target, ".cfp-player-chrome, .cfp-player-top, .cfp-player-bigplay, .cfp-player-gear, .cfp-qdrop, .cfp-ctrl-btn, .cfp-overlay-btn, .cfp-seek")) {
       return;
     }
     togglePlay();
@@ -1407,12 +1432,12 @@
       return (a.height || 0) - (b.height || 0);
     });
 
-    if (!qualityOpts || qualities.length < 1) {
-      if (gearBtn) gearBtn.hidden = true;
+    if (!qualityOpts) return;
+    qualityOpts.innerHTML = "";
+    if (qualities.length < 1) {
       setGearOpen(false);
       return;
     }
-    qualityOpts.innerHTML = "";
     qualities.slice().reverse().forEach(function (q) {
       var btn = document.createElement("button");
       btn.type = "button";
@@ -1429,7 +1454,8 @@
       });
       qualityOpts.appendChild(btn);
     });
-    if (gearBtn) gearBtn.hidden = qualities.length < 2;
+    // Keep gear visible like xvideos (always show top-right pair)
+    if (gearBtn) gearBtn.hidden = false;
     if (qualities.length) {
       var best = qualities[qualities.length - 1];
       setTitleQualityLabel(best.label);
