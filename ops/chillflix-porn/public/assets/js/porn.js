@@ -176,14 +176,10 @@
     });
   }
 
-  // Desktop hover previews only (touch long-press was starting then dying + showing a filmstrip UI)
+  // xvideos-style in-thumb previews: desktop hover + mobile press-and-hold (no browser link menu)
   var activePreview = null;
   var previewTimer = null;
   var previewUrlCache = Object.create(null);
-  var canHover = false;
-  try {
-    canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-  } catch (e) {}
 
   function stopPreview(card) {
     if (!card) return;
@@ -193,6 +189,7 @@
       try { vid.pause(); } catch (e) {}
       try {
         vid.removeAttribute("src");
+        vid.removeAttribute("data-src");
         vid.load();
       } catch (e2) {}
       vid.hidden = true;
@@ -209,7 +206,7 @@
     vid.defaultMuted = true;
     vid.playsInline = true;
     vid.loop = true;
-    vid.preload = "metadata";
+    vid.preload = "auto";
     vid.controls = false;
     vid.disablePictureInPicture = true;
     vid.setAttribute("muted", "");
@@ -236,13 +233,16 @@
     if (vid.getAttribute("data-src") !== url) {
       vid.setAttribute("data-src", url);
       vid.src = url;
+      try { vid.currentTime = 0; } catch (e) {}
     }
     var p = vid.play();
     if (p && typeof p.catch === "function") {
       p.catch(function () {
-        // Fallback through same-origin proxy
         var proxy = "/porn/api/preview?id=" + encodeURIComponent(card.getAttribute("data-video-id") || "");
-        if (vid.getAttribute("data-src") === proxy) return;
+        if (vid.getAttribute("data-src") === proxy) {
+          stopPreview(card);
+          return;
+        }
         vid.setAttribute("data-src", proxy);
         vid.src = proxy;
         vid.play().then(show).catch(function () {
@@ -254,9 +254,20 @@
 
   function startPreview(card) {
     var id = card.getAttribute("data-video-id") || "";
-    if (!id || !canHover) return;
+    if (!id) return;
     if (activePreview && activePreview !== card) stopPreview(activePreview);
     activePreview = card;
+
+    // On touch, go straight through same-origin proxy (more reliable on mobile browsers)
+    var preferProxy = false;
+    try {
+      preferProxy = window.matchMedia("(pointer: coarse)").matches;
+    } catch (e) {}
+
+    if (preferProxy) {
+      playPreview(card, "/porn/api/preview?id=" + encodeURIComponent(id));
+      return;
+    }
 
     if (previewUrlCache[id]) {
       playPreview(card, previewUrlCache[id]);
@@ -271,22 +282,82 @@
       .then(function (data) {
         if (activePreview !== card || !data || !data.ok || !data.streams) return;
         var url = data.streams.low || data.streams.high || "";
-        if (!url) return;
+        if (!url) {
+          playPreview(card, "/porn/api/preview?id=" + encodeURIComponent(id));
+          return;
+        }
         previewUrlCache[id] = url;
         playPreview(card, url);
       })
-      .catch(function () {});
+      .catch(function () {
+        if (activePreview === card) {
+          playPreview(card, "/porn/api/preview?id=" + encodeURIComponent(id));
+        }
+      });
   }
 
   function bindCardPreview(card) {
-    if (!canHover || !card.getAttribute("data-video-id")) return;
+    if (!card.getAttribute("data-video-id")) return;
+
+    // Block Chrome/Safari long-press "Open in new tab" menu — preview plays instead
+    card.addEventListener("contextmenu", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    var imgs = card.querySelectorAll("img");
+    for (var i = 0; i < imgs.length; i++) {
+      imgs[i].addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+      });
+      imgs[i].draggable = false;
+    }
+
     card.addEventListener("mouseenter", function () {
       clearTimeout(previewTimer);
-      previewTimer = setTimeout(function () { startPreview(card); }, 160);
+      previewTimer = setTimeout(function () { startPreview(card); }, 140);
     });
     card.addEventListener("mouseleave", function () {
       clearTimeout(previewTimer);
       stopPreview(card);
+    });
+
+    var touchTimer = null;
+    var startX = 0;
+    var startY = 0;
+    var previewArmed = false;
+
+    card.addEventListener("touchstart", function (e) {
+      if (!e.touches || !e.touches[0]) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      previewArmed = false;
+      clearTimeout(touchTimer);
+      touchTimer = setTimeout(function () {
+        previewArmed = true;
+        startPreview(card);
+      }, 160);
+    }, { passive: true });
+
+    card.addEventListener("touchmove", function (e) {
+      if (!e.touches || !e.touches[0]) return;
+      var dx = Math.abs(e.touches[0].clientX - startX);
+      var dy = Math.abs(e.touches[0].clientY - startY);
+      if (dx > 12 || dy > 12) {
+        clearTimeout(touchTimer);
+        if (previewArmed) stopPreview(card);
+        previewArmed = false;
+      }
+    }, { passive: true });
+
+    card.addEventListener("touchend", function () {
+      clearTimeout(touchTimer);
+      stopPreview(card);
+      previewArmed = false;
+    });
+    card.addEventListener("touchcancel", function () {
+      clearTimeout(touchTimer);
+      stopPreview(card);
+      previewArmed = false;
     });
   }
 

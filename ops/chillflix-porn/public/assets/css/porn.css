@@ -273,29 +273,50 @@ a.cfp-dd-option { color: var(--cfp-text); }
   gap: 0.65rem; overflow-x: auto; padding: 0.15rem 0.15rem 0.45rem;
   scroll-snap-type: x mandatory; scrollbar-width: thin;
 }
-.cfp-rail-card {
-  scroll-snap-align: start; text-decoration: none; color: inherit;
-  display: flex; flex-direction: column; gap: 0.35rem;
-}
+.cfp-rail-card { scroll-snap-align: start; }
 .cfp-rail-card .cfp-card-title { font-size: 0.82rem; -webkit-line-clamp: 2; }
 
-/* Grid */
+/* Grid — mobile-first: one column, widen on desktop */
 .cfp-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: 0.75rem 0.7rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
 }
 .cfp-grid-compact, body.is-compact .cfp-grid {
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: 0.55rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
 }
-.cfp-card {
+@media (min-width: 901px) {
+  .cfp-grid {
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 0.75rem 0.7rem;
+  }
+  .cfp-grid-compact, body.is-compact .cfp-grid {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 0.55rem;
+  }
+}
+.cfp-card,
+.cfp-rail-card {
   text-decoration: none; color: inherit;
   display: flex; flex-direction: column; gap: 0.35rem;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: manipulation;
+}
+.cfp-card img,
+.cfp-rail-card img {
+  -webkit-touch-callout: none;
+  pointer-events: none; /* previews + no image long-press menu */
+  -webkit-user-drag: none;
+  user-select: none;
 }
 .cfp-card-media {
   position: relative; aspect-ratio: 16/10; border-radius: 9px;
   overflow: hidden; background: #16130f; border: 1px solid var(--cfp-border);
+  -webkit-touch-callout: none;
 }
 .cfp-card-media img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s ease; }
 .cfp-card:hover .cfp-card-media img { transform: scale(1.04); }
@@ -465,14 +486,7 @@ a.cfp-dd-option { color: var(--cfp-text); }
   .cfp-toolbar { top: 92px; }
   .cfp-dd-value { max-width: 110px; }
   .cfp-toolbar-meta { width: 100%; margin-left: 0; order: 8; }
-  /* One video per row on phones / narrow tablets */
-  .cfp-grid,
-  .cfp-grid-compact,
-  body.is-compact .cfp-grid {
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 0.75rem;
-  }
-  /* Best-of rail: one full-width card at a time (no side peek) */
+  /* Best-of rail: one full-width card at a time */
   .cfp-rail-track {
     grid-auto-columns: 100% !important;
     gap: 0.55rem;
