@@ -536,7 +536,11 @@ a.cfp-dd-option { color: var(--cfp-text); }
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(1.15rem, 2.2vw, 1.65rem);
 }
-.cfp-watch-meta { display: flex; gap: 0.75rem; color: var(--cfp-muted); margin: 0 0 0.55rem; font-size: 0.85rem; }
+.cfp-watch-meta {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+  color: var(--cfp-muted); margin: 0 0 0.55rem; font-size: 0.85rem;
+  max-width: 100%;
+}
 .cfp-chips {
   display: flex; flex-wrap: wrap; gap: 0.4rem;
   overflow: visible;
@@ -559,14 +563,11 @@ a.cfp-dd-option { color: var(--cfp-text); }
 
 /* People on watch + directory */
 .cfp-people-row {
-  display: flex; flex-wrap: nowrap; gap: 0.45rem; margin: 0 0 0.65rem;
-  overflow-x: auto; overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding-bottom: 0.15rem;
+  display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 0.65rem;
+  max-width: 100%;
+  overflow: visible;
 }
-.cfp-people-row::-webkit-scrollbar { display: none; }
-.cfp-people-row .cfp-person-chip { flex: 0 0 auto; }
+.cfp-people-row .cfp-person-chip { flex: 0 1 auto; max-width: 100%; }
 .cfp-person-chip {
   display: inline-flex; align-items: center; gap: 0.45rem;
   padding: 0.3rem 0.65rem 0.3rem 0.3rem; border-radius: 999px;

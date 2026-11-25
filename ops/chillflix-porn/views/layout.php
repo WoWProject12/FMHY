@@ -7,51 +7,39 @@ declare(strict_types=1);
 /** @var bool $needsAge */
 ?>
 <!DOCTYPE html>
-<html lang="en" class="toflix-app cfp-app">
+<html lang="en" class="cfp-app">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <title><?= cfp_e($pageTitle) ?></title>
   <meta name="description" content="<?= cfp_e($pageDescription) ?>">
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/cinema.css?v=97fxovertoast1')) ?>">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/bridge.css?v=20261123notif22acctontop1phoneplayer5noshrink2nospa1fxuser5nocardfx1maylike1settingsback1')) ?>">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=27playfix')) ?>">
+  <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=28cdn')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
-  <!-- Critical locks: stop horizontal shove + keep player/thumbs sane on phones -->
   <style>
-    html.cfp-app,body.page-porn{overflow-x:hidden!important;max-width:100%!important;width:100%!important}
-    .cfp-main,.cfp-header-inner,.cfp-watch,.cfp-player,.cfp-section{max-width:100%!important;box-sizing:border-box!important}
+    html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
+    *,*:before,*:after{box-sizing:border-box}
+    .cfp-header-inner,.cfp-main,.cfp-watch,.cfp-player,.cfp-watch-head,.cfp-section,.cfp-footer{width:100%;max-width:100%;min-width:0}
+    .cfp-player,.cfp-player-stage,#cfpPlayer{width:100%!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;left:auto!important;right:auto!important;transform:none!important}
+    #cfpPlayer{display:block!important;position:static!important;height:auto!important;aspect-ratio:16/9;background:#000;object-fit:contain}
+    .cfp-people-row,.cfp-chips,.cfp-person-tags,.cfp-watch-meta{display:flex!important;flex-wrap:wrap!important;gap:.4rem;max-width:100%;overflow:visible!important}
     .cfp-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:.65rem .5rem;width:100%}
     .cfp-card{min-width:0;max-width:100%}
-    .cfp-card-media{position:relative!important;width:100%;aspect-ratio:16/10!important;overflow:hidden!important;min-height:0;flex:0 0 auto}
-    .cfp-card-media>img,.cfp-card-media>.cfp-card-ph,.cfp-card-preview{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important}
-    .cfp-player{width:100%!important;max-width:100%!important;margin:0!important;left:auto!important;right:auto!important;transform:none!important}
-    .cfp-player-stage{position:relative!important;width:100%!important;height:auto!important;padding:0!important;max-height:none!important;aspect-ratio:auto!important;overflow:hidden!important;background:#000!important}
-    .cfp-player-stage video,#cfpPlayer{position:static!important;inset:auto!important;display:block!important;width:100%!important;height:auto!important;max-width:100%!important;max-height:70vh!important;aspect-ratio:16/9!important;object-fit:contain!important;background:#000!important;transform:none!important;left:auto!important;margin:0!important}
-    .cfp-chips,.cfp-person-tags{display:flex!important;flex-wrap:wrap!important;overflow:visible!important;gap:.4rem;max-width:100%}
-    .cfp-rail{margin:0!important;max-width:100%;overflow:hidden}
-    .cfp-rail-track{display:grid!important;grid-auto-flow:column;grid-auto-columns:42vw;gap:.5rem;overflow-x:auto;max-width:100%}
-    .cfp-rail-card{width:42vw!important;max-width:42vw!important}
+    .cfp-card-media{position:relative;width:100%;aspect-ratio:16/10;overflow:hidden}
+    .cfp-card-media>img,.cfp-card-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .cfp-rail{max-width:100%;overflow:hidden}
+    .cfp-rail-track{display:grid;grid-auto-flow:column;grid-auto-columns:42vw;gap:.5rem;overflow-x:auto;max-width:100%}
+    .cfp-rail-card{width:42vw;max-width:42vw}
     @media(min-width:600px){
       .cfp-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}
       .cfp-rail-track{grid-auto-columns:148px}
-      .cfp-rail-card{width:148px!important;max-width:148px!important}
+      .cfp-rail-card{width:148px;max-width:148px}
     }
   </style>
 </head>
 <body class="<?= cfp_e($bodyClass) ?>">
-<div class="aurora-bg" aria-hidden="true" hidden><div class="aurora-bg-wash"></div><div class="aurora-bg-grain"></div></div>
-<script>
-(function(){
-  try {
-    // /porn keeps a clean dark stage — no leaves/snow FX behind filters
-    window.__movySiteFx = {water:false,leaves:false,snow:false};
-    document.documentElement.classList.add('movy-fx-off-leaves', 'movy-fx-off-snow');
-  } catch (err) {}
-})();
-</script>
 
 <header class="cfp-header" id="siteHeader">
   <div class="cfp-header-inner">
@@ -112,6 +100,6 @@ declare(strict_types=1);
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=27playfix')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=28cdn')) ?>" defer></script>
 </body>
 </html>

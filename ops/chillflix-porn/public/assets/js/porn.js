@@ -643,11 +643,13 @@
   video.setAttribute("controls", "");
   video.controls = true;
   video.playsInline = true;
-  video.preload = "auto";
+  video.preload = "metadata";
+  video.referrerPolicy = "no-referrer";
 
   var proxyUrl = "/porn/api/preview?id=" + encodeURIComponent(videoId);
-  var triedProxy = false;
-  var cdnUrl = "";
+  var queue = [];
+  var qIdx = 0;
+  var loadGen = 0;
 
   function tryPlay() {
     var p = video.play();
@@ -658,26 +660,21 @@
     }
   }
 
-  function useProxy(reason) {
-    if (triedProxy) {
+  function loadNext(reason) {
+    if (qIdx >= queue.length) {
       setStatus("Stream unavailable — try again later.");
       return;
     }
-    triedProxy = true;
+    var my = ++loadGen;
+    var url = queue[qIdx++];
     setStatus(reason || "Loading…");
-    video.removeAttribute("crossorigin");
-    video.referrerPolicy = "no-referrer";
-    video.src = proxyUrl;
-    try { video.load(); } catch (e) {}
-    tryPlay();
-  }
-
-  function useCdn(url) {
-    cdnUrl = url;
     video.referrerPolicy = "no-referrer";
     video.src = url;
     try { video.load(); } catch (e) {}
-    tryPlay();
+    // Ignore spurious error events from the previous src swap
+    setTimeout(function () {
+      if (my === loadGen) tryPlay();
+    }, 30);
   }
 
   video.addEventListener("loadeddata", function () {
@@ -687,14 +684,15 @@
     setStatus("", true);
   });
   video.addEventListener("error", function () {
-    useProxy("Retrying…");
+    var errGen = loadGen;
+    setTimeout(function () {
+      if (errGen !== loadGen) return;
+      loadNext("Retrying…");
+    }, 50);
   });
 
-  // Phones: same-origin proxy first (CDN often paints black / blocked).
-  // Desktop: CDN direct, proxy on error.
-  var coarse = false;
-  try { coarse = window.matchMedia("(pointer: coarse)").matches; } catch (e1) {}
-
+  // Same path as working card previews: CDN mp4 + no-referrer.
+  // Mobile prefers low → high → same-origin proxy.
   fetch("/porn/api/stream?id=" + encodeURIComponent(videoId), {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
@@ -702,27 +700,27 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data || !data.ok || !data.streams) {
-        useProxy("Loading…");
+        queue = [proxyUrl];
+        loadNext("Loading…");
         return;
       }
-      var streams = data.streams;
-      if (streams.poster) {
-        video.setAttribute("poster", streams.poster);
-      }
-      var url = pickUrl(streams);
-      if (!url) {
-        useProxy("Loading…");
-        return;
-      }
-      setStatus("Loading…");
+      var s = data.streams;
+      if (s.poster) video.setAttribute("poster", s.poster);
+      var coarse = false;
+      try { coarse = window.matchMedia("(pointer: coarse)").matches; } catch (e1) {}
       if (coarse) {
-        // Keep CDN as poster/fallback info; play via proxy so phone shows frames
-        useProxy("Loading…");
+        if (s.low) queue.push(s.low);
+        if (s.high) queue.push(s.high);
       } else {
-        useCdn(url);
+        if (s.high) queue.push(s.high);
+        if (s.low) queue.push(s.low);
       }
+      queue.push(proxyUrl);
+      queue = queue.filter(function (u, i, a) { return u && a.indexOf(u) === i; });
+      loadNext("Loading…");
     })
     .catch(function () {
-      useProxy("Loading…");
+      queue = [proxyUrl];
+      loadNext("Loading…");
     });
 })();
