@@ -600,6 +600,253 @@ function cfp_get_video_by_id(PDO $pdo, int $id): ?array
 function cfp_bump_views(PDO $pdo, int $id): void
 {
     $pdo->prepare('UPDATE videos SET views = views + 1 WHERE id = ?')->execute([$id]);
+    try {
+        $st = $pdo->prepare('SELECT video_id FROM videos WHERE id = ? LIMIT 1');
+        $st->execute([$id]);
+        $partnerId = (string) ($st->fetchColumn() ?: '');
+        if ($partnerId !== '') {
+            cfp_watch_history_remember($partnerId);
+            if (function_exists('cfp_current_user')) {
+                $user = cfp_current_user($pdo);
+                if ($user && !empty($user['id']) && function_exists('cfp_library_add')) {
+                    cfp_library_add($pdo, (int) $user['id'], $partnerId, 'history');
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        // ignore history side-effects
+    }
+}
+
+/** Guest + signed-in watch seeds used for homepage Suggested (xvideos-style). */
+function cfp_watch_history_cookie_name(): string
+{
+    return 'cfp_wh';
+}
+
+/** @return list<string> partner video_id keys, newest first */
+function cfp_watch_history_partner_ids(): array
+{
+    $raw = (string) ($_COOKIE[cfp_watch_history_cookie_name()] ?? '');
+    if ($raw === '') {
+        return [];
+    }
+    $parts = preg_split('/[,\s]+/', $raw) ?: [];
+    $out = [];
+    $seen = [];
+    foreach ($parts as $p) {
+        $id = preg_replace('/[^a-zA-Z0-9]/', '', (string) $p) ?? '';
+        if ($id === '' || isset($seen[$id])) {
+            continue;
+        }
+        $seen[$id] = true;
+        $out[] = $id;
+        if (count($out) >= 40) {
+            break;
+        }
+    }
+    return $out;
+}
+
+function cfp_watch_history_remember(string $partnerVideoId): void
+{
+    $partnerVideoId = preg_replace('/[^a-zA-Z0-9]/', '', $partnerVideoId) ?? '';
+    if ($partnerVideoId === '') {
+        return;
+    }
+    $ids = cfp_watch_history_partner_ids();
+    $ids = array_values(array_filter($ids, static fn(string $id): bool => $id !== $partnerVideoId));
+    array_unshift($ids, $partnerVideoId);
+    $ids = array_slice($ids, 0, 40);
+    setcookie(cfp_watch_history_cookie_name(), implode(',', $ids), [
+        'expires' => time() + 60 * 60 * 24 * 180,
+        'path' => '/',
+        'secure' => true,
+        'httponly' => false,
+        'samesite' => 'Lax',
+    ]);
+    $_COOKIE[cfp_watch_history_cookie_name()] = implode(',', $ids);
+}
+
+/**
+ * Recent watched videos for Continue watching rail.
+ * @return list<array>
+ */
+function cfp_home_continue(PDO $pdo, ?array $user, int $limit = 12): array
+{
+    $limit = max(4, min(24, $limit));
+    if ($user && !empty($user['id']) && function_exists('cfp_library_list')) {
+        $list = cfp_library_list($pdo, (int) $user['id'], 'history', 1, $limit);
+        return $list['items'] ?? [];
+    }
+    $partnerIds = cfp_watch_history_partner_ids();
+    if (!$partnerIds) {
+        return [];
+    }
+    $ph = implode(',', array_fill(0, count($partnerIds), '?'));
+    $st = $pdo->prepare("SELECT * FROM videos WHERE video_id IN ($ph)");
+    $st->execute($partnerIds);
+    $byPartner = [];
+    foreach ($st->fetchAll() as $row) {
+        $byPartner[(string) $row['video_id']] = $row;
+    }
+    $out = [];
+    foreach ($partnerIds as $pid) {
+        if (isset($byPartner[$pid])) {
+            $out[] = $byPartner[$pid];
+        }
+        if (count($out) >= $limit) {
+            break;
+        }
+    }
+    return $out;
+}
+
+/**
+ * xvideos-style Suggested: based on recent watch history (categories/tags/people),
+ * falling back to regional-style popularity (best this week) when cold.
+ * @return list<array>
+ */
+function cfp_home_suggested(PDO $pdo, ?array $user, int $limit = 14, array $excludeIds = []): array
+{
+    $limit = max(6, min(24, $limit));
+    $exclude = array_values(array_unique(array_map('intval', $excludeIds)));
+    $seedIds = [];
+
+    if ($user && !empty($user['id'])) {
+        try {
+            $st = $pdo->prepare(
+                "SELECT video_id FROM user_library
+                 WHERE user_id = ? AND kind IN ('history','liked')
+                 ORDER BY updated_at DESC LIMIT 24"
+            );
+            $st->execute([(int) $user['id']]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $vid) {
+                $seedIds[] = (int) $vid;
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+    if (!$seedIds) {
+        $partnerIds = cfp_watch_history_partner_ids();
+        if ($partnerIds) {
+            $ph = implode(',', array_fill(0, count($partnerIds), '?'));
+            $st = $pdo->prepare("SELECT id FROM videos WHERE video_id IN ($ph)");
+            $st->execute($partnerIds);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $vid) {
+                $seedIds[] = (int) $vid;
+            }
+        }
+    }
+    $seedIds = array_values(array_unique(array_filter($seedIds)));
+    $exclude = array_values(array_unique(array_merge($exclude, $seedIds)));
+
+    $mark = static function (array $rows): array {
+        foreach ($rows as &$row) {
+            $row['suggested'] = 1;
+        }
+        unset($row);
+        return $rows;
+    };
+
+    if (!$seedIds) {
+        // Cold start = xvideos geo/popularity style: best of the week
+        $best = cfp_list_videos($pdo, ['page' => 1, 'per' => $limit, 'sort' => 'views', 'period' => 'week']);
+        return $mark($best['items'] ?? []);
+    }
+
+    $phSeed = implode(',', array_fill(0, count($seedIds), '?'));
+    $pickIds = static function (string $sql, array $args, int $cap) use ($pdo): array {
+        $st = $pdo->prepare($sql);
+        $st->execute($args);
+        $ids = [];
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $id) {
+            $ids[] = (int) $id;
+            if (count($ids) >= $cap) {
+                break;
+            }
+        }
+        return $ids;
+    };
+
+    $catIds = $pickIds(
+        "SELECT category_id FROM video_categories WHERE video_id IN ($phSeed)
+         GROUP BY category_id ORDER BY COUNT(*) DESC LIMIT 12",
+        $seedIds,
+        12
+    );
+    $tagIds = $pickIds(
+        "SELECT tag_id FROM video_tags WHERE video_id IN ($phSeed)
+         GROUP BY tag_id ORDER BY COUNT(*) DESC LIMIT 16",
+        $seedIds,
+        16
+    );
+    $actorIds = $pickIds(
+        "SELECT actor_id FROM video_actors WHERE video_id IN ($phSeed)
+         GROUP BY actor_id ORDER BY COUNT(*) DESC LIMIT 12",
+        $seedIds,
+        12
+    );
+
+    if (!$catIds && !$tagIds && !$actorIds) {
+        $best = cfp_list_videos($pdo, ['page' => 1, 'per' => $limit, 'sort' => 'views', 'period' => 'week']);
+        return $mark($best['items'] ?? []);
+    }
+
+    $scoreParts = [];
+    $join = '';
+    $args = [];
+    if ($actorIds) {
+        $join .= ' LEFT JOIN video_actors va ON va.video_id = v.id AND va.actor_id IN (' . implode(',', array_fill(0, count($actorIds), '?')) . ')';
+        foreach ($actorIds as $id) {
+            $args[] = $id;
+        }
+        $scoreParts[] = 'COUNT(DISTINCT va.actor_id) * 4';
+    }
+    if ($tagIds) {
+        $join .= ' LEFT JOIN video_tags vt ON vt.video_id = v.id AND vt.tag_id IN (' . implode(',', array_fill(0, count($tagIds), '?')) . ')';
+        foreach ($tagIds as $id) {
+            $args[] = $id;
+        }
+        $scoreParts[] = 'COUNT(DISTINCT vt.tag_id) * 2';
+    }
+    if ($catIds) {
+        $join .= ' LEFT JOIN video_categories vc ON vc.video_id = v.id AND vc.category_id IN (' . implode(',', array_fill(0, count($catIds), '?')) . ')';
+        foreach ($catIds as $id) {
+            $args[] = $id;
+        }
+        $scoreParts[] = 'COUNT(DISTINCT vc.category_id) * 3';
+    }
+    $scoreSql = $scoreParts ? implode(' + ', $scoreParts) : '0';
+    $exSql = $exclude ? ('v.id NOT IN (' . implode(',', array_fill(0, count($exclude), '?')) . ')') : '1=1';
+    foreach ($exclude as $id) {
+        $args[] = $id;
+    }
+    $args[] = $limit;
+
+    $sql = "SELECT v.*, ($scoreSql) AS suggest_score,
+                   GREATEST(COALESCE(v.source_views,0), COALESCE(v.views,0)) AS pop
+            FROM videos v
+            $join
+            WHERE $exSql
+            GROUP BY v.id
+            HAVING suggest_score > 0
+            ORDER BY suggest_score DESC, pop DESC, v.created_at DESC
+            LIMIT ?";
+    try {
+        $st = $pdo->prepare($sql);
+        $st->execute($args);
+        $rows = $st->fetchAll();
+        if ($rows) {
+            return $mark($rows);
+        }
+    } catch (Throwable $e) {
+        // fall through
+    }
+
+    $best = cfp_list_videos($pdo, ['page' => 1, 'per' => $limit, 'sort' => 'views', 'period' => 'week']);
+    return $mark($best['items'] ?? []);
 }
 
 /**

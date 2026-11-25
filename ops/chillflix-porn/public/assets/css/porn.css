@@ -596,6 +596,12 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-card-channel:hover { color: #fff; }
 .cfp-card-sep { opacity: 0.85; flex: 0 0 auto; white-space: pre; }
 .cfp-card-views { flex: 0 1 auto; white-space: nowrap; }
+.cfp-card-suggested {
+  flex: 0 0 auto;
+  color: #9aa0a6;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .cfp-card-dur {
   flex: 0 0 auto;
   padding: 0.14rem 0.42rem;

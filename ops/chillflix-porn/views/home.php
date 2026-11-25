@@ -4,10 +4,14 @@ declare(strict_types=1);
 /** @var array $popular */
 /** @var array $cats */
 /** @var array $filters */
+/** @var list<array> $continueWatch */
+/** @var list<array> $suggested */
 $filters = $filters ?? cfp_filters_from_request();
 $density = $filters['density'] ?? 'cozy';
 $resultsTotal = (int) ($latest['total'] ?? 0);
 $actionPath = '/';
+$continueWatch = $continueWatch ?? [];
+$suggested = $suggested ?? [];
 $activeCatSlugs = $filters['categories'] ?? cfp_parse_category_slugs($filters['category'] ?? '');
 $activeCatNames = [];
 if ($activeCatSlugs) {
@@ -26,6 +30,7 @@ $isFiltered = $activeCatSlugs
     || ($filters['duration'] ?? 'any') !== 'any'
     || ($filters['period'] ?? 'any') !== 'any';
 $heading = $activeCatName ?: ($isFiltered ? 'Results' : 'Newest videos');
+$showDiscovery = !$isFiltered && ($filters['page'] ?? 1) <= 1;
 ?>
 <?php if ($activeCatName): ?>
   <header class="cfp-cat-head">
@@ -35,10 +40,34 @@ $heading = $activeCatName ?: ($isFiltered ? 'Results' : 'Newest videos');
 <?php endif; ?>
 
 <?php
-// xvideos-like: on clean homepage show a short “Best of” strip, then the main Newest grid.
-// Hide when browsing a category or applying filters so the page stays focused.
+// xvideos-style discovery stack (clean homepage only):
+// 1) Continue watching from history
+// 2) Suggested for you (history → related niches; cold start → popular)
+// 3) Best of the week (geo/popularity style)
+// 4) Newest grid
 ?>
-<?php if (!$isFiltered && ($filters['page'] ?? 1) <= 1 && !empty($popular['items'])): ?>
+<?php if ($showDiscovery && $continueWatch): ?>
+<section class="cfp-section cfp-section-tight">
+  <div class="cfp-section-head">
+    <h2>Continue watching</h2>
+    <?php if (!empty($cfpUser)): ?>
+      <a href="<?= cfp_e(cfp_url('/library?tab=history')) ?>">History</a>
+    <?php endif; ?>
+  </div>
+  <?php $items = array_slice($continueWatch, 0, 12); require __DIR__ . '/_rail.php'; ?>
+</section>
+<?php endif; ?>
+
+<?php if ($showDiscovery && $suggested): ?>
+<section class="cfp-section cfp-section-tight">
+  <div class="cfp-section-head">
+    <h2>Suggested for you</h2>
+  </div>
+  <?php $items = array_slice($suggested, 0, 12); require __DIR__ . '/_rail.php'; ?>
+</section>
+<?php endif; ?>
+
+<?php if ($showDiscovery && !empty($popular['items'])): ?>
 <section class="cfp-section cfp-section-tight">
   <div class="cfp-section-head">
     <h2>Best of the week</h2>
