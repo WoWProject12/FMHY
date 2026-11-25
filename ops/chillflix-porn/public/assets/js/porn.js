@@ -300,16 +300,18 @@
     if (!card.getAttribute("data-video-id")) return;
 
     // Block Chrome/Safari long-press "Open in new tab" menu — preview plays instead
-    card.addEventListener("contextmenu", function (e) {
+    var blockMenu = function (e) {
       e.preventDefault();
       e.stopPropagation();
-    });
+      return false;
+    };
+    card.addEventListener("contextmenu", blockMenu, true);
+    card.setAttribute("draggable", "false");
     var imgs = card.querySelectorAll("img");
     for (var i = 0; i < imgs.length; i++) {
-      imgs[i].addEventListener("contextmenu", function (e) {
-        e.preventDefault();
-      });
+      imgs[i].addEventListener("contextmenu", blockMenu, true);
       imgs[i].draggable = false;
+      imgs[i].setAttribute("draggable", "false");
     }
 
     card.addEventListener("mouseenter", function () {
@@ -325,17 +327,29 @@
     var startX = 0;
     var startY = 0;
     var previewArmed = false;
+    var suppressClick = false;
+
+    // Short tap → open video. Press-hold → in-thumb preview (xvideos-style), no nav, no Chrome menu.
+    card.addEventListener("click", function (e) {
+      if (suppressClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        suppressClick = false;
+      }
+    }, true);
 
     card.addEventListener("touchstart", function (e) {
       if (!e.touches || !e.touches[0]) return;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       previewArmed = false;
+      suppressClick = false;
       clearTimeout(touchTimer);
       touchTimer = setTimeout(function () {
         previewArmed = true;
+        suppressClick = true;
         startPreview(card);
-      }, 160);
+      }, 180);
     }, { passive: true });
 
     card.addEventListener("touchmove", function (e) {
@@ -346,6 +360,7 @@
         clearTimeout(touchTimer);
         if (previewArmed) stopPreview(card);
         previewArmed = false;
+        suppressClick = false;
       }
     }, { passive: true });
 
@@ -353,13 +368,23 @@
       clearTimeout(touchTimer);
       stopPreview(card);
       previewArmed = false;
+      // keep suppressClick until click handler runs (same gesture)
+      setTimeout(function () { suppressClick = false; }, 350);
     });
     card.addEventListener("touchcancel", function () {
       clearTimeout(touchTimer);
       stopPreview(card);
       previewArmed = false;
+      suppressClick = false;
     });
   }
+
+  // Capture-phase: kill link long-press menus even if a child is the event target
+  document.addEventListener("contextmenu", function (e) {
+    if (e.target && e.target.closest && e.target.closest(".cfp-card, .cfp-rail-card")) {
+      e.preventDefault();
+    }
+  }, true);
 
   document.querySelectorAll(".cfp-card[data-video-id], .cfp-rail-card[data-video-id]").forEach(bindCardPreview);
 

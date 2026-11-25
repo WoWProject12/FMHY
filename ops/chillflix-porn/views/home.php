@@ -46,7 +46,7 @@ $heading = $activeCatName ?: ($isFiltered ? 'Results' : 'Newest videos');
   <div class="cfp-rail" data-cfp-rail>
     <div class="cfp-rail-track">
       <?php foreach (array_slice($popular['items'], 0, 10) as $item): ?>
-        <a class="cfp-rail-card cfp-card" href="<?= cfp_e(cfp_url('/video/' . $item['slug'])) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>">
+        <a class="cfp-rail-card cfp-card" href="<?= cfp_e(cfp_url('/video/' . $item['slug'])) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>" draggable="false" oncontextmenu="return false">
           <div class="cfp-card-media">
             <?php if (!empty($item['thumb'])): ?>
               <img src="<?= cfp_e($item['thumb']) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">

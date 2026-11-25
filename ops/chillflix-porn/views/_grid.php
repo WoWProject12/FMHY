@@ -9,7 +9,7 @@ $gridClass = $gridClass ?? 'cfp-grid';
   $href = cfp_url('/video/' . $item['slug']);
   $thumb = $item['thumb'] ?: '';
 ?>
-  <a class="cfp-card" href="<?= cfp_e($href) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>">
+  <a class="cfp-card" href="<?= cfp_e($href) ?>" data-video-id="<?= cfp_e((string) ($item['video_id'] ?? '')) ?>" draggable="false" oncontextmenu="return false">
     <div class="cfp-card-media">
       <?php if ($thumb): ?>
         <img src="<?= cfp_e($thumb) ?>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
