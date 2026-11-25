@@ -24,7 +24,6 @@ if (!empty($filters['category'])) {
   <div class="cfp-section-head">
     <h1 class="cfp-page-title"><?= $q !== '' ? '“' . cfp_e($q) . '”' : 'Search' ?></h1>
   </div>
-  <?php require __DIR__ . '/_toolbar.php'; ?>
   <?php if (empty($results['items'])): ?>
     <p class="cfp-empty">No matches.</p>
   <?php else: ?>

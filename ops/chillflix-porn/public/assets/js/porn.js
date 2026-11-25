@@ -139,6 +139,25 @@
     });
   }
 
+  function syncHeaderHeight() {
+    var header = document.getElementById("siteHeader") || document.querySelector(".cfp-header");
+    if (!header) return;
+    var h = Math.ceil(header.getBoundingClientRect().height);
+    if (h > 0) {
+      document.documentElement.style.setProperty("--cfp-header-h", h + "px");
+    }
+  }
+  syncHeaderHeight();
+  window.addEventListener("load", syncHeaderHeight);
+  if (window.ResizeObserver) {
+    var headerEl = document.getElementById("siteHeader") || document.querySelector(".cfp-header");
+    if (headerEl) {
+      try {
+        new ResizeObserver(syncHeaderHeight).observe(headerEl);
+      } catch (err) {}
+    }
+  }
+
   document.querySelectorAll("[data-cfp-toolbar]").forEach(initToolbar);
   document.querySelectorAll("[data-cfp-dd]").forEach(function (dd) {
     if (!closest(dd, "[data-cfp-toolbar]")) initDropdown(dd);
@@ -152,6 +171,7 @@
     if (e.key === "Escape") closeAllMenus();
   });
   window.addEventListener("resize", function () {
+    syncHeaderHeight();
     document.querySelectorAll("[data-cfp-dd]").forEach(function (dd) {
       var menu = dd.querySelector(".cfp-dd-menu.is-open");
       if (menu) placeMenu(dd, menu);

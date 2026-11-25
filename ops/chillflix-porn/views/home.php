@@ -31,8 +31,6 @@ $heading = $activeCatName ?: ($isFiltered ? 'Results' : 'Newest videos');
   </header>
 <?php endif; ?>
 
-<?php require __DIR__ . '/_toolbar.php'; ?>
-
 <?php
 // xvideos-like: on clean homepage show a short “Best of” strip, then the main Newest grid.
 // Hide when browsing a category or applying filters so the page stays focused.

@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=32filters')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=35filters')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
   <style>
     html,body{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box;background:#0c0b09;color:#f4efe6}
@@ -95,6 +95,42 @@ declare(strict_types=1);
       <a class="cfp-nav-main" href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
     </nav>
   </div>
+  <?php
+  // Filter chips live in the sticky header so they stay fixed while scrolling.
+  $showFilterBar = empty($needsAge) && in_array(($view ?? ''), ['home', 'search'], true);
+  if ($showFilterBar):
+      if (($view ?? '') === 'search') {
+          $actionPath = '/search';
+          $resultsTotal = (int) (($results['total'] ?? 0));
+          $activeCatName = null;
+          $activeCatSlug = (string) (($filters['category'] ?? ''));
+          if ($activeCatSlug !== '' && !empty($cats)) {
+              foreach ($cats as $c) {
+                  if ($c['slug'] === $activeCatSlug) {
+                      $activeCatName = $c['name'];
+                      break;
+                  }
+              }
+          }
+      } else {
+          $actionPath = '/';
+          $resultsTotal = (int) (($latest['total'] ?? 0));
+          $activeCatName = null;
+          $activeCatSlug = (string) (($filters['category'] ?? ''));
+          if ($activeCatSlug !== '' && !empty($cats)) {
+              foreach ($cats as $c) {
+                  if ($c['slug'] === $activeCatSlug) {
+                      $activeCatName = $c['name'];
+                      break;
+                  }
+              }
+          }
+      }
+  ?>
+  <div class="cfp-header-filters">
+    <?php require __DIR__ . '/_toolbar.php'; ?>
+  </div>
+  <?php endif; ?>
 </header>
 
 <main id="main" class="cfp-main">
@@ -116,6 +152,6 @@ declare(strict_types=1);
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=32filters')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=35filters')) ?>" defer></script>
 </body>
 </html>

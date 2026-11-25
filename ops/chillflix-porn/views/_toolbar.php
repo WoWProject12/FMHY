@@ -86,18 +86,10 @@ $densityVal = (string) ($filters['density'] ?? 'cozy');
   <input type="hidden" name="density" value="<?= cfp_e($densityVal) ?>" data-cfp-field="density">
   <input type="hidden" name="per" value="<?= (int) $filters['per'] ?>" data-cfp-field="per">
 
-  <div class="cfp-toolbar-top">
-    <?php if (isset($resultsTotal)): ?>
-      <span class="cfp-toolbar-count"><?= number_format((int) $resultsTotal) ?></span>
-    <?php else: ?>
-      <span class="cfp-toolbar-count cfp-toolbar-count-empty">Filters</span>
-    <?php endif; ?>
+  <div class="cfp-toolbar-row">
     <?php if ($hasFilters): ?>
       <a class="cfp-clear" href="<?= cfp_e($clearHref) ?>">Reset</a>
     <?php endif; ?>
-  </div>
-
-  <div class="cfp-toolbar-row">
     <div class="cfp-dd" data-cfp-dd>
       <button type="button" class="cfp-dd-btn<?= $activeCatSlug !== '' ? ' is-active' : '' ?>" aria-expanded="false" aria-haspopup="listbox" aria-label="Category">
         <span class="cfp-dd-kicker">Category</span>
