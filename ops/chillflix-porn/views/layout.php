@@ -17,7 +17,7 @@ declare(strict_types=1);
   <meta name="rating" content="adult">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/cinema.css?v=97fxovertoast1')) ?>">
   <link rel="stylesheet" href="<?= cfp_e(cfp_main_asset('css/bridge.css?v=20261123notif22acctontop1phoneplayer5noshrink2nospa1fxuser5nocardfx1maylike1settingsback1')) ?>">
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=19sticky')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=20people')) ?>">
   <link rel="icon" href="<?= cfp_e(CFP_MAIN_SITE . '/favicon.ico') ?>">
 </head>
 <body class="<?= cfp_e($bodyClass) ?>">
@@ -44,6 +44,7 @@ declare(strict_types=1);
     </form>
     <nav class="cfp-nav" aria-label="Primary">
       <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
+      <a href="<?= cfp_e(cfp_url('/people')) ?>" class="<?= in_array(($view ?? ''), ['people', 'person'], true) ? 'is-on' : '' ?>">People</a>
       <div class="cfp-dd cfp-nav-dd" data-cfp-dd>
         <button type="button" class="cfp-dd-btn<?= ($view ?? '') === 'categories' ? ' is-active' : '' ?>" aria-expanded="false" aria-haspopup="listbox">
           <span class="cfp-dd-kicker">Browse</span>
@@ -81,15 +82,15 @@ declare(strict_types=1);
 
 <nav class="cfp-dock" aria-label="Mobile navigation">
   <a href="<?= cfp_e(cfp_url('/')) ?>" class="<?= ($view ?? '') === 'home' ? 'is-on' : '' ?>">Home</a>
+  <a href="<?= cfp_e(cfp_url('/people')) ?>" class="<?= in_array(($view ?? ''), ['people', 'person'], true) ? 'is-on' : '' ?>">People</a>
   <a href="<?= cfp_e(cfp_url('/categories')) ?>" class="<?= ($view ?? '') === 'categories' ? 'is-on' : '' ?>">Cats</a>
   <a href="<?= cfp_e(cfp_url('/search')) ?>">Search</a>
-  <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Movies</a>
 </nav>
 
 <footer class="cfp-footer">
   <p>18+ only · <a href="<?= cfp_e(CFP_MAIN_SITE) ?>">Chillflix</a></p>
 </footer>
 
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=19sticky')) ?>" defer></script>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=20people')) ?>" defer></script>
 </body>
 </html>

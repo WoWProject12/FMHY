@@ -181,12 +181,71 @@ try {
         } else {
             cfp_bump_views($pdo, (int) $video['id']);
             $meta = cfp_video_meta($pdo, (int) $video['id']);
-            $related = cfp_related($pdo, (int) $video['id'], 12);
+            $fromPeople = cfp_more_from_people($pdo, (int) $video['id'], 8);
+            $exclude = [];
+            foreach ($fromPeople as $sec) {
+                foreach ($sec['items'] as $it) {
+                    $exclude[] = (int) $it['id'];
+                }
+            }
+            $related = cfp_related($pdo, (int) $video['id'], 14, $exclude);
             $view = 'watch';
             $bodyClass = 'page-porn page-porn-watch';
-            $viewData = compact('video', 'meta', 'related');
+            $viewData = compact('video', 'meta', 'related', 'fromPeople');
             $pageTitle = $video['title'] . ' — ' . CFP_SITE_NAME;
             $pageDescription = $video['title'];
+        }
+    } elseif ($path === '/people') {
+        $peopleQ = trim((string) ($_GET['q'] ?? ''));
+        $people = cfp_list_people($pdo, [
+            'q' => $peopleQ,
+            'page' => $filters['page'],
+            'per' => 60,
+        ]);
+        $view = 'people';
+        $viewData = compact('people', 'peopleQ');
+        $pageTitle = 'People — ' . CFP_SITE_NAME;
+    } elseif (preg_match('#^/people/([a-z0-9\-]+)$#', $path, $m)) {
+        $person = cfp_get_person_by_slug($pdo, $m[1]);
+        if (!$person || (int) ($person['n'] ?? 0) < 1) {
+            http_response_code(404);
+            $view = '404';
+        } else {
+            $personSort = (isset($_GET['sort']) && (string) $_GET['sort'] === 'new') ? 'new' : 'views';
+            $filters['sort'] = $personSort;
+            $results = cfp_videos_by_person($pdo, (int) $person['id'], [
+                'page' => $filters['page'],
+                'per' => $filters['per'],
+                'sort' => $personSort,
+            ]);
+            $view = 'person';
+            $viewData = compact('person', 'results', 'filters');
+            $pageTitle = $person['name'] . ' — ' . CFP_SITE_NAME;
+            $pageDescription = 'Videos from ' . $person['name'];
+            if ($filters['density'] === 'compact') {
+                $bodyClass .= ' is-compact';
+            }
+        }
+    } elseif (preg_match('#^/tag/([a-z0-9\-]+)$#', $path, $m)) {
+        $tag = cfp_get_tag_by_slug($pdo, $m[1]);
+        if (!$tag || (int) ($tag['n'] ?? 0) < 1) {
+            http_response_code(404);
+            $view = '404';
+        } else {
+            $tagSort = (isset($_GET['sort']) && (string) $_GET['sort'] === 'new') ? 'new' : 'views';
+            $filters['sort'] = $tagSort;
+            $results = cfp_videos_by_tag($pdo, (int) $tag['id'], [
+                'page' => $filters['page'],
+                'per' => $filters['per'],
+                'sort' => $tagSort,
+            ]);
+            $view = 'tag';
+            $viewData = compact('tag', 'results', 'filters');
+            $pageTitle = $tag['name'] . ' — ' . CFP_SITE_NAME;
+            $pageDescription = 'Videos tagged ' . $tag['name'];
+            if ($filters['density'] === 'compact') {
+                $bodyClass .= ' is-compact';
+            }
         }
     } elseif ($path === '/categories') {
         $cats = cfp_top_categories($pdo, 120);

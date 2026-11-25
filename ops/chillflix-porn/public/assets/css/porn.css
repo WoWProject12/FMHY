@@ -477,6 +477,93 @@ a.cfp-dd-option { color: var(--cfp-text); }
 .cfp-chip span { color: var(--cfp-muted); font-size: 0.7rem; }
 .cfp-chip-soft { opacity: 0.9; }
 
+.cfp-section-more {
+  color: var(--cfp-accent); text-decoration: none; font-size: 0.8rem; font-weight: 700;
+}
+.cfp-section-head h2 a { color: inherit; text-decoration: none; }
+.cfp-section-head h2 a:hover { color: var(--cfp-accent-hi); }
+
+/* People on watch + directory */
+.cfp-people-row {
+  display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 0.65rem;
+}
+.cfp-person-chip {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.3rem 0.65rem 0.3rem 0.3rem; border-radius: 999px;
+  background: var(--cfp-surface); border: 1px solid var(--cfp-border);
+  text-decoration: none; color: inherit; max-width: 100%;
+}
+.cfp-person-chip:hover { border-color: rgba(228, 194, 122, 0.45); color: var(--cfp-accent-hi); }
+.cfp-person-chip-mark {
+  width: 1.7rem; height: 1.7rem; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--cfp-surface-2); color: var(--cfp-accent); font-size: 0.72rem; font-weight: 800;
+  flex: 0 0 auto;
+}
+.cfp-person-chip-text {
+  display: flex; flex-direction: column; line-height: 1.15; min-width: 0;
+}
+.cfp-person-chip-text strong {
+  font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cfp-person-chip-text em {
+  font-style: normal; color: var(--cfp-muted); font-size: 0.68rem; font-weight: 600;
+}
+
+.cfp-people-tools {
+  display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center; margin: 0 0 0.9rem;
+}
+.cfp-people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.55rem;
+}
+.cfp-people-card {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.55rem 0.7rem; border-radius: 12px;
+  background: var(--cfp-surface); border: 1px solid var(--cfp-border);
+  text-decoration: none; color: inherit; min-width: 0;
+}
+.cfp-people-card:hover { border-color: rgba(228, 194, 122, 0.4); color: var(--cfp-accent-hi); }
+.cfp-people-avatar {
+  width: 2.6rem; height: 2.6rem; border-radius: 50%; overflow: hidden;
+  background: var(--cfp-surface-2); flex: 0 0 auto;
+  display: grid; place-items: center; font-weight: 800; color: var(--cfp-accent);
+}
+.cfp-people-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cfp-people-avatar-lg { width: 4.2rem; height: 4.2rem; font-size: 1.25rem; }
+.cfp-people-card-meta {
+  display: flex; flex-direction: column; gap: 0.1rem; min-width: 0;
+}
+.cfp-people-card-meta strong {
+  font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cfp-people-card-meta em {
+  font-style: normal; color: var(--cfp-muted); font-size: 0.75rem; font-weight: 600;
+}
+
+.cfp-person-head { margin: 0 0 0.85rem; }
+.cfp-person-back {
+  display: inline-block; margin: 0 0 0.55rem;
+  color: var(--cfp-muted); text-decoration: none; font-size: 0.8rem; font-weight: 600;
+}
+.cfp-person-back:hover { color: var(--cfp-accent); }
+.cfp-person-hero {
+  display: flex; align-items: center; gap: 0.85rem;
+}
+.cfp-person-count { margin: 0.15rem 0 0; color: var(--cfp-muted); font-size: 0.88rem; }
+.cfp-person-sort {
+  display: flex; gap: 0.35rem; margin: 0 0 0.85rem;
+}
+.cfp-person-sort a {
+  padding: 0.35rem 0.7rem; border-radius: 999px;
+  border: 1px solid var(--cfp-border); text-decoration: none;
+  color: var(--cfp-muted); font-size: 0.78rem; font-weight: 700;
+}
+.cfp-person-sort a.is-on {
+  color: #1a1208; background: var(--cfp-accent); border-color: var(--cfp-accent);
+}
+
 /* Age gate */
 .cfp-agegate { min-height: 58vh; display: grid; place-items: center; }
 .cfp-agegate-card {

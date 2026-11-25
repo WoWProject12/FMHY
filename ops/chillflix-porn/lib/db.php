@@ -288,26 +288,143 @@ function cfp_bump_views(PDO $pdo, int $id): void
     $pdo->prepare('UPDATE videos SET views = views + 1 WHERE id = ?')->execute([$id]);
 }
 
-function cfp_related(PDO $pdo, int $id, int $limit = 12): array
+/**
+ * Related clips: shared people first, then tags, then categories.
+ * Excludes $excludeIds (current + already shown “more from” clips).
+ */
+function cfp_related(PDO $pdo, int $id, int $limit = 12, array $excludeIds = []): array
 {
-    $st = $pdo->prepare('SELECT category_id FROM video_categories WHERE video_id = ?');
-    $st->execute([$id]);
-    $cats = $st->fetchAll(PDO::FETCH_COLUMN);
-    if ($cats) {
-        $in = implode(',', array_fill(0, count($cats), '?'));
-        $args = $cats;
-        $args[] = $id;
+    $exclude = array_values(array_unique(array_map('intval', array_merge([$id], $excludeIds))));
+    $seen = [];
+    $out = [];
+
+    $push = static function (array $rows) use (&$out, &$seen, $limit): void {
+        foreach ($rows as $row) {
+            $vid = (int) $row['id'];
+            if (isset($seen[$vid])) {
+                continue;
+            }
+            $seen[$vid] = true;
+            $out[] = $row;
+            if (count($out) >= $limit) {
+                return;
+            }
+        }
+    };
+
+    $excludeSql = implode(',', array_fill(0, count($exclude), '?'));
+
+    $actorIds = $pdo->prepare('SELECT actor_id FROM video_actors WHERE video_id = ?');
+    $actorIds->execute([$id]);
+    $aids = $actorIds->fetchAll(PDO::FETCH_COLUMN);
+    if ($aids && count($out) < $limit) {
+        $in = implode(',', array_fill(0, count($aids), '?'));
+        $args = array_merge($aids, $exclude);
         $args[] = $limit;
-        $q = $pdo->prepare("SELECT v.* FROM videos v INNER JOIN video_categories vc ON vc.video_id = v.id WHERE vc.category_id IN ($in) AND v.id <> ? GROUP BY v.id ORDER BY v.created_at DESC LIMIT ?");
+        $q = $pdo->prepare(
+            "SELECT v.*, COUNT(*) AS overlap FROM videos v
+             INNER JOIN video_actors va ON va.video_id = v.id
+             WHERE va.actor_id IN ($in) AND v.id NOT IN ($excludeSql)
+             GROUP BY v.id ORDER BY overlap DESC, v.views DESC, v.created_at DESC LIMIT ?"
+        );
         $q->execute($args);
-        $rows = $q->fetchAll();
-        if ($rows) {
-            return $rows;
+        $push($q->fetchAll());
+    }
+
+    $tagIds = $pdo->prepare('SELECT tag_id FROM video_tags WHERE video_id = ?');
+    $tagIds->execute([$id]);
+    $tids = $tagIds->fetchAll(PDO::FETCH_COLUMN);
+    if ($tids && count($out) < $limit) {
+        $need = $limit - count($out);
+        $in = implode(',', array_fill(0, count($tids), '?'));
+        $already = array_keys($seen);
+        $ex2 = array_values(array_unique(array_merge($exclude, $already)));
+        $exSql = implode(',', array_fill(0, count($ex2), '?'));
+        $args = array_merge($tids, $ex2);
+        $args[] = $need;
+        $q = $pdo->prepare(
+            "SELECT v.*, COUNT(*) AS overlap FROM videos v
+             INNER JOIN video_tags vt ON vt.video_id = v.id
+             WHERE vt.tag_id IN ($in) AND v.id NOT IN ($exSql)
+             GROUP BY v.id ORDER BY overlap DESC, v.views DESC, v.created_at DESC LIMIT ?"
+        );
+        $q->execute($args);
+        $push($q->fetchAll());
+    }
+
+    if (count($out) < $limit) {
+        $st = $pdo->prepare('SELECT category_id FROM video_categories WHERE video_id = ?');
+        $st->execute([$id]);
+        $cats = $st->fetchAll(PDO::FETCH_COLUMN);
+        if ($cats) {
+            $need = $limit - count($out);
+            $in = implode(',', array_fill(0, count($cats), '?'));
+            $already = array_keys($seen);
+            $ex2 = array_values(array_unique(array_merge($exclude, $already)));
+            $exSql = implode(',', array_fill(0, count($ex2), '?'));
+            $args = array_merge($cats, $ex2);
+            $args[] = $need;
+            $q = $pdo->prepare(
+                "SELECT v.* FROM videos v
+                 INNER JOIN video_categories vc ON vc.video_id = v.id
+                 WHERE vc.category_id IN ($in) AND v.id NOT IN ($exSql)
+                 GROUP BY v.id ORDER BY v.views DESC, v.created_at DESC LIMIT ?"
+            );
+            $q->execute($args);
+            $push($q->fetchAll());
         }
     }
-    $q = $pdo->prepare('SELECT * FROM videos WHERE id <> ? ORDER BY created_at DESC LIMIT ?');
-    $q->execute([$id, $limit]);
-    return $q->fetchAll();
+
+    if (count($out) < $limit) {
+        $need = $limit - count($out);
+        $already = array_keys($seen);
+        $ex2 = array_values(array_unique(array_merge($exclude, $already)));
+        $exSql = implode(',', array_fill(0, count($ex2), '?'));
+        $args = $ex2;
+        $args[] = $need;
+        $q = $pdo->prepare("SELECT * FROM videos WHERE id NOT IN ($exSql) ORDER BY created_at DESC LIMIT ?");
+        $q->execute($args);
+        $push($q->fetchAll());
+    }
+
+    return $out;
+}
+
+/**
+ * Other videos from each person on this clip (xvideos-style “more from”).
+ * @return list<array{person:array{id:int,slug:string,name:string},items:list<array>}>
+ */
+function cfp_more_from_people(PDO $pdo, int $videoId, int $perPerson = 8): array
+{
+    $st = $pdo->prepare(
+        'SELECT a.id, a.slug, a.name FROM actors a
+         INNER JOIN video_actors va ON va.actor_id = a.id
+         WHERE va.video_id = ? ORDER BY a.name ASC'
+    );
+    $st->execute([$videoId]);
+    $people = $st->fetchAll();
+    $sections = [];
+    foreach ($people as $person) {
+        $q = $pdo->prepare(
+            'SELECT v.* FROM videos v
+             INNER JOIN video_actors va ON va.video_id = v.id
+             WHERE va.actor_id = ? AND v.id <> ?
+             ORDER BY v.views DESC, v.created_at DESC LIMIT ?'
+        );
+        $q->execute([(int) $person['id'], $videoId, $perPerson]);
+        $items = $q->fetchAll();
+        if ($items) {
+            $sections[] = [
+                'person' => [
+                    'id' => (int) $person['id'],
+                    'slug' => (string) $person['slug'],
+                    'name' => (string) $person['name'],
+                ],
+                'items' => $items,
+            ];
+        }
+    }
+    return $sections;
 }
 
 function cfp_top_categories(PDO $pdo, int $limit = 24): array
@@ -317,13 +434,178 @@ function cfp_top_categories(PDO $pdo, int $limit = 24): array
     return $st->fetchAll();
 }
 
+/**
+ * People / channels with video counts (and a sample thumb).
+ * @return array{items:list<array>,total:int,page:int,per:int,pages:int}
+ */
+function cfp_list_people(PDO $pdo, array $opts = []): array
+{
+    $page = max(1, (int) ($opts['page'] ?? 1));
+    $per = max(12, min(96, (int) ($opts['per'] ?? 48)));
+    $offset = ($page - 1) * $per;
+    $q = trim((string) ($opts['q'] ?? ''));
+    $where = ['1=1'];
+    $args = [];
+    if ($q !== '') {
+        $where[] = 'a.name LIKE ?';
+        $args[] = '%' . $q . '%';
+    }
+    $sqlWhere = implode(' AND ', $where);
+
+    $countSt = $pdo->prepare(
+        "SELECT COUNT(*) FROM (
+           SELECT a.id FROM actors a
+           INNER JOIN video_actors va ON va.actor_id = a.id
+           WHERE $sqlWhere
+           GROUP BY a.id
+         ) t"
+    );
+    $countSt->execute($args);
+    $total = (int) $countSt->fetchColumn();
+
+    $listArgs = $args;
+    $listArgs[] = $per;
+    $listArgs[] = $offset;
+    $st = $pdo->prepare(
+        "SELECT a.id, a.slug, a.name, COUNT(*) AS n,
+                (SELECT v.thumb FROM videos v
+                 INNER JOIN video_actors va2 ON va2.video_id = v.id
+                 WHERE va2.actor_id = a.id AND v.thumb IS NOT NULL AND v.thumb <> ''
+                 ORDER BY v.views DESC LIMIT 1) AS thumb
+         FROM actors a
+         INNER JOIN video_actors va ON va.actor_id = a.id
+         WHERE $sqlWhere
+         GROUP BY a.id
+         ORDER BY n DESC, a.name ASC
+         LIMIT ? OFFSET ?"
+    );
+    $st->execute($listArgs);
+
+    return [
+        'items' => $st->fetchAll(),
+        'total' => $total,
+        'page' => $page,
+        'per' => $per,
+        'pages' => max(1, (int) ceil($total / max(1, $per))),
+    ];
+}
+
+function cfp_get_person_by_slug(PDO $pdo, string $slug): ?array
+{
+    $st = $pdo->prepare(
+        "SELECT a.id, a.slug, a.name, COUNT(va.video_id) AS n,
+                (SELECT v.thumb FROM videos v
+                 INNER JOIN video_actors va2 ON va2.video_id = v.id
+                 WHERE va2.actor_id = a.id AND v.thumb IS NOT NULL AND v.thumb <> ''
+                 ORDER BY v.views DESC LIMIT 1) AS thumb
+         FROM actors a
+         LEFT JOIN video_actors va ON va.actor_id = a.id
+         WHERE a.slug = ?
+         GROUP BY a.id
+         LIMIT 1"
+    );
+    $st->execute([$slug]);
+    $row = $st->fetch();
+    return $row ?: null;
+}
+
+function cfp_videos_by_person(PDO $pdo, int $actorId, array $opts = []): array
+{
+    $page = max(1, (int) ($opts['page'] ?? 1));
+    $per = max(12, min(48, (int) ($opts['per'] ?? 24)));
+    $offset = ($page - 1) * $per;
+    $sort = (string) ($opts['sort'] ?? 'views');
+    $order = match ($sort) {
+        'new' => 'v.created_at DESC',
+        'az' => 'v.title ASC',
+        default => 'v.views DESC, v.created_at DESC',
+    };
+
+    $countSt = $pdo->prepare('SELECT COUNT(*) FROM video_actors WHERE actor_id = ?');
+    $countSt->execute([$actorId]);
+    $total = (int) $countSt->fetchColumn();
+
+    $st = $pdo->prepare(
+        "SELECT v.* FROM videos v
+         INNER JOIN video_actors va ON va.video_id = v.id
+         WHERE va.actor_id = ?
+         ORDER BY $order
+         LIMIT ? OFFSET ?"
+    );
+    $st->execute([$actorId, $per, $offset]);
+
+    return [
+        'items' => $st->fetchAll(),
+        'total' => $total,
+        'page' => $page,
+        'per' => $per,
+        'pages' => max(1, (int) ceil($total / max(1, $per))),
+    ];
+}
+
+function cfp_get_tag_by_slug(PDO $pdo, string $slug): ?array
+{
+    $st = $pdo->prepare(
+        'SELECT t.id, t.slug, t.name, COUNT(vt.video_id) AS n
+         FROM tags t
+         LEFT JOIN video_tags vt ON vt.tag_id = t.id
+         WHERE t.slug = ?
+         GROUP BY t.id
+         LIMIT 1'
+    );
+    $st->execute([$slug]);
+    $row = $st->fetch();
+    return $row ?: null;
+}
+
+function cfp_videos_by_tag(PDO $pdo, int $tagId, array $opts = []): array
+{
+    $page = max(1, (int) ($opts['page'] ?? 1));
+    $per = max(12, min(48, (int) ($opts['per'] ?? 24)));
+    $offset = ($page - 1) * $per;
+    $sort = (string) ($opts['sort'] ?? 'views');
+    $order = match ($sort) {
+        'new' => 'v.created_at DESC',
+        'az' => 'v.title ASC',
+        default => 'v.views DESC, v.created_at DESC',
+    };
+
+    $countSt = $pdo->prepare('SELECT COUNT(*) FROM video_tags WHERE tag_id = ?');
+    $countSt->execute([$tagId]);
+    $total = (int) $countSt->fetchColumn();
+
+    $st = $pdo->prepare(
+        "SELECT v.* FROM videos v
+         INNER JOIN video_tags vt ON vt.video_id = v.id
+         WHERE vt.tag_id = ?
+         ORDER BY $order
+         LIMIT ? OFFSET ?"
+    );
+    $st->execute([$tagId, $per, $offset]);
+
+    return [
+        'items' => $st->fetchAll(),
+        'total' => $total,
+        'page' => $page,
+        'per' => $per,
+        'pages' => max(1, (int) ceil($total / max(1, $per))),
+    ];
+}
+
 function cfp_video_meta(PDO $pdo, int $id): array
 {
     $cats = $pdo->prepare('SELECT c.slug, c.name FROM categories c INNER JOIN video_categories vc ON vc.category_id = c.id WHERE vc.video_id = ?');
     $cats->execute([$id]);
     $tags = $pdo->prepare('SELECT t.slug, t.name FROM tags t INNER JOIN video_tags vt ON vt.tag_id = t.id WHERE vt.video_id = ?');
     $tags->execute([$id]);
-    $actors = $pdo->prepare('SELECT a.slug, a.name FROM actors a INNER JOIN video_actors va ON va.actor_id = a.id WHERE va.video_id = ?');
+    $actors = $pdo->prepare(
+        'SELECT a.id, a.slug, a.name,
+                (SELECT COUNT(*) FROM video_actors va2 WHERE va2.actor_id = a.id) AS n
+         FROM actors a
+         INNER JOIN video_actors va ON va.actor_id = a.id
+         WHERE va.video_id = ?
+         ORDER BY a.name ASC'
+    );
     $actors->execute([$id]);
     return [
         'categories' => $cats->fetchAll(),
