@@ -15,12 +15,18 @@ function cfp_ensure_user_schema(PDO $pdo): void
                username VARCHAR(64) NOT NULL,
                email VARCHAR(190) NULL DEFAULT NULL,
                pass_hash VARCHAR(255) NOT NULL,
+               avatar_url VARCHAR(500) NULL DEFAULT NULL,
                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                PRIMARY KEY (id),
                UNIQUE KEY uq_username (username),
                UNIQUE KEY uq_email (email)
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
         );
+        try {
+            $pdo->exec('ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500) NULL DEFAULT NULL');
+        } catch (Throwable $e) {
+            // column already exists
+        }
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS user_library (
                user_id INT UNSIGNED NOT NULL,
@@ -95,7 +101,7 @@ function cfp_user_clear_auth_cookie(): void
     unset($_COOKIE['cfp_auth']);
 }
 
-/** @return array{id:int,username:string,email:?string}|null */
+/** @return array{id:int,username:string,email:?string,avatar_url:?string}|null */
 function cfp_current_user(PDO $pdo = null): ?array
 {
     $raw = (string) ($_COOKIE['cfp_auth'] ?? '');
@@ -118,7 +124,7 @@ function cfp_current_user(PDO $pdo = null): ?array
     try {
         $pdo = $pdo ?: cfp_pdo();
         cfp_ensure_user_schema($pdo);
-        $st = $pdo->prepare('SELECT id, username, email FROM users WHERE id = ? LIMIT 1');
+        $st = $pdo->prepare('SELECT id, username, email, avatar_url FROM users WHERE id = ? LIMIT 1');
         $st->execute([$id]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
@@ -128,10 +134,29 @@ function cfp_current_user(PDO $pdo = null): ?array
             'id' => (int) $row['id'],
             'username' => (string) $row['username'],
             'email' => $row['email'] !== null ? (string) $row['email'] : null,
+            'avatar_url' => !empty($row['avatar_url']) ? (string) $row['avatar_url'] : null,
         ];
         return $cache;
     } catch (Throwable $e) {
-        return null;
+        // Older DBs without avatar_url column — retry without it
+        try {
+            $pdo = $pdo ?: cfp_pdo();
+            $st = $pdo->prepare('SELECT id, username, email FROM users WHERE id = ? LIMIT 1');
+            $st->execute([$id]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                return null;
+            }
+            $cache = [
+                'id' => (int) $row['id'],
+                'username' => (string) $row['username'],
+                'email' => $row['email'] !== null ? (string) $row['email'] : null,
+                'avatar_url' => null,
+            ];
+            return $cache;
+        } catch (Throwable $e2) {
+            return null;
+        }
     }
 }
 
@@ -375,13 +400,95 @@ function cfp_library_flags(PDO $pdo, int $userId, string $partnerVideoId): array
 }
 
 /**
- * Stable profile avatar from popular actor thumbs (same style as movie cast icons).
- * Prefers an actor from the user's recent watch history when available.
+ * Actor-thumb choices for the profile avatar picker.
+ * @return list<array{url:string,name:string}>
+ */
+function cfp_avatar_choices(?PDO $pdo = null, int $limit = 48): array
+{
+    $limit = max(12, min(96, $limit));
+    static $cached = null;
+    static $cachedLimit = 0;
+    if (is_array($cached) && $cachedLimit >= $limit) {
+        return array_slice($cached, 0, $limit);
+    }
+    try {
+        $pdo = $pdo ?: cfp_pdo();
+        $st = $pdo->query(
+            "SELECT a.name,
+                    (
+                      SELECT v2.thumb FROM videos v2
+                      INNER JOIN video_actors va2 ON va2.video_id = v2.id
+                      WHERE va2.actor_id = a.id AND v2.thumb IS NOT NULL AND v2.thumb <> ''
+                      ORDER BY GREATEST(COALESCE(v2.source_views,0), COALESCE(v2.views,0)) DESC
+                      LIMIT 1
+                    ) AS thumb
+             FROM actors a
+             INNER JOIN video_actors va ON va.actor_id = a.id AND va.role = 'model'
+             LEFT JOIN videos v ON v.id = va.video_id
+             GROUP BY a.id
+             HAVING thumb IS NOT NULL AND thumb <> ''
+             ORDER BY COALESCE(SUM(GREATEST(COALESCE(v.source_views,0), COALESCE(v.views,0))), 0) DESC
+             LIMIT " . (int) $limit
+        );
+        $out = [];
+        $seen = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $url = trim((string) ($row['thumb'] ?? ''));
+            if ($url === '' || isset($seen[$url])) {
+                continue;
+            }
+            $seen[$url] = true;
+            $out[] = [
+                'url' => $url,
+                'name' => (string) ($row['name'] ?? ''),
+            ];
+        }
+        $cached = $out;
+        $cachedLimit = $limit;
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function cfp_user_set_avatar(PDO $pdo, int $userId, ?string $url): bool
+{
+    cfp_ensure_user_schema($pdo);
+    $url = $url !== null ? trim($url) : null;
+    if ($url === '') {
+        $url = null;
+    }
+    if ($url !== null) {
+        if (strlen($url) > 500) {
+            return false;
+        }
+        // Only allow thumbs from the actor pool
+        $ok = false;
+        foreach (cfp_avatar_choices($pdo, 96) as $choice) {
+            if (hash_equals($choice['url'], $url)) {
+                $ok = true;
+                break;
+            }
+        }
+        if (!$ok) {
+            return false;
+        }
+    }
+    $st = $pdo->prepare('UPDATE users SET avatar_url = ? WHERE id = ?');
+    $st->execute([$url, $userId]);
+    return true;
+}
+
+/**
+ * Profile avatar: saved choice first, else history actor, else popular pool.
  */
 function cfp_user_avatar_url(?array $user, ?PDO $pdo = null): ?string
 {
     if (!$user || empty($user['id'])) {
         return null;
+    }
+    if (!empty($user['avatar_url'])) {
+        return (string) $user['avatar_url'];
     }
     $uid = (int) $user['id'];
     static $cache = [];
@@ -414,35 +521,9 @@ function cfp_user_avatar_url(?array $user, ?PDO $pdo = null): ?string
                 return $thumb;
             }
         }
-        // Fallback: deterministic pick from popular actors with thumbs
-        static $pool = null;
-        if ($pool === null) {
-            $pool = [];
-            $q = $pdo->query(
-                "SELECT (
-                    SELECT v2.thumb FROM videos v2
-                    INNER JOIN video_actors va2 ON va2.video_id = v2.id
-                    WHERE va2.actor_id = a.id AND v2.thumb IS NOT NULL AND v2.thumb <> ''
-                    ORDER BY GREATEST(COALESCE(v2.source_views,0), COALESCE(v2.views,0)) DESC
-                    LIMIT 1
-                 ) AS thumb
-                 FROM actors a
-                 INNER JOIN video_actors va ON va.actor_id = a.id AND va.role = 'model'
-                 LEFT JOIN videos v ON v.id = va.video_id
-                 GROUP BY a.id
-                 HAVING thumb IS NOT NULL AND thumb <> ''
-                 ORDER BY COALESCE(SUM(GREATEST(COALESCE(v.source_views,0), COALESCE(v.views,0))), 0) DESC
-                 LIMIT 48"
-            );
-            foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $thumb) {
-                $thumb = trim((string) $thumb);
-                if ($thumb !== '') {
-                    $pool[] = $thumb;
-                }
-            }
-        }
+        $pool = cfp_avatar_choices($pdo, 48);
         if ($pool) {
-            $cache[$uid] = $pool[$uid % count($pool)];
+            $cache[$uid] = $pool[$uid % count($pool)]['url'];
             return $cache[$uid];
         }
     } catch (Throwable $e) {

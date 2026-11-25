@@ -149,6 +149,44 @@ if ($path === '/api/library/flags' && $method === 'GET') {
     cfp_json(['ok' => true, 'flags' => cfp_library_flags($pdo, (int) $user['id'], $vid)]);
 }
 
+// Profile avatar: list choices (GET) or save (GET/POST with url=)
+if ($path === '/api/avatar' && ($method === 'GET' || $method === 'POST')) {
+    $user = cfp_current_user($pdo);
+    if (!$user) {
+        cfp_json(['ok' => false, 'error' => 'login required'], 401);
+    }
+    $body = $_GET;
+    if ($method === 'POST') {
+        $raw = file_get_contents('php://input') ?: '';
+        $json = json_decode($raw, true);
+        if (is_array($json)) {
+            $body = $json + $body;
+        } else {
+            $body = $_POST + $body;
+        }
+    }
+    $urlRaw = $body['url'] ?? null;
+    $clear = isset($body['clear']) && (string) $body['clear'] !== '' && (string) $body['clear'] !== '0';
+    if ($urlRaw !== null || $clear) {
+        $url = $clear ? null : (string) $urlRaw;
+        $ok = cfp_user_set_avatar($pdo, (int) $user['id'], $url);
+        if (!$ok) {
+            cfp_json(['ok' => false, 'error' => 'invalid avatar'], 400);
+        }
+        // Refresh current avatar
+        $fresh = ['id' => (int) $user['id'], 'username' => (string) $user['username'], 'avatar_url' => $url];
+        cfp_json([
+            'ok' => true,
+            'avatar' => cfp_user_avatar_url($fresh, $pdo),
+        ]);
+    }
+    cfp_json([
+        'ok' => true,
+        'avatar' => cfp_user_avatar_url($user, $pdo),
+        'choices' => cfp_avatar_choices($pdo, 48),
+    ]);
+}
+
 // Same-origin muted preview fallback (primary path plays CDN URL directly in JS).
 if ($path === '/api/preview' && $method === 'GET') {
     $vid = preg_replace('/[^a-zA-Z0-9]/', '', (string) ($_GET['id'] ?? '')) ?? '';

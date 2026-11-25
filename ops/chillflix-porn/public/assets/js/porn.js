@@ -1340,3 +1340,125 @@
       playMp4(proxyUrl, "proxy", 0, true);
     });
 })();
+
+/* Profile avatar picker (library page) */
+(function () {
+  var openBtn = document.querySelector("[data-cfp-avatar-open]");
+  var sheet = document.getElementById("cfpAvatarSheet");
+  if (!openBtn || !sheet || !(window.CFP_USER && window.CFP_USER.id)) return;
+
+  var grid = sheet.querySelector("[data-cfp-avatar-grid]");
+  var loaded = false;
+  var current = (window.CFP_USER && window.CFP_USER.avatar) || "";
+
+  function setOpen(open) {
+    sheet.hidden = !open;
+    document.body.classList.toggle("is-avatar-sheet", !!open);
+    if (open && !loaded) loadChoices();
+  }
+
+  function paintNavAvatars(url) {
+    document.querySelectorAll(".cfp-acct-av, .sh-avatar").forEach(function (host) {
+      if (!host) return;
+      var img = host.querySelector("img");
+      if (url) {
+        if (!img) {
+          img = document.createElement("img");
+          img.className = host.classList.contains("sh-avatar") ? "" : "cfp-acct-img";
+          img.alt = "";
+          img.decoding = "async";
+          img.referrerPolicy = "no-referrer";
+          host.innerHTML = "";
+          host.appendChild(img);
+        }
+        img.src = url;
+        host.classList.add("has-avatar");
+        var wrap = host.closest(".cfp-nav-acct, .cfp-dock-acct, .sh-avatar");
+        if (wrap) wrap.classList.add("has-avatar");
+        if (host.classList.contains("sh-avatar")) host.classList.add("has-avatar");
+      }
+    });
+    if (window.CFP_USER) window.CFP_USER.avatar = url || null;
+    current = url || "";
+  }
+
+  function loadChoices() {
+    if (!grid) return;
+    grid.innerHTML = '<p class="sh-muted">Loading…</p>';
+    fetch("/porn/api/avatar", {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("avatar " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        loaded = true;
+        if (!data || !data.ok || !data.choices || !data.choices.length) {
+          grid.innerHTML = '<p class="sh-muted">No avatars available yet.</p>';
+          return;
+        }
+        if (data.avatar) current = data.avatar;
+        grid.innerHTML = "";
+        data.choices.forEach(function (choice) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "cfp-avatar-opt" + (choice.url === current ? " is-on" : "");
+          btn.title = choice.name || "Avatar";
+          btn.setAttribute("aria-label", choice.name || "Choose avatar");
+          btn.setAttribute("data-url", choice.url);
+          var img = document.createElement("img");
+          img.src = choice.url;
+          img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
+          img.referrerPolicy = "no-referrer";
+          btn.appendChild(img);
+          btn.addEventListener("click", function () {
+            pick(choice.url, btn);
+          });
+          grid.appendChild(btn);
+        });
+      })
+      .catch(function () {
+        grid.innerHTML = '<p class="sh-muted">Could not load avatars.</p>';
+      });
+  }
+
+  function pick(url, btn) {
+    fetch("/porn/api/avatar?url=" + encodeURIComponent(url), {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("save " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) return;
+        paintNavAvatars(data.avatar || url);
+        if (grid) {
+          grid.querySelectorAll(".cfp-avatar-opt").forEach(function (el) {
+            el.classList.toggle("is-on", el === btn);
+          });
+        }
+        setOpen(false);
+      })
+      .catch(function () {});
+  }
+
+  openBtn.addEventListener("click", function () {
+    setOpen(true);
+  });
+  sheet.querySelectorAll("[data-cfp-avatar-close]").forEach(function (el) {
+    el.addEventListener("click", function () {
+      setOpen(false);
+    });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !sheet.hidden) setOpen(false);
+  });
+})();
