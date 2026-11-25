@@ -769,10 +769,42 @@
   var downloadBtn = document.getElementById("cfpDownload");
   if (!videoId || !video) return;
 
+  var stage = root.querySelector(".cfp-player-stage") || root;
+  var chromeTimer = 0;
+  var CHROME_MS = 2800;
+
+  function showChrome(sticky) {
+    if (!stage) return;
+    stage.classList.add("is-chrome");
+    if (chromeTimer) {
+      clearTimeout(chromeTimer);
+      chromeTimer = 0;
+    }
+    if (sticky) return;
+    // Stay up while paused or quality menu open (matches native controls)
+    if (video.paused || (qualityMenu && !qualityMenu.hidden)) return;
+    chromeTimer = setTimeout(function () {
+      chromeTimer = 0;
+      if (qualityMenu && !qualityMenu.hidden) return;
+      if (video.paused) return;
+      stage.classList.remove("is-chrome");
+    }, CHROME_MS);
+  }
+  function hideChrome() {
+    if (chromeTimer) {
+      clearTimeout(chromeTimer);
+      chromeTimer = 0;
+    }
+    if (qualityMenu && !qualityMenu.hidden) return;
+    if (stage) stage.classList.remove("is-chrome");
+  }
+
   function setGearOpen(open) {
     if (!gearBtn || !qualityMenu) return;
     gearBtn.setAttribute("aria-expanded", open ? "true" : "false");
     qualityMenu.hidden = !open;
+    if (open) showChrome(true);
+    else showChrome(false);
   }
   if (gearBtn) {
     gearBtn.addEventListener("click", function (e) {
@@ -789,6 +821,16 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") setGearOpen(false);
   });
+
+  // Show gear with the same cadence as native video controls
+  ["pointerdown", "touchstart", "mousemove", "mouseenter"].forEach(function (ev) {
+    stage.addEventListener(ev, function () { showChrome(false); }, { passive: true });
+  });
+  video.addEventListener("play", function () { showChrome(false); });
+  video.addEventListener("pause", function () { showChrome(true); });
+  video.addEventListener("ended", function () { showChrome(true); });
+  // Initial: show until playback starts
+  showChrome(true);
 
   function setStatus(msg, ready) {
     if (!status) return;

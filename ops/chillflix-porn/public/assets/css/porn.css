@@ -711,9 +711,17 @@ a.cfp-dd-option { color: var(--cfp-text); }
   font-style: normal; color: var(--cfp-muted); font-size: 0.62rem; font-weight: 600;
 }
 
-/* Gear + in-player quality dropdown (stays inside the video frame) */
+/* Gear + in-player quality dropdown — only with player chrome (controls) */
 .cfp-player-gear {
   position: absolute; top: 0.5rem; right: 0.5rem; z-index: 6;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.cfp-player-stage.is-chrome .cfp-player-gear,
+.cfp-player-gear:focus-within {
+  opacity: 1;
+  pointer-events: auto;
 }
 .cfp-gear-btn {
   display: inline-flex; align-items: center; justify-content: center;
