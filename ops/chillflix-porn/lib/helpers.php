@@ -205,3 +205,57 @@ function cfp_json(array $data, int $code = 200): never
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
 }
+
+/** Local file cache dir for hot page queries. */
+function cfp_cache_dir(): string
+{
+    $dir = dirname(__DIR__) . '/var/cache';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    return $dir;
+}
+
+/** @return mixed|null */
+function cfp_cache_get(string $key)
+{
+    $file = cfp_cache_dir() . '/' . hash('sha256', $key) . '.json';
+    if (!is_file($file)) {
+        return null;
+    }
+    $raw = @file_get_contents($file);
+    if ($raw === false || $raw === '') {
+        return null;
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded) || !isset($decoded['exp'], $decoded['v'])) {
+        return null;
+    }
+    if ((int) $decoded['exp'] < time()) {
+        @unlink($file);
+        return null;
+    }
+    return $decoded['v'];
+}
+
+function cfp_cache_set(string $key, $value, int $ttlSeconds = 120): void
+{
+    $ttlSeconds = max(5, min(3600, $ttlSeconds));
+    $file = cfp_cache_dir() . '/' . hash('sha256', $key) . '.json';
+    $payload = json_encode(
+        ['exp' => time() + $ttlSeconds, 'v' => $value],
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+    );
+    if ($payload === false) {
+        return;
+    }
+    @file_put_contents($file, $payload, LOCK_EX);
+}
+
+function cfp_cache_delete(string $key): void
+{
+    $file = cfp_cache_dir() . '/' . hash('sha256', $key) . '.json';
+    if (is_file($file)) {
+        @unlink($file);
+    }
+}

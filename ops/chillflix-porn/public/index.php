@@ -627,10 +627,10 @@ try {
 }
 
 extract($viewData, EXTR_SKIP);
-// Nav category dropdown needs cats on every page
+// Nav category dropdown needs cats on every page (cached)
 if (empty($cats) && empty($needsAge)) {
     try {
-        $cats = cfp_top_categories($pdo, 80);
+        $cats = cfp_top_categories($pdo, 40);
     } catch (Throwable $e) {
         $cats = [];
     }

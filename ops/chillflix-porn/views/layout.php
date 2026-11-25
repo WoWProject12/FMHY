@@ -16,7 +16,7 @@ declare(strict_types=1);
   <meta name="robots" content="noindex,nofollow">
   <meta name="rating" content="adult">
   <!-- Standalone /porn CSS only — main-site cinema/bridge was shoving layout right on phones -->
-  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=79nav')) ?>">
+  <link rel="stylesheet" href="<?= cfp_e(cfp_asset('css/porn.css?v=80fast')) ?>">
   <?php
     $cfpUser = cfp_current_user();
     $cfpIsAdmin = $cfpUser && (
@@ -268,9 +268,11 @@ declare(strict_types=1);
   </div>
 </footer>
 
+<?php if (($view ?? '') === 'watch'): ?>
 <script src="<?= cfp_e(cfp_asset('js/hls.min.js?v=1')) ?>" defer></script>
+<?php endif; ?>
 <script>
   window.CFP_USER = <?= json_encode($cfpUser ? ['id' => $cfpUser['id'], 'username' => $cfpUser['username'], 'avatar' => $cfpAvatarUrl] : null, JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= cfp_e(cfp_asset('js/porn.js?v=79nav')) ?>" defer></script></body>
+<script src="<?= cfp_e(cfp_asset('js/porn.js?v=80fast')) ?>" defer></script></body>
 </html>

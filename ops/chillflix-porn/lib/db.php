@@ -149,6 +149,24 @@ function cfp_ensure_schema(PDO $pdo): void
         return;
     }
     $done = true;
+
+    // Fast path: after first successful migrate, skip SHOW COLUMNS on every request
+    try {
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS scrape_state (
+               k VARCHAR(64) NOT NULL PRIMARY KEY,
+               v TEXT NULL
+             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+        );
+        $st = $pdo->prepare('SELECT v FROM scrape_state WHERE k = ?');
+        $st->execute(['schema_ok_v4']);
+        if ($st->fetchColumn()) {
+            return;
+        }
+    } catch (Throwable $e) {
+        // fall through and attempt migrate
+    }
+
     try {
         $cols = $pdo->query("SHOW COLUMNS FROM videos LIKE 'enriched_at'")->fetchAll();
         if (!$cols) {
@@ -213,7 +231,21 @@ function cfp_ensure_schema(PDO $pdo): void
         }
     }
     try {
+        $idx = $pdo->query("SHOW INDEX FROM video_actors WHERE Key_name = 'idx_va_role_actor'")->fetchAll();
+        if (!$idx) {
+            $pdo->exec('CREATE INDEX idx_va_role_actor ON video_actors (role, actor_id)');
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+    try {
         cfp_repair_actor_roles($pdo);
+    } catch (Throwable $e) {
+        // ignore
+    }
+    try {
+        $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
+        $up->execute(['schema_ok_v4', date('c')]);
     } catch (Throwable $e) {
         // ignore
     }
@@ -561,24 +593,54 @@ function cfp_list_videos(PDO $pdo, array $opts = []): array
     };
 
     $sqlWhere = implode(' AND ', $where);
-    $countSt = $pdo->prepare("SELECT COUNT(DISTINCT v.id) FROM videos v $join WHERE $sqlWhere");
+    $needsDistinct = $join !== '';
+
+    // Hot home/search lists: short file cache (skips double COUNT+SELECT)
+    $cacheKey = null;
+    if ($q === '' && !$cats && $duration === 'any' && $page === 1 && $per <= 24) {
+        $cacheKey = 'videos:' . $sort . ':' . $period . ':' . $per;
+        $cached = function_exists('cfp_cache_get') ? cfp_cache_get($cacheKey) : null;
+        if (is_array($cached) && isset($cached['items'], $cached['total'])) {
+            return [
+                'items' => $cached['items'],
+                'total' => (int) $cached['total'],
+                'page' => $page,
+                'per' => $per,
+                'pages' => max(1, (int) ceil(((int) $cached['total']) / $per)),
+            ];
+        }
+    }
+
+    if ($needsDistinct) {
+        $countSt = $pdo->prepare("SELECT COUNT(DISTINCT v.id) FROM videos v $join WHERE $sqlWhere");
+    } else {
+        $countSt = $pdo->prepare("SELECT COUNT(*) FROM videos v WHERE $sqlWhere");
+    }
     $countSt->execute($args);
     $total = (int) $countSt->fetchColumn();
 
     $listArgs = $args;
     $listArgs[] = $per;
     $listArgs[] = $offset;
-    $st = $pdo->prepare("SELECT DISTINCT v.* FROM videos v $join WHERE $sqlWhere ORDER BY $order LIMIT ? OFFSET ?");
+    if ($needsDistinct) {
+        $st = $pdo->prepare("SELECT DISTINCT v.* FROM videos v $join WHERE $sqlWhere ORDER BY $order LIMIT ? OFFSET ?");
+    } else {
+        $st = $pdo->prepare("SELECT v.* FROM videos v WHERE $sqlWhere ORDER BY $order LIMIT ? OFFSET ?");
+    }
     $st->execute($listArgs);
     $rows = $st->fetchAll();
 
-    return [
+    $out = [
         'items' => $rows,
         'total' => $total,
         'page' => $page,
         'per' => $per,
         'pages' => max(1, (int) ceil($total / $per)),
     ];
+    if ($cacheKey && function_exists('cfp_cache_set')) {
+        cfp_cache_set($cacheKey, ['items' => $rows, 'total' => $total], 90);
+    }
+    return $out;
 }
 
 function cfp_get_video_by_slug(PDO $pdo, string $slug): ?array
@@ -1003,9 +1065,21 @@ function cfp_more_from_people(PDO $pdo, int $videoId, int $perPerson = 8): array
 
 function cfp_top_categories(PDO $pdo, int $limit = 24): array
 {
+    $limit = max(1, min(200, $limit));
+    $cacheKey = 'cats:top:' . $limit;
+    if (function_exists('cfp_cache_get')) {
+        $cached = cfp_cache_get($cacheKey);
+        if (is_array($cached)) {
+            return $cached;
+        }
+    }
     $st = $pdo->prepare('SELECT c.slug, c.name, COUNT(*) AS n FROM categories c INNER JOIN video_categories vc ON vc.category_id = c.id GROUP BY c.id ORDER BY n DESC LIMIT ?');
     $st->execute([$limit]);
-    return $st->fetchAll();
+    $rows = $st->fetchAll();
+    if (function_exists('cfp_cache_set')) {
+        cfp_cache_set($cacheKey, $rows, 300);
+    }
+    return $rows;
 }
 
 /**
@@ -1038,14 +1112,39 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
     }
     $sqlWhere = implode(' AND ', $where);
 
-    // COUNT(DISTINCT) is far cheaper than nested GROUP BY for ~10k people
-    $countSt = $pdo->prepare(
-        "SELECT COUNT(DISTINCT a.id)
-         FROM actors a
-         INNER JOIN video_actors va ON va.actor_id = a.id
-         WHERE $sqlWhere"
-    );
-    $countSt->execute($args);
+    $cacheKey = null;
+    if ($q === '' && $page === 1 && $per <= 24) {
+        $cacheKey = 'people:' . $role . ':' . $sort . ':' . $per;
+        if (function_exists('cfp_cache_get')) {
+            $cached = cfp_cache_get($cacheKey);
+            if (is_array($cached) && isset($cached['items'], $cached['total'])) {
+                return [
+                    'items' => $cached['items'],
+                    'total' => (int) $cached['total'],
+                    'page' => $page,
+                    'per' => $per,
+                    'pages' => max(1, (int) ceil(((int) $cached['total']) / max(1, $per))),
+                ];
+            }
+        }
+    }
+
+    // Role-only counts can use video_actors directly (indexed)
+    if ($q === '' && $role !== 'any') {
+        $countSt = $pdo->prepare('SELECT COUNT(DISTINCT actor_id) FROM video_actors WHERE role = ?');
+        $countSt->execute([$role]);
+    } elseif ($q === '' && $role === 'any') {
+        $countSt = $pdo->prepare('SELECT COUNT(DISTINCT actor_id) FROM video_actors');
+        $countSt->execute();
+    } else {
+        $countSt = $pdo->prepare(
+            "SELECT COUNT(DISTINCT a.id)
+             FROM actors a
+             INNER JOIN video_actors va ON va.actor_id = a.id
+             WHERE $sqlWhere"
+        );
+        $countSt->execute($args);
+    }
     $total = (int) $countSt->fetchColumn();
 
     $order = match ($sort) {
@@ -1075,14 +1174,19 @@ function cfp_list_people(PDO $pdo, array $opts = []): array
          LIMIT ? OFFSET ?"
     );
     $st->execute($listArgs);
+    $items = $st->fetchAll();
 
-    return [
-        'items' => $st->fetchAll(),
+    $out = [
+        'items' => $items,
         'total' => $total,
         'page' => $page,
         'per' => $per,
         'pages' => max(1, (int) ceil($total / max(1, $per))),
     ];
+    if ($cacheKey && function_exists('cfp_cache_set')) {
+        cfp_cache_set($cacheKey, ['items' => $items, 'total' => $total], 120);
+    }
+    return $out;
 }
 
 function cfp_get_person_by_slug(PDO $pdo, string $slug): ?array

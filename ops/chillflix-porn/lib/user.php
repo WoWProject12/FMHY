@@ -9,6 +9,15 @@ function cfp_ensure_user_schema(PDO $pdo): void
     }
     $done = true;
     try {
+        $st = $pdo->prepare('SELECT v FROM scrape_state WHERE k = ?');
+        $st->execute(['user_schema_ok_v2']);
+        if ($st->fetchColumn()) {
+            return;
+        }
+    } catch (Throwable $e) {
+        // scrape_state may not exist yet — continue
+    }
+    try {
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS users (
                id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -39,6 +48,8 @@ function cfp_ensure_user_schema(PDO $pdo): void
                CONSTRAINT fk_ul_video FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
         );
+        $up = $pdo->prepare('INSERT INTO scrape_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
+        $up->execute(['user_schema_ok_v2', date('c')]);
     } catch (Throwable $e) {
         // ignore
     }
